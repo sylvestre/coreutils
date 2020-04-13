@@ -195,99 +195,99 @@ feat_common_core = [
 
 [dependencies]
 uucore   = "0.0.2"
-arch     = { optional=true, path="src/arch" }
-base32   = { optional=true, path="src/base32" }
-base64   = { optional=true, path="src/base64" }
-basename = { optional=true, path="src/basename" }
-cat      = { optional=true, path="src/cat" }
-chgrp    = { optional=true, path="src/chgrp" }
-chmod    = { optional=true, path="src/chmod" }
-chown    = { optional=true, path="src/chown" }
-chroot   = { optional=true, path="src/chroot" }
-cksum    = { optional=true, path="src/cksum" }
-comm     = { optional=true, path="src/comm" }
-cp       = { optional=true, path="src/cp" }
-cut      = { optional=true, path="src/cut" }
-date     = { optional=true, path="src/date" }
-dircolors= { optional=true, path="src/dircolors" }
-dirname  = { optional=true, path="src/dirname" }
-du       = { optional=true, path="src/du" }
-echo     = { optional=true, path="src/echo" }
-env      = { optional=true, path="src/env" }
-expand   = { optional=true, path="src/expand" }
-expr     = { optional=true, path="src/expr" }
-factor   = { optional=true, path="src/factor" }
-false    = { optional=true, path="src/false" }
-fmt      = { optional=true, path="src/fmt" }
-fold     = { optional=true, path="src/fold" }
-groups   = { optional=true, path="src/groups" }
-hashsum  = { optional=true, path="src/hashsum" }
-head     = { optional=true, path="src/head" }
-hostid   = { optional=true, path="src/hostid" }
-hostname = { optional=true, path="src/hostname" }
-id       = { optional=true, path="src/id" }
-install  = { optional=true, path="src/install" }
-join     = { optional=true, path="src/join" }
-kill     = { optional=true, path="src/kill" }
-link     = { optional=true, path="src/link" }
-ln       = { optional=true, path="src/ln" }
-ls       = { optional=true, path="src/ls" }
-logname  = { optional=true, path="src/logname" }
-mkdir    = { optional=true, path="src/mkdir" }
-mkfifo   = { optional=true, path="src/mkfifo" }
-mknod    = { optional=true, path="src/mknod" }
-mktemp   = { optional=true, path="src/mktemp" }
-more     = { optional=true, path="src/more" }
-mv       = { optional=true, path="src/mv" }
-nice     = { optional=true, path="src/nice" }
-nl       = { optional=true, path="src/nl" }
-nohup    = { optional=true, path="src/nohup" }
-nproc    = { optional=true, path="src/nproc" }
-numfmt   = { optional=true, path="src/numfmt" }
-od       = { optional=true, path="src/od" }
-paste    = { optional=true, path="src/paste" }
-pathchk  = { optional=true, path="src/pathchk" }
-pinky    = { optional=true, path="src/pinky" }
-printenv = { optional=true, path="src/printenv" }
-printf   = { optional=true, path="src/printf" }
-ptx      = { optional=true, path="src/ptx" }
-pwd      = { optional=true, path="src/pwd" }
-readlink = { optional=true, path="src/readlink" }
-realpath = { optional=true, path="src/realpath" }
-relpath  = { optional=true, path="src/relpath" }
-rm       = { optional=true, path="src/rm" }
-rmdir    = { optional=true, path="src/rmdir" }
-seq      = { optional=true, path="src/seq" }
-shred    = { optional=true, path="src/shred" }
-shuf     = { optional=true, path="src/shuf" }
-sleep    = { optional=true, path="src/sleep" }
-sort     = { optional=true, path="src/sort" }
-split    = { optional=true, path="src/split" }
-stat     = { optional=true, path="src/stat" }
-stdbuf   = { optional=true, path="src/stdbuf" }
-sum      = { optional=true, path="src/sum" }
-sync     = { optional=true, path="src/sync" }
-tac      = { optional=true, path="src/tac" }
-tail     = { optional=true, path="src/tail" }
-tee      = { optional=true, path="src/tee" }
-test     = { optional=true, path="src/test" }
-timeout  = { optional=true, path="src/timeout" }
-touch    = { optional=true, path="src/touch" }
-tr       = { optional=true, path="src/tr" }
-true     = { optional=true, path="src/true" }
-truncate = { optional=true, path="src/truncate" }
-tsort    = { optional=true, path="src/tsort" }
-tty      = { optional=true, path="src/tty" }
-uname    = { optional=true, path="src/uname" }
-unexpand = { optional=true, path="src/unexpand" }
-uniq     = { optional=true, path="src/uniq" }
-unlink   = { optional=true, path="src/unlink" }
-uptime   = { optional=true, path="src/uptime" }
-users    = { optional=true, path="src/users" }
-wc       = { optional=true, path="src/wc" }
-who      = { optional=true, path="src/who" }
-whoami   = { optional=true, path="src/whoami" }
-yes      = { optional=true, path="src/yes" }
+arch     = { version="0.0.1", optional=true, path="src/arch" }
+base32   = { version="0.0.1", optional=true, path="src/base32" }
+base64   = { version="0.0.1", optional=true, path="src/base64" }
+basename = { version="0.0.1", optional=true, path="src/basename" }
+cat      = { version="0.0.1", optional=true, path="src/cat" }
+chgrp    = { version="0.0.1", optional=true, path="src/chgrp" }
+chmod    = { version="0.0.1", optional=true, path="src/chmod" }
+chown    = { version="0.0.1", optional=true, path="src/chown" }
+chroot   = { version="0.0.1", optional=true, path="src/chroot" }
+cksum    = { version="0.0.1", optional=true, path="src/cksum" }
+comm     = { version="0.0.1", optional=true, path="src/comm" }
+cp       = { version="0.0.1", optional=true, path="src/cp" }
+cut      = { version="0.0.1", optional=true, path="src/cut" }
+date     = { version="0.0.1", optional=true, path="src/date" }
+dircolors= { version="0.0.1", optional=true, path="src/dircolors" }
+dirname  = { version="0.0.1", optional=true, path="src/dirname" }
+du       = { version="0.0.1", optional=true, path="src/du" }
+echo     = { version="0.0.1", optional=true, path="src/echo" }
+env      = { version="0.0.1", optional=true, path="src/env" }
+expand   = { version="0.0.1", optional=true, path="src/expand" }
+expr     = { version="0.0.1", optional=true, path="src/expr" }
+factor   = { version="0.0.1", optional=true, path="src/factor" }
+false    = { version="0.0.1", optional=true, path="src/false" }
+fmt      = { version="0.0.1", optional=true, path="src/fmt" }
+fold     = { version="0.0.1", optional=true, path="src/fold" }
+groups   = { version="0.0.1", optional=true, path="src/groups" }
+hashsum  = { version="0.0.1", optional=true, path="src/hashsum" }
+head     = { version="0.0.1", optional=true, path="src/head" }
+hostid   = { version="0.0.1", optional=true, path="src/hostid" }
+hostname = { version="0.0.1", optional=true, path="src/hostname" }
+id       = { version="0.0.1", optional=true, path="src/id" }
+install  = { version="0.0.1", optional=true, path="src/install" }
+join     = { version="0.0.1", optional=true, path="src/join" }
+kill     = { version="0.0.1", optional=true, path="src/kill" }
+link     = { version="0.0.1", optional=true, path="src/link" }
+ln       = { version="0.0.1", optional=true, path="src/ln" }
+ls       = { version="0.0.1", optional=true, path="src/ls" }
+logname  = { version="0.0.1", optional=true, path="src/logname" }
+mkdir    = { version="0.0.1", optional=true, path="src/mkdir" }
+mkfifo   = { version="0.0.1", optional=true, path="src/mkfifo" }
+mknod    = { version="0.0.1", optional=true, path="src/mknod" }
+mktemp   = { version="0.0.1", optional=true, path="src/mktemp" }
+more     = { version="0.0.1", optional=true, path="src/more" }
+mv       = { version="0.0.1", optional=true, path="src/mv" }
+nice     = { version="0.0.1", optional=true, path="src/nice" }
+nl       = { version="0.0.1", optional=true, path="src/nl" }
+nohup    = { version="0.0.1", optional=true, path="src/nohup" }
+nproc    = { version="0.0.1", optional=true, path="src/nproc" }
+numfmt   = { version="0.0.1", optional=true, path="src/numfmt" }
+od       = { version="0.0.1", optional=true, path="src/od" }
+paste    = { version="0.0.1", optional=true, path="src/paste" }
+pathchk  = { version="0.0.1", optional=true, path="src/pathchk" }
+pinky    = { version="0.0.1", optional=true, path="src/pinky" }
+printenv = { version="0.0.1", optional=true, path="src/printenv" }
+printf   = { version="0.0.1", optional=true, path="src/printf" }
+ptx      = { version="0.0.1", optional=true, path="src/ptx" }
+pwd      = { version="0.0.1", optional=true, path="src/pwd" }
+readlink = { version="0.0.1", optional=true, path="src/readlink" }
+realpath = { version="0.0.1", optional=true, path="src/realpath" }
+relpath  = { version="0.0.1", optional=true, path="src/relpath" }
+rm       = { version="0.0.1", optional=true, path="src/rm" }
+rmdir    = { version="0.0.1", optional=true, path="src/rmdir" }
+seq      = { version="0.0.1", optional=true, path="src/seq" }
+shred    = { version="0.0.1", optional=true, path="src/shred" }
+shuf     = { version="0.0.1", optional=true, path="src/shuf" }
+sleep    = { version="0.0.1", optional=true, path="src/sleep" }
+sort     = { version="0.0.1", optional=true, path="src/sort" }
+split    = { version="0.0.1", optional=true, path="src/split" }
+stat     = { version="0.0.1", optional=true, path="src/stat" }
+stdbuf   = { version="0.0.1", optional=true, path="src/stdbuf" }
+sum      = { version="0.0.1", optional=true, path="src/sum" }
+sync     = { version="0.0.1", optional=true, path="src/sync" }
+tac      = { version="0.0.1", optional=true, path="src/tac" }
+tail     = { version="0.0.1", optional=true, path="src/tail" }
+tee      = { version="0.0.1", optional=true, path="src/tee" }
+test     = { version="0.0.1", optional=true, path="src/test" }
+timeout  = { version="0.0.1", optional=true, path="src/timeout" }
+touch    = { version="0.0.1", optional=true, path="src/touch" }
+tr       = { version="0.0.1", optional=true, path="src/tr" }
+true     = { version="0.0.1", optional=true, path="src/true" }
+truncate = { version="0.0.1", optional=true, path="src/truncate" }
+tsort    = { version="0.0.1", optional=true, path="src/tsort" }
+tty      = { version="0.0.1", optional=true, path="src/tty" }
+uname    = { version="0.0.1", optional=true, path="src/uname" }
+unexpand = { version="0.0.1", optional=true, path="src/unexpand" }
+uniq     = { version="0.0.1", optional=true, path="src/uniq" }
+unlink   = { version="0.0.1", optional=true, path="src/unlink" }
+uptime   = { version="0.0.1", optional=true, path="src/uptime" }
+users    = { version="0.0.1", optional=true, path="src/users" }
+wc       = { version="0.0.1", optional=true, path="src/wc" }
+who      = { version="0.0.1", optional=true, path="src/who" }
+whoami   = { version="0.0.1", optional=true, path="src/whoami" }
+yes      = { version="0.0.1", optional=true, path="src/yes" }
 #
 # * transitive dependency via 'failure'; pin to <= v0.3.30 to avoid increasing MinSRV to v1.33.0
 backtrace = ">= 0.3.3, <= 0.3.30"
