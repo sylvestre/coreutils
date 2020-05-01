@@ -27,6 +27,18 @@ const MINUTES: &str = "minutes";
 const SECONDS: &str = "seconds";
 const NS: &str = "ns";
 
+const OPT_DATE: &str = "date";
+const OPT_FILE: &str = "file";
+const OPT_DEBUG: &str = "debug";
+const OPT_ISO_8601: &str = "iso-8601";
+const OPT_RFC_2822: &str = "rfc-2822";
+const OPT_RFC_3339: &str = "rfc-3339";
+const OPT_SET: &str = "set";
+const OPT_REFERENCE: &str = "reference";
+const OPT_UNIVERSAL: &str = "universal";
+const OPT_UNIVERSAL_2: &str = "utc";
+
+
 // Help strings
 
 static ISO_8601_HELP_STRING: &str = "output date/time in ISO 8601 format.
@@ -108,7 +120,46 @@ impl<'a> From<&'a str> for Rfc3339Format {
 }
 
 pub fn uumain(args: Vec<String>) -> i32 {
-    let settings = parse_cli(args);
+//    let settings = parse_cli(args);
+    let matches = App::new(executable!())
+        .version(VERSION)
+        .about(ABOUT)
+        .usage(&usage[..])
+        .arg(Arg::with_name(OPT_DATE)
+            .short("d")
+            .long(OPT_DATE)
+            .help("display time described by STRING, not 'now'"))
+        .arg(Arg::with_name(OPT_FILE)
+            .short("f")
+            .long(OPT_FILE)
+            .help("like --date; once for each line of DATEFILE"))
+        .arg(Arg::with_name(OPT_ISO_8601)
+            .short("I")
+            .long(OPT_ISO_8601)
+            .help(ISO_8601_HELP_STRING))
+        .arg(Arg::with_name(OPT_RFC_2822)
+            .short("R")
+            .long(OPT_RFC_2822)
+            .help(RFC_2822_HELP_STRING))
+        .arg(Arg::with_name(OPT_RFC_3339)
+            .long(OPT_RFC_3339)
+            .help(RFC_339_HELP_STRING))
+        .arg(Arg::with_name(OPT_DEBUG)
+            .long(OPT_DEBUG)
+            .help("annotate the parsed date, and warn about questionable usage to stderr"))
+        .arg(Arg::with_name(OPT_REFERENCE)
+            .short("r")
+            .long(OPT_REFERENCE)
+            .help("display the last modification time of FILE"))
+        .arg(Arg::with_name(OPT_SET)
+            .short("s")
+            .long(OPT_SET)
+            .help("set time described by STRING"))
+        .arg(Arg::with_name(OPT_UNIVERSAL)
+            .short("u")
+            .long(OPT_UNIVERSAL)
+            .long(OPT_UNIVERSAL_2)
+            .help("print or set Coordinated Universal Time (UTC)"))
 
     if let Some(_time) = settings.set_to {
         unimplemented!();
@@ -176,40 +227,12 @@ pub fn uumain(args: Vec<String>) -> i32 {
 
 /// Handle command line arguments.
 fn parse_cli(args: Vec<String>) -> Settings {
+
+
     let matches = clap_app!(
         date =>
             (@group dates =>
-             (@arg date: -d --date [STRING]
-              "display time described by STRING, not 'now'")
-             (@arg file: -f --file [DATEFILE]
-              "like --date; once for each line of DATEFILE"))
 
-            (@group format =>
-             (@arg iso_8601: -I --("iso-8601") <FMT>
-              possible_value[date hours minutes seconds ns]
-              #{0, 1}
-              ISO_8601_HELP_STRING)
-             (@arg rfc_2822: -R --("rfc-2822")
-              RFC_2822_HELP_STRING)
-             (@arg rfc_3339: --("rfc-3339") <FMT>
-              possible_value[date seconds ns]
-              RFC_3339_HELP_STRING)
-             (@arg custom_format: +takes_value {
-                 |s| if s.starts_with('+') {
-                        Ok(())
-                     } else {
-                        Err(String::from("Date formats must start with a '+' character"))
-                     }
-             }))
-
-            (@arg debug: --debug
-             "annotate the parsed date, and warn about questionable usage to stderr")
-            (@arg reference: -r --reference [FILE]
-             "display the last modification time of FILE")
-            (@arg set: -s --set [STRING]
-             "set time described by STRING")
-            (@arg utc: -u --utc --universal
-             "print or set Coordinated Universal Time (UTC)"))
     // TODO: Decide whether this is appropriate.
     //   The GNU date command has an explanation of all formatting options,
     //   but the `chrono` crate has a few differences (most notably, the %Z option)
