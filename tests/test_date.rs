@@ -1,13 +1,8 @@
-<<<<<<< HEAD
 extern crate regex;
 
 use common::util::*;
 use self::regex::Regex;
 
-
-=======
-use common::util::*;
->>>>>>> master
 
 #[test]
 fn test_date_email() {
@@ -25,7 +20,6 @@ fn test_date_email2() {
 
 #[test]
 fn test_date_rfc_3339() {
-<<<<<<< HEAD
     let scene = TestScenario::new(util_name!());
 
     let mut result = scene
@@ -46,11 +40,6 @@ fn test_date_rfc_3339() {
     // Check that the output matches the regexp
     let re = Regex::new(rfc_regexp).unwrap();
     assert!(re.is_match(&result.stdout.trim()));
-=======
-    let (_, mut ucmd) = at_and_ucmd!();
-    let result = ucmd.arg("--rfc-3339=ns").run();
-    assert!(result.success);
->>>>>>> master
 }
 
 #[test]
