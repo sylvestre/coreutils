@@ -35,6 +35,7 @@ use clap::{App, Arg, ArgMatches};
 use filetime::FileTime;
 use quick_error::ResultExt;
 use std::collections::HashSet;
+use std::env;
 #[cfg(not(windows))]
 use std::ffi::CString;
 #[cfg(windows)]
@@ -50,7 +51,7 @@ use std::mem;
 use std::os::unix::io::IntoRawFd;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
-use std::path::{Path, PathBuf, StripPrefixError};
+use std::path::{Component, Path, PathBuf, StripPrefixError};
 use std::str::FromStr;
 use std::string::ToString;
 use uucore::fs::{canonicalize, CanonicalizeMode};
@@ -795,8 +796,6 @@ fn copy(sources: &[Source], target: &Target, options: &Options) -> CopyResult<()
         }
     }
 
-    let dont_follow_symbolic_links = options.no_dereference;
-
     let mut hard_links: Vec<(String, u64)> = vec![];
 
     let mut non_fatal_errors = false;
@@ -811,19 +810,7 @@ fn copy(sources: &[Source], target: &Target, options: &Options) -> CopyResult<()
                 preserve_hardlinks(&mut hard_links, source, dest, &mut found_hard_link).unwrap();
             }
 
-            if dont_follow_symbolic_links && fs::symlink_metadata(&source)?.file_type().is_symlink()
-            {
-                // Here, we will copy the symlink itself (actually, just recreate it)
-                let link = fs::read_link(&source)?;
-                let dest = if target.is_dir() {
-                    // the target is a directory, we need to keep the filename
-                    let p = Path::new(source.file_name().unwrap());
-                    target.join(p)
-                } else {
-                    target.clone()
-                };
-                symlink_file(&link, &dest, &*context_for(&link, target))?;
-            } else if !found_hard_link {
+            if !found_hard_link {
                 if let Err(error) = copy_source(source, target, &target_type, options) {
                     show_error!("{}", error);
                     match error {
@@ -882,6 +869,44 @@ fn copy_source(
     }
 }
 
+pub fn normalize_path<P: AsRef<Path>>(path: P) -> PathBuf {
+    let mut components = path.as_ref().components().peekable();
+    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
+        components.next();
+        PathBuf::from(c.as_os_str())
+    } else {
+        PathBuf::new()
+    };
+
+    for component in components {
+        match component {
+            Component::Prefix(..) => unreachable!(),
+            Component::RootDir => {
+                ret.push(component.as_os_str());
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                ret.pop();
+            }
+            Component::Normal(c) => {
+                ret.push(c);
+            }
+        }
+    }
+    ret
+}
+
+#[cfg(target_os = "windows")]
+fn adjust_canonicalization<P: AsRef<Path>>(p: P) -> PathBuf {
+    const VERBATIM_PREFIX: &str = r#"\\?\"#;
+    let p = p.as_ref().display().to_string();
+    if p.starts_with(VERBATIM_PREFIX) {
+        Path::new(&p[VERBATIM_PREFIX.len()..].to_string()).to_path_buf()
+    } else {
+        Path::new(&p).to_path_buf()
+    }
+}
+
 /// Read the contents of the directory `root` and recursively copy the
 /// contents to `target`.
 ///
@@ -914,9 +939,32 @@ fn copy_directory(root: &Path, target: &Target, options: &Options) -> CopyResult
     let mut hard_links: Vec<(String, u64)> = vec![];
 
     for path in WalkDir::new(root) {
-        let path = or_continue!(or_continue!(path).path().canonicalize());
+        let p = or_continue!(path);
+        let is_symlink = fs::symlink_metadata(p.path())?.file_type().is_symlink();
+        let path = if options.no_dereference && is_symlink {
+            // we are dealing with a symlink. Don't follow it
+            env::current_dir().unwrap().join(normalize_path(p.path()))
+        } else {
+            or_continue!(p.path().canonicalize())
+        };
+
         let local_to_root_parent = match root_parent {
-            Some(parent) => or_continue!(path.strip_prefix(&parent)).to_path_buf(),
+            Some(parent) => {
+                #[cfg(windows)]
+                {
+                    // On Windows, some pathes are starting with \\?
+                    // but not always, so, make sure that we are consistent for strip_prefix
+                    // See https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file for more info
+                    let parent_can = adjust_canonicalization(parent);
+                    let path_can = adjust_canonicalization(path.clone());
+
+                    or_continue!(path_can.strip_prefix(&parent_can)).to_path_buf()
+                }
+                #[cfg(not(windows))]
+                {
+                    or_continue!(path.strip_prefix(&parent)).to_path_buf()
+                }
+            }
             None => path.clone(),
         };
 
@@ -1171,9 +1219,21 @@ fn copy_helper(source: &Path, dest: &Path, options: &Options) -> CopyResult<()> 
                 ReflinkMode::Never => {}
             }
         }
+    } else if options.no_dereference && fs::symlink_metadata(&source)?.file_type().is_symlink() {
+        // Here, we will copy the symlink itself (actually, just recreate it)
+        let link = fs::read_link(&source)?;
+        let dest = if dest.is_dir() {
+            // the target is a directory, we need to keep the filename
+            let p = Path::new(source.file_name().unwrap());
+            dest.join(p)
+        } else {
+            dest.to_path_buf()
+        };
+        symlink_file(&link, &dest, &*context_for(&link, &dest))?;
     } else {
         fs::copy(source, dest).context(&*context_for(source, dest))?;
     }
+
     Ok(())
 }
 
