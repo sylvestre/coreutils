@@ -8,6 +8,8 @@ fn test_ls_ls() {
 }
 
 #[test]
+// Not a thing on windows
+#[cfg(not(windows))]
 fn test_ls_ls_i() {
     let (at, mut _ucmd) = at_and_ucmd!();
     let dir = "test_ls_directory";
@@ -80,6 +82,7 @@ fn test_ls_ls_recursive() {
 }
 
 #[test]
+// Creation by date
 fn test_ls_ls_tc() {
     let (at, mut _ucmd) = at_and_ucmd!();
     let dir = "test_ls_directory";
