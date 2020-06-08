@@ -1,6 +1,7 @@
 use crate::common::util::*;
 extern crate regex;
 use self::regex::Regex;
+use std::{thread, time};
 
 #[test]
 fn test_ls_ls() {
@@ -91,6 +92,9 @@ fn test_ls_ls_tc() {
 
     at.mkdir(dir);
     at.touch(file_a);
+    // Wait for 10ms to be sure b is created after a
+    let ten_millis = time::Duration::from_millis(10);
+    thread::sleep(ten_millis);
     at.touch(file_b);
 
     let result = new_ucmd!().arg(at.plus(dir)).run();
