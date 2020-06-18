@@ -31,6 +31,8 @@ use winapi::um::fileapi::CreateFileW;
 #[cfg(windows)]
 use winapi::um::fileapi::GetFileInformationByHandle;
 
+use std::borrow::Cow;
+
 use clap::{App, Arg, ArgMatches};
 use filetime::FileTime;
 use quick_error::ResultExt;
@@ -51,6 +53,8 @@ use std::mem;
 use std::os::unix::io::IntoRawFd;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
+#[cfg(windows)]
+use std::path::Prefix;
 use std::path::{Component, Path, PathBuf, StripPrefixError};
 use std::str::FromStr;
 use std::string::ToString;
@@ -872,8 +876,9 @@ fn copy_source(
 pub fn normalize_path<P: AsRef<Path>>(path: P) -> PathBuf {
     let mut components = path.as_ref().components().peekable();
     let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
+        let buf = PathBuf::from(c.as_os_str());
         components.next();
-        PathBuf::from(c.as_os_str())
+        buf
     } else {
         PathBuf::new()
     };
@@ -897,13 +902,15 @@ pub fn normalize_path<P: AsRef<Path>>(path: P) -> PathBuf {
 }
 
 #[cfg(target_os = "windows")]
-fn adjust_canonicalization<P: AsRef<Path>>(p: P) -> PathBuf {
+fn adjust_canonicalization<'a, P: AsRef<Path>>(p: P) -> Cow<'a, Path> {
+    //fn relative_path<'a>(src: &PathBuf, dst: &PathBuf) -> Result<Cow<'a, Path>> {
     const VERBATIM_PREFIX: &str = r#"\\?\"#;
     let p = p.as_ref().display().to_string();
+
     if p.starts_with(VERBATIM_PREFIX) {
-        Path::new(&p[VERBATIM_PREFIX.len()..].to_string()).to_path_buf()
+        Path::new(&p[VERBATIM_PREFIX.len()..].to_string()).into()
     } else {
-        Path::new(&p).to_path_buf()
+        Path::new(&p).into()
     }
 }
 
@@ -943,7 +950,10 @@ fn copy_directory(root: &Path, target: &Target, options: &Options) -> CopyResult
         let is_symlink = fs::symlink_metadata(p.path())?.file_type().is_symlink();
         let path = if options.no_dereference && is_symlink {
             // we are dealing with a symlink. Don't follow it
-            env::current_dir().unwrap().join(normalize_path(p.path()))
+            match env::current_dir() {
+                Ok(cwd) => cwd.join(normalize_path(p.path())),
+                Err(e) => crash!(1, "failed to get current directory {}", e),
+            }
         } else {
             or_continue!(p.path().canonicalize())
         };
@@ -955,8 +965,8 @@ fn copy_directory(root: &Path, target: &Target, options: &Options) -> CopyResult
                     // On Windows, some pathes are starting with \\?
                     // but not always, so, make sure that we are consistent for strip_prefix
                     // See https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file for more info
-                    let parent_can = adjust_canonicalization(parent);
-                    let path_can = adjust_canonicalization(path.clone());
+                    let parent_can: Cow<'_, Path> = adjust_canonicalization(&parent)?;
+                    let path_can = adjust_canonicalization(&path)?;
 
                     or_continue!(path_can.strip_prefix(&parent_can)).to_path_buf()
                 }
@@ -1222,12 +1232,17 @@ fn copy_helper(source: &Path, dest: &Path, options: &Options) -> CopyResult<()> 
     } else if options.no_dereference && fs::symlink_metadata(&source)?.file_type().is_symlink() {
         // Here, we will copy the symlink itself (actually, just recreate it)
         let link = fs::read_link(&source)?;
-        let dest = if dest.is_dir() {
-            // the target is a directory, we need to keep the filename
-            let p = Path::new(source.file_name().unwrap());
-            dest.join(p)
+        let dest: Cow<'_, Path> = if dest.is_dir() {
+            match source.file_name() {
+                Some(name) => dest.join(name).into(),
+                None => crash!(
+                    EXIT_ERR,
+                    "cannot stat ‘{}’: No such file or directory",
+                    source.display()
+                ),
+            }
         } else {
-            dest.to_path_buf()
+            dest.into()
         };
         symlink_file(&link, &dest, &*context_for(&link, &dest))?;
     } else {
