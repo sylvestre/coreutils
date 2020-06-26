@@ -58,6 +58,7 @@ use std::path::Prefix;
 use std::path::{Component, Path, PathBuf, StripPrefixError};
 use std::str::FromStr;
 use std::string::ToString;
+use uucore::fs::resolve_relative_path;
 use uucore::fs::{canonicalize, CanonicalizeMode};
 use walkdir::WalkDir;
 
@@ -873,44 +874,24 @@ fn copy_source(
     }
 }
 
-pub fn normalize_path<P: AsRef<Path>>(path: P) -> PathBuf {
-    let mut components = path.as_ref().components().peekable();
-    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
-        let buf = PathBuf::from(c.as_os_str());
-        components.next();
-        buf
-    } else {
-        PathBuf::new()
-    };
-
-    for component in components {
-        match component {
-            Component::Prefix(..) => unreachable!(),
-            Component::RootDir => {
-                ret.push(component.as_os_str());
-            }
-            Component::CurDir => {}
-            Component::ParentDir => {
-                ret.pop();
-            }
-            Component::Normal(c) => {
-                ret.push(c);
-            }
-        }
-    }
-    ret
-}
-
 #[cfg(target_os = "windows")]
-fn adjust_canonicalization<'a, P: AsRef<Path>>(p: P) -> Cow<'a, Path> {
-    //fn relative_path<'a>(src: &PathBuf, dst: &PathBuf) -> Result<Cow<'a, Path>> {
-    const VERBATIM_PREFIX: &str = r#"\\?\"#;
-    let p = p.as_ref().display().to_string();
+fn adjust_canonicalization<'a>(p: &'a Path) -> Cow<'a, Path> {
+    // In some cases, \\? can be missing on some Windows paths.  Add it at the
+    // beginning unless the path is prefixed with a device namespace.
+    const VERBATIM_PREFIX: &str = r#"\\?"#;
+    const DEVICE_NS_PREFIX: &str = r#"\\."#;
 
-    if p.starts_with(VERBATIM_PREFIX) {
-        Path::new(&p[VERBATIM_PREFIX.len()..].to_string()).into()
+    let has_prefix = p
+        .components()
+        .next()
+        .and_then(|comp| comp.as_os_str().to_str())
+        .map(|p_str| p_str.starts_with(VERBATIM_PREFIX) || p_str.starts_with(DEVICE_NS_PREFIX))
+        .unwrap_or_default();
+
+    if has_prefix {
+        p.into()
     } else {
-        Path::new(&p).into()
+        Path::new(VERBATIM_PREFIX).join(p).into()
     }
 }
 
@@ -951,7 +932,7 @@ fn copy_directory(root: &Path, target: &Target, options: &Options) -> CopyResult
         let path = if options.no_dereference && is_symlink {
             // we are dealing with a symlink. Don't follow it
             match env::current_dir() {
-                Ok(cwd) => cwd.join(normalize_path(p.path())),
+                Ok(cwd) => cwd.join(resolve_relative_path(p.path())),
                 Err(e) => crash!(1, "failed to get current directory {}", e),
             }
         } else {
@@ -965,10 +946,10 @@ fn copy_directory(root: &Path, target: &Target, options: &Options) -> CopyResult
                     // On Windows, some pathes are starting with \\?
                     // but not always, so, make sure that we are consistent for strip_prefix
                     // See https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file for more info
-                    let parent_can: Cow<'_, Path> = adjust_canonicalization(&parent)?;
-                    let path_can = adjust_canonicalization(&path)?;
+                    let parent_can = adjust_canonicalization(parent);
+                    let path_can = adjust_canonicalization(&path);
 
-                    or_continue!(path_can.strip_prefix(&parent_can)).to_path_buf()
+                    or_continue!(&path_can.strip_prefix(&parent_can)).to_path_buf()
                 }
                 #[cfg(not(windows))]
                 {
