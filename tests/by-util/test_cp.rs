@@ -11,6 +11,9 @@ use std::os::windows::fs::symlink_file;
 #[cfg(not(windows))]
 use std::env;
 
+use filetime::FileTime;
+use std::fs as std_fs;
+
 static TEST_EXISTING_FILE: &str = "existing_file.txt";
 static TEST_HELLO_WORLD_SOURCE: &str = "hello_world.txt";
 static TEST_HELLO_WORLD_SOURCE_SYMLINK: &str = "hello_world.txt.link";
@@ -486,4 +489,105 @@ fn test_cp_no_deref_folder_to_folder() {
     // Check the content of the symlink
     let path_to_check = path_to_new_symlink.to_str().unwrap();
     assert_eq!(at.read(&path_to_check), "Hello, World!\n");
+}
+
+
+
+#[test]
+fn test_cp_archive() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let ts = time::now().to_timespec();
+    let previous = FileTime::from_unix_time(ts.sec as i64 - 3600, ts.nsec as u32);
+    // set the file creation/modif an hour ago
+    filetime::set_file_times(at.plus_as_string(TEST_HELLO_WORLD_SOURCE), previous, previous).unwrap();
+    let result = ucmd
+        .arg(TEST_HELLO_WORLD_SOURCE)
+        .arg("--archive")
+        .arg(TEST_HOW_ARE_YOU_SOURCE)
+        .run();
+
+    assert!(result.success);
+    assert_eq!(at.read(TEST_HOW_ARE_YOU_SOURCE), "Hello, World!\n");
+
+    let metadata = std_fs::metadata(at.subdir.join(TEST_HELLO_WORLD_SOURCE)).unwrap();
+    let creation = metadata.modified().unwrap();
+
+    let metadata2 = std_fs::metadata(at.subdir.join(TEST_HOW_ARE_YOU_SOURCE)).unwrap();
+    let creation2 = metadata2.modified().unwrap();
+
+
+    let scene2 = TestScenario::new("ls");
+    let result = scene2.cmd("ls").arg("-al").arg(at.subdir).run();
+
+    println!("ls dest {}", result.stdout);
+    assert_eq!(creation, creation2);
+    assert!(result.success);
+}
+
+
+#[test]
+fn test_cp_preserve_timestamps() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let ts = time::now().to_timespec();
+    let previous = FileTime::from_unix_time(ts.sec as i64 - 3600, ts.nsec as u32);
+    // set the file creation/modif an hour ago
+    filetime::set_file_times(at.plus_as_string(TEST_HELLO_WORLD_SOURCE), previous, previous).unwrap();
+    let result = ucmd
+        .arg(TEST_HELLO_WORLD_SOURCE)
+        .arg("--preserve=timestamps")
+        .arg(TEST_HOW_ARE_YOU_SOURCE)
+        .run();
+
+    assert!(result.success);
+    assert_eq!(at.read(TEST_HOW_ARE_YOU_SOURCE), "Hello, World!\n");
+
+    let metadata = std_fs::metadata(at.subdir.join(TEST_HELLO_WORLD_SOURCE)).unwrap();
+    let creation = metadata.modified().unwrap();
+
+    let metadata2 = std_fs::metadata(at.subdir.join(TEST_HOW_ARE_YOU_SOURCE)).unwrap();
+    let creation2 = metadata2.modified().unwrap();
+
+    let scene2 = TestScenario::new("ls");
+    let result = scene2.cmd("ls").arg("-al").arg(at.subdir).run();
+
+    println!("ls dest {}", result.stdout);
+    assert_eq!(creation, creation2);
+    assert!(result.success);
+}
+
+
+#[test]
+fn test_cp_dont_preserve_timestamps() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let ts = time::now().to_timespec();
+    let previous = FileTime::from_unix_time(ts.sec as i64 - 3600, ts.nsec as u32);
+    // set the file creation/modif an hour ago
+    filetime::set_file_times(at.plus_as_string(TEST_HELLO_WORLD_SOURCE), previous, previous).unwrap();
+    let result = ucmd
+        .arg(TEST_HELLO_WORLD_SOURCE)
+        .arg("--no-preserve=timestamps")
+        .arg(TEST_HOW_ARE_YOU_SOURCE)
+        .run();
+
+    assert!(result.success);
+    assert_eq!(at.read(TEST_HOW_ARE_YOU_SOURCE), "Hello, World!\n");
+
+    let metadata = std_fs::metadata(at.subdir.join(TEST_HELLO_WORLD_SOURCE)).unwrap();
+    let creation = metadata.modified().unwrap();
+
+    let metadata2 = std_fs::metadata(at.subdir.join(TEST_HOW_ARE_YOU_SOURCE)).unwrap();
+    let creation2 = metadata2.modified().unwrap();
+
+    let scene2 = TestScenario::new("ls");
+    let result = scene2.cmd("ls").arg("-al").arg(at.subdir).run();
+
+    println!("ls dest {}", result.stdout);
+    println!("creation {:?} / {:?}", creation, creation2);
+
+    assert_ne!(creation, creation2);
+    let res = creation.elapsed().unwrap() - creation2.elapsed().unwrap();
+    // Some margins with time check
+    assert!(res.as_secs() > 3595);
+    assert!(res.as_secs() < 3605);
+    assert!(result.success);
 }
