@@ -526,6 +526,69 @@ fn test_cp_archive() {
 
 
 #[test]
+fn test_cp_archive_recursive() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let cwd = env::current_dir().unwrap();
+
+    // creates
+    // dir/1
+    // dir/1.link => dir/1
+    // dir/2
+    // dir/2.link => dir/2
+
+    let file_1 = at.subdir.join(TEST_COPY_TO_FOLDER).join("1");
+    let file_1_link = at.subdir.join(TEST_COPY_TO_FOLDER).join("1.link");
+    let file_2 = at.subdir.join(TEST_COPY_TO_FOLDER).join("2");
+    let file_2_link = at.subdir.join(TEST_COPY_TO_FOLDER).join("2.link");
+
+    at.touch(&file_1.to_string_lossy());
+    at.touch(&file_2.to_string_lossy());
+
+    // Change the cwd to have a correct symlink
+    assert!(env::set_current_dir(&at.subdir.join(TEST_COPY_TO_FOLDER)).is_ok());
+
+    #[cfg(not(windows))]
+    {
+        let _r = fs::symlink("1", &file_1_link);
+        let _r = fs::symlink("2", &file_2_link);
+    }
+    #[cfg(windows)]
+    {
+        let _r = symlink_file("1", &file_1_link);
+        let _r = symlink_file("2", &file_2_link);
+    }
+    // Back to the initial cwd (breaks the other tests)
+    assert!(env::set_current_dir(&cwd).is_ok());
+
+    let resultg = ucmd
+        .arg("--archive")
+        .arg(TEST_COPY_TO_FOLDER)
+        .arg(TEST_COPY_TO_FOLDER_NEW)
+        .run();
+
+    let scene2 = TestScenario::new("ls");
+    let result = scene2.cmd("ls").arg("-al").arg(&at.subdir.join(TEST_COPY_TO_FOLDER)).run();
+
+    println!("ls dest {}", result.stdout);
+
+    let scene2 = TestScenario::new("ls");
+    let result = scene2.cmd("ls").arg("-al").arg(&at.subdir.join(TEST_COPY_TO_FOLDER_NEW)).run();
+
+    println!("ls dest {}", result.stdout);
+    assert!(at.file_exists(&at.subdir.join(TEST_COPY_TO_FOLDER_NEW).join("1.link").to_string_lossy()));
+    assert!(at.file_exists(&at.subdir.join(TEST_COPY_TO_FOLDER_NEW).join("2.link").to_string_lossy()));
+    assert!(at.file_exists(&at.subdir.join(TEST_COPY_TO_FOLDER_NEW).join("1").to_string_lossy()));
+    assert!(at.file_exists(&at.subdir.join(TEST_COPY_TO_FOLDER_NEW).join("2").to_string_lossy()));
+
+    assert!(at.is_symlink(&at.subdir.join(TEST_COPY_TO_FOLDER_NEW).join("1.link").to_string_lossy()));
+    assert!(at.is_symlink(&at.subdir.join(TEST_COPY_TO_FOLDER_NEW).join("2.link").to_string_lossy()));
+
+    // fails for now
+    assert!(resultg.success);
+}
+
+
+#[test]
 fn test_cp_preserve_timestamps() {
     let (at, mut ucmd) = at_and_ucmd!();
     let ts = time::now().to_timespec();
