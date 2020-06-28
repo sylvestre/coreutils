@@ -55,7 +55,7 @@ use std::os::unix::io::IntoRawFd;
 use std::os::windows::ffi::OsStrExt;
 #[cfg(windows)]
 use std::path::Prefix;
-use std::path::{Component, Path, PathBuf, StripPrefixError};
+use std::path::{Path, PathBuf, StripPrefixError};
 use std::str::FromStr;
 use std::string::ToString;
 use uucore::fs::resolve_relative_path;
@@ -349,7 +349,9 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
         .arg(Arg::with_name(OPT_RECURSIVE)
              .short("r")
              .long(OPT_RECURSIVE)
-             .help("copy directories recursively"))
+             // --archive sets this option
+             //.default_value_if(OPT_ARCHIVE, None, "default"))
+            .help("copy directories recursively"))
         .arg(Arg::with_name(OPT_RECURSIVE_ALIAS)
              .short("R")
              .help("same as -r"))
@@ -407,7 +409,11 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
              .use_delimiter(true)
              .possible_values(PRESERVABLE_ATTRIBUTES)
              .value_name("ATTR_LIST")
-             .conflicts_with_all(&[OPT_PRESERVE_DEFAULT_ATTRIBUTES, OPT_NO_PRESERVE, OPT_ARCHIVE])
+             .conflicts_with_all(&[OPT_PRESERVE_DEFAULT_ATTRIBUTES, OPT_NO_PRESERVE])
+             // -d sets this option
+             //.default_value_if(OPT_NO_DEREFERENCE_PRESERVE_LINKS, None, "links")
+             // --archive sets this option
+             //.default_value_if(OPT_ARCHIVE, None, "all")
              .help("Preserve the specified attributes (default: mode(unix only),ownership,timestamps),\
                     if possible additional attributes: context, links, xattr, all"))
         .arg(Arg::with_name(OPT_PRESERVE_DEFAULT_ATTRIBUTES)
@@ -425,21 +431,23 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
              .short("-P")
              .long(OPT_NO_DEREFERENCE)
              .conflicts_with(OPT_DEREFERENCE)
+             // -d sets this option
+             //.default_value_if(OPT_NO_DEREFERENCE_PRESERVE_LINKS, None, "default")
              .help("never follow symbolic links in SOURCE"))
-
-        // TODO: implement the following args
         .arg(Arg::with_name(OPT_ARCHIVE)
              .short("a")
              .long(OPT_ARCHIVE)
              .conflicts_with_all(&[OPT_PRESERVE_DEFAULT_ATTRIBUTES, OPT_PRESERVE, OPT_NO_PRESERVE])
-             .help("NotImplemented: same as -dR --preserve=all"))
+             .help("Same as -dR --preserve=all"))
+        .arg(Arg::with_name(OPT_NO_DEREFERENCE_PRESERVE_LINKS)
+             .short("d")
+             .help("same as --no-dereference --preserve=links"))
+
+        // TODO: implement the following args
         .arg(Arg::with_name(OPT_COPY_CONTENTS)
              .long(OPT_COPY_CONTENTS)
              .conflicts_with(OPT_ATTRIBUTES_ONLY)
              .help("NotImplemented: copy contents of special files when recursive"))
-        .arg(Arg::with_name(OPT_NO_DEREFERENCE_PRESERVE_LINKS)
-             .short("d")
-             .help("NotImplemented: same as --no-dereference --preserve=links"))
         .arg(Arg::with_name(OPT_DEREFERENCE)
              .short("L")
              .long(OPT_DEREFERENCE)
@@ -493,7 +501,7 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
             // code should still be EXIT_ERR as does GNU cp
             Error::NotAllFilesCopied => {}
             // Else we caught a fatal bubbled-up error, log it to stderr
-            _ => show_error!("{}", error),
+            _ => show_error!("{} a", error),
         };
         return EXIT_ERR;
     }
@@ -565,12 +573,22 @@ impl FromStr for Attribute {
     }
 }
 
+fn add_all_attributes() -> Vec<Attribute> {
+    let mut attr = Vec::new();
+    #[cfg(unix)]
+    attr.push(Attribute::Mode);
+    attr.push(Attribute::Ownership);
+    attr.push(Attribute::Timestamps);
+    attr.push(Attribute::Context);
+    attr.push(Attribute::Xattr);
+    attr.push(Attribute::Links);
+    attr
+}
+
 impl Options {
     fn from_matches(matches: &ArgMatches) -> CopyResult<Options> {
         let not_implemented_opts = vec![
-            OPT_ARCHIVE,
             OPT_COPY_CONTENTS,
-            OPT_NO_DEREFERENCE_PRESERVE_LINKS,
             OPT_DEREFERENCE,
             OPT_PARENTS,
             OPT_SPARSE,
@@ -600,40 +618,41 @@ impl Options {
             .map(ToString::to_string);
 
         // Parse attributes to preserve
-        let preserve_attributes: Vec<Attribute> = if matches.is_present(OPT_PRESERVE) {
-            match matches.values_of(OPT_PRESERVE) {
-                None => DEFAULT_ATTRIBUTES.to_vec(),
-                Some(attribute_strs) => {
-                    let mut attributes = Vec::new();
-                    for attribute_str in attribute_strs {
-                        if attribute_str == "all" {
-                            #[cfg(unix)]
-                            attributes.push(Attribute::Mode);
-                            attributes.push(Attribute::Ownership);
-                            attributes.push(Attribute::Timestamps);
-                            attributes.push(Attribute::Context);
-                            attributes.push(Attribute::Xattr);
-                            attributes.push(Attribute::Links);
-                            break;
-                        } else {
-                            attributes.push(Attribute::from_str(attribute_str)?);
+        let preserve_attributes: Vec<Attribute> =
+            if matches.is_present(OPT_PRESERVE) {
+                match matches.values_of(OPT_PRESERVE) {
+                    None => DEFAULT_ATTRIBUTES.to_vec(),
+                    Some(attribute_strs) => {
+                        let mut attributes = Vec::new();
+                        for attribute_str in attribute_strs {
+                            if attribute_str == "all" {
+                                attributes = add_all_attributes();
+                                break;
+                            } else {
+                                attributes.push(Attribute::from_str(attribute_str)?);
+                            }
                         }
+                        attributes
                     }
-                    attributes
                 }
-            }
-        } else if matches.is_present(OPT_PRESERVE_DEFAULT_ATTRIBUTES) {
-            DEFAULT_ATTRIBUTES.to_vec()
-        } else {
-            vec![]
-        };
+            } else if matches.is_present(OPT_ARCHIVE) {
+                // --archive is used. Same as --preserve=all
+                add_all_attributes()
+            } else if matches.is_present(OPT_NO_DEREFERENCE_PRESERVE_LINKS) {
+                vec![ Attribute::Links ]
+            } else if matches.is_present(OPT_PRESERVE_DEFAULT_ATTRIBUTES) {
+                DEFAULT_ATTRIBUTES.to_vec()
+            } else {
+                vec![]
+            };
 
         let options = Options {
             attributes_only: matches.is_present(OPT_ATTRIBUTES_ONLY),
             copy_contents: matches.is_present(OPT_COPY_CONTENTS),
             copy_mode: CopyMode::from_matches(matches),
             dereference: matches.is_present(OPT_DEREFERENCE),
-            no_dereference: matches.is_present(OPT_NO_DEREFERENCE),
+            // No dereference is set with -p, -d and --archive
+            no_dereference: matches.is_present(OPT_NO_DEREFERENCE) || matches.is_present(OPT_NO_DEREFERENCE_PRESERVE_LINKS) || matches.is_present(OPT_ARCHIVE),
             one_file_system: matches.is_present(OPT_ONE_FILE_SYSTEM),
             overwrite: OverwriteMode::from_matches(matches),
             parents: matches.is_present(OPT_PARENTS),
@@ -814,14 +833,14 @@ fn copy(sources: &[Source], target: &Target, options: &Options) -> CopyResult<()
                 let dest = construct_dest_path(source, target, &target_type, options)?;
                 preserve_hardlinks(&mut hard_links, source, dest, &mut found_hard_link).unwrap();
             }
-
             if !found_hard_link {
                 if let Err(error) = copy_source(source, target, &target_type, options) {
-                    show_error!("{}", error);
+                    show_error!("{} error dans copy()", error);
                     match error {
                         Error::Skipped(_) => (),
                         _ => non_fatal_errors = true,
                     }
+                    //panic!("crashed here");
                 }
             }
             seen_sources.insert(source);
@@ -1048,7 +1067,18 @@ fn copy_attribute(source: &Path, dest: &Path, attribute: &Attribute) -> CopyResu
 
 #[cfg(not(windows))]
 fn symlink_file(source: &Path, dest: &Path, context: &str) -> CopyResult<()> {
-    Ok(std::os::unix::fs::symlink(source, dest).context(context)?)
+    println!("dans symlink: {:?} / {:?} / {:?}", source.display(), dest.display(), context);
+    match std::os::unix::fs::symlink(source, dest).context(context) {
+        Ok(data) => {
+            println!("c'est ok");
+            Ok(())
+        }
+        Err(err) => {
+            println!("ignore error");
+            Ok(())
+        }
+    }
+    //Ok(std::os::unix::fs::symlink(source, dest).context(context)?)
 }
 
 #[cfg(windows)]
@@ -1211,8 +1241,10 @@ fn copy_helper(source: &Path, dest: &Path, options: &Options) -> CopyResult<()> 
             }
         }
     } else if options.no_dereference && fs::symlink_metadata(&source)?.file_type().is_symlink() {
+
         // Here, we will copy the symlink itself (actually, just recreate it)
         let link = fs::read_link(&source)?;
+
         let dest: Cow<'_, Path> = if dest.is_dir() {
             match source.file_name() {
                 Some(name) => dest.join(name).into(),
@@ -1225,7 +1257,27 @@ fn copy_helper(source: &Path, dest: &Path, options: &Options) -> CopyResult<()> 
         } else {
             dest.into()
         };
+        // le pb est que le symlink doit toujours etre cree
         symlink_file(&link, &dest, &*context_for(&link, &dest))?;
+        /*symlink_file(&link, &dest, &*context_for(&link, &dest)).unwrap_or_else(|error| {
+            if error.kind() == ErrorKind::NotFound {
+                println!("ici______________");
+            } else {
+                panic!("Problem opening the file: {:?}", error);
+            }
+        });
+
+        match symlink_file(&link, &dest, &*context_for(&link, &dest)) {
+            Ok(data) => println!("ok___"),
+            Err(error) => {
+                println!("ko ____ {:?}", error);
+                return Ok(())
+            }*/
+            //MyError::Io(ref err) Err(error) => println!("ko ____ {:?}", error),
+            //Err(error) => match error.kind {
+                //IoErr::NotFound => println!("NOT FOUND")
+            //}
+        //};
     } else {
         fs::copy(source, dest).context(&*context_for(source, dest))?;
     }
