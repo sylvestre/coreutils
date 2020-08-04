@@ -347,7 +347,8 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
         .arg(Arg::with_name(OPT_RECURSIVE)
              .short("r")
              .long(OPT_RECURSIVE)
-             .help("copy directories recursively"))
+             // --archive sets this option
+            .help("copy directories recursively"))
         .arg(Arg::with_name(OPT_RECURSIVE_ALIAS)
              .short("R")
              .help("same as -r"))
@@ -405,7 +406,9 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
              .use_delimiter(true)
              .possible_values(PRESERVABLE_ATTRIBUTES)
              .value_name("ATTR_LIST")
-             .conflicts_with_all(&[OPT_PRESERVE_DEFAULT_ATTRIBUTES, OPT_NO_PRESERVE, OPT_ARCHIVE])
+             .conflicts_with_all(&[OPT_PRESERVE_DEFAULT_ATTRIBUTES, OPT_NO_PRESERVE])
+             // -d sets this option
+             // --archive sets this option
              .help("Preserve the specified attributes (default: mode(unix only),ownership,timestamps),\
                     if possible additional attributes: context, links, xattr, all"))
         .arg(Arg::with_name(OPT_PRESERVE_DEFAULT_ATTRIBUTES)
@@ -423,21 +426,23 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
              .short("-P")
              .long(OPT_NO_DEREFERENCE)
              .conflicts_with(OPT_DEREFERENCE)
+             // -d sets this option
+             //.default_value_if(OPT_NO_DEREFERENCE_PRESERVE_LINKS, None, "default")
              .help("never follow symbolic links in SOURCE"))
-
-        // TODO: implement the following args
         .arg(Arg::with_name(OPT_ARCHIVE)
              .short("a")
              .long(OPT_ARCHIVE)
              .conflicts_with_all(&[OPT_PRESERVE_DEFAULT_ATTRIBUTES, OPT_PRESERVE, OPT_NO_PRESERVE])
-             .help("NotImplemented: same as -dR --preserve=all"))
+             .help("Same as -dR --preserve=all"))
+        .arg(Arg::with_name(OPT_NO_DEREFERENCE_PRESERVE_LINKS)
+             .short("d")
+             .help("same as --no-dereference --preserve=links"))
+
+        // TODO: implement the following args
         .arg(Arg::with_name(OPT_COPY_CONTENTS)
              .long(OPT_COPY_CONTENTS)
              .conflicts_with(OPT_ATTRIBUTES_ONLY)
              .help("NotImplemented: copy contents of special files when recursive"))
-        .arg(Arg::with_name(OPT_NO_DEREFERENCE_PRESERVE_LINKS)
-             .short("d")
-             .help("NotImplemented: same as --no-dereference --preserve=links"))
         .arg(Arg::with_name(OPT_DEREFERENCE)
              .short("L")
              .long(OPT_DEREFERENCE)
@@ -563,12 +568,22 @@ impl FromStr for Attribute {
     }
 }
 
+fn add_all_attributes() -> Vec<Attribute> {
+    let mut attr = Vec::new();
+    #[cfg(unix)]
+    attr.push(Attribute::Mode);
+    attr.push(Attribute::Ownership);
+    attr.push(Attribute::Timestamps);
+    attr.push(Attribute::Context);
+    attr.push(Attribute::Xattr);
+    attr.push(Attribute::Links);
+    attr
+}
+
 impl Options {
     fn from_matches(matches: &ArgMatches) -> CopyResult<Options> {
         let not_implemented_opts = vec![
-            OPT_ARCHIVE,
             OPT_COPY_CONTENTS,
-            OPT_NO_DEREFERENCE_PRESERVE_LINKS,
             OPT_DEREFERENCE,
             OPT_PARENTS,
             OPT_SPARSE,
@@ -605,13 +620,7 @@ impl Options {
                     let mut attributes = Vec::new();
                     for attribute_str in attribute_strs {
                         if attribute_str == "all" {
-                            #[cfg(unix)]
-                            attributes.push(Attribute::Mode);
-                            attributes.push(Attribute::Ownership);
-                            attributes.push(Attribute::Timestamps);
-                            attributes.push(Attribute::Context);
-                            attributes.push(Attribute::Xattr);
-                            attributes.push(Attribute::Links);
+                            attributes = add_all_attributes();
                             break;
                         } else {
                             attributes.push(Attribute::from_str(attribute_str)?);
@@ -620,6 +629,11 @@ impl Options {
                     attributes
                 }
             }
+        } else if matches.is_present(OPT_ARCHIVE) {
+            // --archive is used. Same as --preserve=all
+            add_all_attributes()
+        } else if matches.is_present(OPT_NO_DEREFERENCE_PRESERVE_LINKS) {
+            vec![Attribute::Links]
         } else if matches.is_present(OPT_PRESERVE_DEFAULT_ATTRIBUTES) {
             DEFAULT_ATTRIBUTES.to_vec()
         } else {
@@ -631,7 +645,10 @@ impl Options {
             copy_contents: matches.is_present(OPT_COPY_CONTENTS),
             copy_mode: CopyMode::from_matches(matches),
             dereference: matches.is_present(OPT_DEREFERENCE),
-            no_dereference: matches.is_present(OPT_NO_DEREFERENCE),
+            // No dereference is set with -p, -d and --archive
+            no_dereference: matches.is_present(OPT_NO_DEREFERENCE)
+                || matches.is_present(OPT_NO_DEREFERENCE_PRESERVE_LINKS)
+                || matches.is_present(OPT_ARCHIVE),
             one_file_system: matches.is_present(OPT_ONE_FILE_SYSTEM),
             overwrite: OverwriteMode::from_matches(matches),
             parents: matches.is_present(OPT_PARENTS),
@@ -812,7 +829,6 @@ fn copy(sources: &[Source], target: &Target, options: &Options) -> CopyResult<()
                 let dest = construct_dest_path(source, target, &target_type, options)?;
                 preserve_hardlinks(&mut hard_links, source, dest, &mut found_hard_link).unwrap();
             }
-
             if !found_hard_link {
                 if let Err(error) = copy_source(source, target, &target_type, options) {
                     show_error!("{}", error);
@@ -873,7 +889,7 @@ fn copy_source(
 }
 
 #[cfg(target_os = "windows")]
-fn adjust_canonicalization(p: &Path) -> Cow<Path> {
+fn adjust_canonicalization<'a>(p: &'a Path) -> Cow<'a, Path> {
     // In some cases, \\? can be missing on some Windows paths.  Add it at the
     // beginning unless the path is prefixed with a device namespace.
     const VERBATIM_PREFIX: &str = r#"\\?"#;
@@ -968,7 +984,19 @@ fn copy_directory(root: &Path, target: &Target, options: &Options) -> CopyResult
                 let dest = local_to_target.as_path().to_path_buf();
                 preserve_hardlinks(&mut hard_links, &source, dest, &mut found_hard_link).unwrap();
                 if !found_hard_link {
-                    copy_file(path.as_path(), local_to_target.as_path(), options)?;
+                    match copy_file(path.as_path(), local_to_target.as_path(), options) {
+                        Ok(_) => Ok(()),
+                        Err(err) => {
+                            if fs::symlink_metadata(&source)?.file_type().is_symlink() {
+                                // silent the error with a symlink
+                                // In case we do --archive, we might copy the symlink
+                                // before the file itself
+                                Ok(())
+                            } else {
+                                Err(err)
+                            }
+                        }
+                    }?;
                 }
             } else {
                 copy_file(path.as_path(), local_to_target.as_path(), options)?;
@@ -1041,12 +1069,17 @@ fn copy_attribute(source: &Path, dest: &Path, attribute: &Attribute) -> CopyResu
             }
         }
     };
+
     Ok(())
 }
 
 #[cfg(not(windows))]
 fn symlink_file(source: &Path, dest: &Path, context: &str) -> CopyResult<()> {
-    Ok(std::os::unix::fs::symlink(source, dest).context(context)?)
+    match std::os::unix::fs::symlink(source, dest).context(context) {
+        Ok(_) => Ok(()),
+        Err(_) => Ok(()),
+    }
+    //Ok(std::os::unix::fs::symlink(source, dest).context(context)?)
 }
 
 #[cfg(windows)]
@@ -1159,11 +1192,9 @@ fn copy_file(source: &Path, dest: &Path, options: &Options) -> CopyResult<()> {
                 .unwrap();
         }
     };
-
     for attribute in &options.preserve_attributes {
         copy_attribute(source, dest, attribute)?;
     }
-
     Ok(())
 }
 
