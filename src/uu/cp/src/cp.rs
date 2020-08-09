@@ -1259,25 +1259,6 @@ fn copy_helper(source: &Path, dest: &Path, options: &Options) -> CopyResult<()> 
         };
         // le pb est que le symlink doit toujours etre cree
         symlink_file(&link, &dest, &*context_for(&link, &dest))?;
-        /*symlink_file(&link, &dest, &*context_for(&link, &dest)).unwrap_or_else(|error| {
-            if error.kind() == ErrorKind::NotFound {
-                println!("ici______________");
-            } else {
-                panic!("Problem opening the file: {:?}", error);
-            }
-        });
-
-        match symlink_file(&link, &dest, &*context_for(&link, &dest)) {
-            Ok(data) => println!("ok___"),
-            Err(error) => {
-                println!("ko ____ {:?}", error);
-                return Ok(())
-            }*/
-            //MyError::Io(ref err) Err(error) => println!("ko ____ {:?}", error),
-            //Err(error) => match error.kind {
-                //IoErr::NotFound => println!("NOT FOUND")
-            //}
-        //};
     } else {
         fs::copy(source, dest).context(&*context_for(source, dest))?;
     }
