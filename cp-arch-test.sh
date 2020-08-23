@@ -1,5 +1,13 @@
 set -e
-rm -rf dir
+
+
+#rm -rf a b c d; mkdir a b c d; ln -s ../c a; ln -s ../c b;
+#cp -RL a b d
+#./target/debug/coreutils cp cp -RL a b d
+# cp: error: Option 'dereference' not yet implemented.
+#rm -rf a b c d
+
+rm -rf dir dir-copy-archive-rust
 mkdir dir
 echo "a" > dir/1
 echo "b" > dir/2

@@ -825,6 +825,7 @@ fn copy(sources: &[Source], target: &Target, options: &Options) -> CopyResult<()
     let mut non_fatal_errors = false;
     let mut seen_sources = HashSet::with_capacity(sources.len());
     for source in sources {
+        println!("processing {}", source.display());
         if seen_sources.contains(source) {
             show_warning!("source '{}' specified more than once", source.display());
         } else {
@@ -914,6 +915,11 @@ fn adjust_canonicalization<'a>(p: &'a Path) -> Cow<'a, Path> {
     }
 }
 
+
+fn is_symlink(path: &Path) -> bool {
+    fs::symlink_metadata(path).unwrap().file_type().is_symlink()
+}
+
 /// Read the contents of the directory `root` and recursively copy the
 /// contents to `target`.
 ///
@@ -945,7 +951,7 @@ fn copy_directory(root: &Path, target: &Target, options: &Options) -> CopyResult
     #[cfg(any(windows, target_os = "redox"))]
     let mut hard_links: Vec<(String, u64)> = vec![];
 
-    for path in WalkDir::new(root) {
+    for path in WalkDir::new(root).sort_by(|a, b| is_symlink(a.path()).cmp(&is_symlink(b.path()))) {
         let p = or_continue!(path);
         let is_symlink = fs::symlink_metadata(p.path())?.file_type().is_symlink();
         let path = if options.no_dereference && is_symlink {
@@ -957,7 +963,7 @@ fn copy_directory(root: &Path, target: &Target, options: &Options) -> CopyResult
         } else {
             or_continue!(p.path().canonicalize())
         };
-
+        println!("processing 2 {}", path.display());
         let local_to_root_parent = match root_parent {
             Some(parent) => {
                 #[cfg(windows)]
@@ -1067,17 +1073,16 @@ fn copy_attribute(source: &Path, dest: &Path, attribute: &Attribute) -> CopyResu
 
 #[cfg(not(windows))]
 fn symlink_file(source: &Path, dest: &Path, context: &str) -> CopyResult<()> {
-    println!("dans symlink: {:?} / {:?} / {:?}", source.display(), dest.display(), context);
+    Ok(std::os::unix::fs::symlink(source, dest).context(context)?)
+    /*println!("dans symlink: {:?} / {:?} / {:?}", source.display(), dest.display(), context);
     match std::os::unix::fs::symlink(source, dest).context(context) {
         Ok(data) => {
-            println!("c'est ok");
             Ok(())
         }
         Err(err) => {
-            println!("ignore error");
             Ok(())
         }
-    }
+    }*/
     //Ok(std::os::unix::fs::symlink(source, dest).context(context)?)
 }
 
@@ -1243,7 +1248,7 @@ fn copy_helper(source: &Path, dest: &Path, options: &Options) -> CopyResult<()> 
     } else if options.no_dereference && fs::symlink_metadata(&source)?.file_type().is_symlink() {
 
         // Here, we will copy the symlink itself (actually, just recreate it)
-        let link = fs::read_link(&source)?;
+        let link_target = fs::read_link(&source)?;
 
         let dest: Cow<'_, Path> = if dest.is_dir() {
             match source.file_name() {
@@ -1257,8 +1262,20 @@ fn copy_helper(source: &Path, dest: &Path, options: &Options) -> CopyResult<()> 
         } else {
             dest.into()
         };
-        // le pb est que le symlink doit toujours etre cree
-        symlink_file(&link, &dest, &*context_for(&link, &dest))?;
+        // Here, when we are in this mode, we should copy the file too
+        // and add it to the list
+
+        println!("source {}", source.display());
+        println!("dest {}", dest.display());
+        println!("link_target {}", link_target.display());
+
+        if ! link_target.exists() {
+            println!("copy le fichier origin {} {}", link_target.display(), dest.display());
+            // The target of the symlink doesn't exist, let's copy it before
+            fs::copy(&link_target, &dest).context(&*context_for(&link_target.clone(), &dest))?;
+            // TODO: make sure we don't copy it twice
+        }
+        symlink_file(&link_target, &dest, &*context_for(&link_target, &dest))?;
     } else {
         fs::copy(source, dest).context(&*context_for(source, dest))?;
     }
