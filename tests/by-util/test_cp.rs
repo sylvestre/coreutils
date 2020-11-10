@@ -217,7 +217,7 @@ fn test_cp_arg_interactive() {
 }
 
 #[test]
-#[cfg(target_os = "unix")]
+#[cfg(target_os = "linux")]
 fn test_cp_arg_link() {
     use std::os::linux::fs::MetadataExt;
 
@@ -501,7 +501,7 @@ fn test_cp_no_deref_folder_to_folder() {
 }
 
 #[test]
-#[cfg(target_os = "unix")]
+#[cfg(target_os = "linux")]
 fn test_cp_archive() {
     let (at, mut ucmd) = at_and_ucmd!();
     let ts = time::now().to_timespec();
