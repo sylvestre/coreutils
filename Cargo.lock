@@ -1416,6 +1416,7 @@ dependencies = [
  "libc 0.2.66 (registry+https://github.com/rust-lang/crates.io-index)",
  "uucore 0.0.4",
  "uucore_procs 0.0.4",
+ "walkdir 2.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "walker 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
