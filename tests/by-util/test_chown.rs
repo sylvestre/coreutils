@@ -46,3 +46,57 @@ mod test_passgrp {
 fn test_invalid_option() {
     new_ucmd!().arg("-w").arg("-q").arg("/").fails();
 }
+
+#[test]
+fn test_chown_myself() {
+    let scene = TestScenario::new(util_name!());
+    let result = scene.cmd("whoami").run();
+    println!("results {}", result.stdout);
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    let file1 = "test_install_target_dir_file_a1";
+
+    at.touch(file1);
+    ucmd.arg(result.stdout.trim_end()).arg(file1).succeeds();
+}
+
+#[test]
+fn test_chown_myself_second() {
+    let scene = TestScenario::new(util_name!());
+    let result = scene.cmd("whoami").run();
+    println!("results {}", result.stdout);
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    let file1 = "test_install_target_dir_file_a1";
+
+    at.touch(file1);
+    ucmd.arg(result.stdout.trim_end().to_owned() + ":")
+        .arg(file1)
+        .succeeds();
+}
+
+#[test]
+fn test_chown_myself_group() {
+    let scene = TestScenario::new(util_name!());
+    let result = scene.cmd("whoami").run();
+    println!("results {}", result.stdout);
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    let file1 = "test_install_target_dir_file_a1";
+    let perm = result.stdout.trim_end().to_owned() + ":" + result.stdout.trim_end();
+    at.touch(file1);
+    ucmd.arg(perm).arg(file1).succeeds();
+}
+
+#[test]
+fn test_chown_only_group() {
+    let scene = TestScenario::new(util_name!());
+    let result = scene.cmd("whoami").run();
+    println!("results {}", result.stdout);
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    let file1 = "test_install_target_dir_file_a1";
+    let perm = ":".to_owned() + result.stdout.trim_end();
+    at.touch(file1);
+    ucmd.arg(perm).arg(file1).succeeds();
+}
