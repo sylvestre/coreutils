@@ -299,9 +299,10 @@ Utilities
 | chroot    | split     |        |
 | cksum     | tail      |        |
 | comm      | test      |        |
-| cut       | date      |        |
-| dircolors | join      |        |
-| dirname   | df        |        |
+| csplit    | date      |        |
+| cut       | join      |        |
+| dircolors | df        |        |
+| dirname   |           |        |
 | du        |           |        |
 | echo      |           |        |
 | env       |           |        |
