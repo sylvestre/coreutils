@@ -17,9 +17,6 @@ use uucore::perms::{wrap_chown, Verbosity};
 extern crate clap;
 use clap::{App, Arg};
 
-extern crate clap;
-use clap::{App, Arg, ArgMatches};
-
 extern crate walkdir;
 use walkdir::WalkDir;
 
