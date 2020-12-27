@@ -11,7 +11,11 @@
 extern crate uucore;
 pub use uucore::entries::{self, Group, Locate, Passwd};
 use uucore::fs::resolve_relative_path;
-use uucore::libc::{self, gid_t, lchown, uid_t};
+use uucore::libc::{gid_t, uid_t};
+use uucore::perms::{wrap_chown, Verbosity};
+
+extern crate clap;
+use clap::{App, Arg};
 
 extern crate clap;
 use clap::{App, Arg, ArgMatches};
@@ -22,14 +26,8 @@ use walkdir::WalkDir;
 use std::fs::{self, Metadata};
 use std::os::unix::fs::MetadataExt;
 
-use std::io;
-use std::io::Result as IOResult;
-
 use std::convert::AsRef;
 use std::path::Path;
-
-use std::ffi::CString;
-use std::os::unix::ffi::OsStrExt;
 
 static ABOUT: &str = "change file owner and group";
 static VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -37,20 +35,16 @@ static VERSION: &str = env!("CARGO_PKG_VERSION");
 static OPT_CHANGES: &str = "changes";
 static OPT_DEREFERENCE: &str = "dereference";
 static OPT_NO_DEREFERENCE: &str = "no-dereference";
-static OPT_REFERENCE: &str = "reference";
-
 static OPT_FROM: &str = "from";
-
 static OPT_PRESERVE_ROOT: &str = "preserve-root";
 static OPT_NO_PRESERVE_ROOT: &str = "no-preserve-root";
 static OPT_QUIET: &str = "quiet";
 static OPT_RECURSIVE: &str = "recursive";
-
+static OPT_REFERENCE: &str = "reference";
+static OPT_SILENT: &str = "silent";
 static OPT_TRAVERSE: &str = "H";
 static OPT_NO_TRAVERSE: &str = "P";
 static OPT_TRAVERSE_EVERY: &str = "L";
-
-static OPT_SILENT: &str = "silent";
 static OPT_VERBOSE: &str = "verbose";
 
 static ARG_OWNER: &str = "owner";
@@ -78,89 +72,95 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
         .usage(&usage[..])
         .arg(
             Arg::with_name(OPT_CHANGES)
-            .short("c")
-            .long(OPT_CHANGES)
-            .help("like verbose but report only when a change is made")
+                .short("c")
+                .long(OPT_CHANGES)
+                .help("like verbose but report only when a change is made"),
+        )
+        .arg(Arg::with_name(OPT_DEREFERENCE).long(OPT_DEREFERENCE).help(
+            "affect the referent of each symbolic link (this is the default), rather than the symbolic link itself",
+        ))
+        .arg(
+            Arg::with_name(OPT_NO_DEREFERENCE)
+                .short("h")
+                .long(OPT_NO_DEREFERENCE)
+                .help(
+                    "affect symbolic links instead of any referenced file (useful only on systems that can change the ownership of a symlink)",
+                ),
         )
         .arg(
-            Arg::with_name(OPT_SILENT).short("f").long(OPT_SILENT)
+            Arg::with_name(OPT_FROM)
+                .long(OPT_FROM)
+                .help(
+                    "change the owner and/or group of each file only if its current owner and/or group match those specified here. Either may be omitted, in which case a match is not required for the omitted attribute",
+                )
+                .value_name("CURRENT_OWNER:CURRENT_GROUP"),
+        )
+        .arg(
+            Arg::with_name(OPT_PRESERVE_ROOT)
+                .long(OPT_PRESERVE_ROOT)
+                .help("fail to operate recursively on '/'"),
+        )
+        .arg(
+            Arg::with_name(OPT_NO_PRESERVE_ROOT)
+                .long(OPT_NO_PRESERVE_ROOT)
+                .help("do not treat '/' specially (the default)"),
         )
         .arg(
             Arg::with_name(OPT_QUIET)
-            .long(OPT_QUIET)
-            .help("suppress most error messages")
+                .long(OPT_QUIET)
+                .help("suppress most error messages"),
         )
         .arg(
-            Arg::with_name(OPT_VERBOSE)
-                 .long(OPT_VERBOSE)
-                 .help("output a diagnostic for every file processed")
+            Arg::with_name(OPT_RECURSIVE)
+                .short("R")
+                .long(OPT_RECURSIVE)
+                .help("operate on files and directories recursively"),
         )
         .arg(
-            Arg::with_name(OPT_DEREFERENCE)
-            .long(OPT_DEREFERENCE)
-            .help("affect the referent of each symbolic link (this is the default), rather than the symbolic link itself")
-        )
-        .arg(
-            Arg::with_name(OPT_NO_DEREFERENCE).short("h")
-            .long(OPT_NO_DEREFERENCE)
-            .help("affect symbolic links instead of any referenced file (useful only on systems that can change the ownership of a symlink)")
-        )
-
-        .arg(
-                Arg::with_name(OPT_FROM).long(OPT_FROM)
-                .help("change the owner and/or group of each file only if its current owner and/or group match those specified here. Either may be omitted, in which case a match is not required for the omitted attribute")
-                .value_name("CURRENT_OWNER:CURRENT_GROUP")
-            )
-
-            .arg(
-                Arg::with_name(OPT_REFERENCE)
+            Arg::with_name(OPT_REFERENCE)
                 .long(OPT_REFERENCE)
                 .help("use RFILE's owner and group rather than specifying OWNER:GROUP values")
                 .value_name("RFILE")
-                .min_values(1)
-            )
-                .arg(
-            Arg::with_name(OPT_NO_PRESERVE_ROOT)
-                 .long(OPT_NO_PRESERVE_ROOT)
-                 .help("do not treat '/' specially (the default)")
-                )
-                .arg(
-            Arg::with_name(OPT_PRESERVE_ROOT).long(OPT_PRESERVE_ROOT).help("fail to operate recursively on '/'")
-                )
-
-                .arg(
-            Arg::with_name(OPT_RECURSIVE).short("R")
-                 .long(OPT_RECURSIVE)
-                 .help("operate on files and directories recursively")
-                )
+                .min_values(1),
+        )
+        .arg(Arg::with_name(OPT_SILENT).short("f").long(OPT_SILENT))
         .arg(
-            Arg::with_name(OPT_TRAVERSE).short(OPT_TRAVERSE)
-            .help("if a command line argument is a symbolic link to a directory, traverse it")
-            .overrides_with_all(&[OPT_TRAVERSE_EVERY, OPT_NO_TRAVERSE])
+            Arg::with_name(OPT_TRAVERSE)
+                .short(OPT_TRAVERSE)
+                .help("if a command line argument is a symbolic link to a directory, traverse it")
+                .overrides_with_all(&[OPT_TRAVERSE_EVERY, OPT_NO_TRAVERSE]),
         )
         .arg(
-            Arg::with_name(OPT_TRAVERSE_EVERY).short(OPT_TRAVERSE_EVERY)
-                 .help("traverse every symbolic link to a directory encountered")
-                 .overrides_with_all(&[OPT_TRAVERSE, OPT_NO_TRAVERSE])
-                )
+            Arg::with_name(OPT_TRAVERSE_EVERY)
+                .short(OPT_TRAVERSE_EVERY)
+                .help("traverse every symbolic link to a directory encountered")
+                .overrides_with_all(&[OPT_TRAVERSE, OPT_NO_TRAVERSE]),
+        )
         .arg(
             Arg::with_name(OPT_NO_TRAVERSE)
-            .short(OPT_NO_TRAVERSE)
-            .help("do not traverse any symbolic links (default)")
-            .overrides_with_all(&[OPT_TRAVERSE, OPT_TRAVERSE_EVERY])
+                .short(OPT_NO_TRAVERSE)
+                .help("do not traverse any symbolic links (default)")
+                .overrides_with_all(&[OPT_TRAVERSE, OPT_TRAVERSE_EVERY]),
+        )
+        .arg(
+            Arg::with_name(OPT_VERBOSE)
+                .long(OPT_VERBOSE)
+                .help("output a diagnostic for every file processed"),
         )
         .arg(
             Arg::with_name(ARG_OWNER)
                 .multiple(false)
                 .takes_value(true)
+                .required(true),
         )
         .arg(
             Arg::with_name(ARG_FILES)
                 .multiple(true)
                 .takes_value(true)
+                .required(true)
                 .min_values(1),
         )
-    .get_matches_from(args);
+        .get_matches_from(args);
 
     /* First arg is the owner/group */
     let owner = matches.value_of(ARG_OWNER).unwrap();
@@ -171,12 +171,12 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
         .map(|v| v.map(ToString::to_string).collect())
         .unwrap_or_default();
 
-    let mut preserve_root = matches.is_present(OPT_PRESERVE_ROOT);
+    let preserve_root = matches.is_present(OPT_PRESERVE_ROOT);
 
     let mut derefer = if matches.is_present(OPT_NO_DEREFERENCE) {
-        0
-    } else {
         1
+    } else {
+        0
     };
 
     let mut bit_flag = if matches.is_present(OPT_TRAVERSE) {
@@ -274,7 +274,7 @@ fn parse_spec(spec: &str) -> Result<(Option<u32>, Option<u32>), String> {
         Ok((
             Some(match Passwd::locate(args[0]) {
                 Ok(v) => v.uid(),
-                _ => return Err(format!("invalid user: ‘{}’", spec)),
+                _ => return Err(format!("invalid user: '{}'", spec)),
             }),
             None,
         ))
@@ -283,31 +283,23 @@ fn parse_spec(spec: &str) -> Result<(Option<u32>, Option<u32>), String> {
             None,
             Some(match Group::locate(args[1]) {
                 Ok(v) => v.gid(),
-                _ => return Err(format!("invalid group: ‘{}’", spec)),
+                _ => return Err(format!("invalid group: '{}'", spec)),
             }),
         ))
     } else if usr_grp {
         Ok((
             Some(match Passwd::locate(args[0]) {
                 Ok(v) => v.uid(),
-                _ => return Err(format!("invalid user: ‘{}’", spec)),
+                _ => return Err(format!("invalid user: '{}'", spec)),
             }),
             Some(match Group::locate(args[1]) {
                 Ok(v) => v.gid(),
-                _ => return Err(format!("invalid group: ‘{}’", spec)),
+                _ => return Err(format!("invalid group: '{}'", spec)),
             }),
         ))
     } else {
         Ok((None, None))
     }
-}
-
-#[derive(PartialEq, Debug)]
-enum Verbosity {
-    Silent,
-    Changes,
-    Verbose,
-    Normal,
 }
 
 enum IfFrom {
@@ -347,29 +339,6 @@ impl Chowner {
         ret
     }
 
-    fn chown<P: AsRef<Path>>(
-        &self,
-        path: P,
-        duid: uid_t,
-        dgid: gid_t,
-        follow: bool,
-    ) -> IOResult<()> {
-        let path = path.as_ref();
-        let s = CString::new(path.as_os_str().as_bytes()).unwrap();
-        let ret = unsafe {
-            if follow {
-                libc::chown(s.as_ptr(), duid, dgid)
-            } else {
-                lchown(s.as_ptr(), duid, dgid)
-            }
-        };
-        if ret == 0 {
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        }
-    }
-
     fn traverse<P: AsRef<Path>>(&self, root: P) -> i32 {
         let follow_arg = self.dereference || self.bit_flag != FTS_PHYSICAL;
         let path = root.as_ref();
@@ -406,7 +375,27 @@ impl Chowner {
         }
 
         let ret = if self.matched(meta.uid(), meta.gid()) {
-            self.wrap_chown(path, &meta, follow_arg)
+            match wrap_chown(
+                path,
+                &meta,
+                self.dest_uid,
+                self.dest_gid,
+                follow_arg,
+                self.verbosity.clone(),
+            ) {
+                Ok(n) => {
+                    if n != "" {
+                        show_info!("{}", n);
+                    }
+                    0
+                }
+                Err(e) => {
+                    if self.verbosity != Verbosity::Silent {
+                        show_info!("{}", e);
+                    }
+                    1
+                }
+            }
         } else {
             0
         };
@@ -441,7 +430,27 @@ impl Chowner {
                 continue;
             }
 
-            ret = self.wrap_chown(path, &meta, follow);
+            ret = match wrap_chown(
+                path,
+                &meta,
+                self.dest_uid,
+                self.dest_gid,
+                follow,
+                self.verbosity.clone(),
+            ) {
+                Ok(n) => {
+                    if n != "" {
+                        show_info!("{}", n);
+                    }
+                    0
+                }
+                Err(e) => {
+                    if self.verbosity != Verbosity::Silent {
+                        show_info!("{}", e);
+                    }
+                    1
+                }
+            }
         }
         ret
     }
@@ -467,58 +476,6 @@ impl Chowner {
             })
         };
         Some(meta)
-    }
-
-    fn wrap_chown<P: AsRef<Path>>(&self, path: P, meta: &Metadata, follow: bool) -> i32 {
-        use self::Verbosity::*;
-        let mut ret = 0;
-        let dest_uid = self.dest_uid.unwrap_or_else(|| meta.uid());
-        let dest_gid = self.dest_gid.unwrap_or_else(|| meta.gid());
-        let path = path.as_ref();
-        if let Err(e) = self.chown(path, dest_uid, dest_gid, follow) {
-            match self.verbosity {
-                Silent => (),
-                _ => {
-                    show_info!("changing ownership of '{}': {}", path.display(), e);
-                    if self.verbosity == Verbose {
-                        println!(
-                            "failed to change ownership of {} from {}:{} to {}:{}",
-                            path.display(),
-                            entries::uid2usr(meta.uid()).unwrap(),
-                            entries::gid2grp(meta.gid()).unwrap(),
-                            entries::uid2usr(dest_uid).unwrap(),
-                            entries::gid2grp(dest_gid).unwrap()
-                        );
-                    };
-                }
-            }
-            ret = 1;
-        } else {
-            let changed = dest_uid != meta.uid() || dest_gid != meta.gid();
-            if changed {
-                match self.verbosity {
-                    Changes | Verbose => {
-                        println!(
-                            "changed ownership of {} from {}:{} to {}:{}",
-                            path.display(),
-                            entries::uid2usr(meta.uid()).unwrap(),
-                            entries::gid2grp(meta.gid()).unwrap(),
-                            entries::uid2usr(dest_uid).unwrap(),
-                            entries::gid2grp(dest_gid).unwrap()
-                        );
-                    }
-                    _ => (),
-                };
-            } else if self.verbosity == Verbose {
-                println!(
-                    "ownership of {} retained as {}:{}",
-                    path.display(),
-                    entries::uid2usr(dest_uid).unwrap(),
-                    entries::gid2grp(dest_gid).unwrap()
-                );
-            }
-        }
-        ret
     }
 
     #[inline]

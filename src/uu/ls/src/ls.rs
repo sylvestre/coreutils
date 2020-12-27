@@ -24,7 +24,7 @@ extern crate uucore;
 
 #[cfg(unix)]
 use isatty::stdout_isatty;
-use number_prefix::{decimal_prefix, Prefixed, Standalone};
+use number_prefix::NumberPrefix;
 use std::cmp::Reverse;
 #[cfg(unix)]
 use std::collections::HashMap;
@@ -168,11 +168,10 @@ pub fn uumain(args: impl uucore::Args) -> i32 {
         )
         .parse(args);
 
-    list(matches);
-    0
+    list(matches)
 }
 
-fn list(options: getopts::Matches) {
+fn list(options: getopts::Matches) -> i32 {
     let locs: Vec<String> = if options.free.is_empty() {
         vec![String::from(".")]
     } else {
@@ -181,8 +180,16 @@ fn list(options: getopts::Matches) {
 
     let mut files = Vec::<PathBuf>::new();
     let mut dirs = Vec::<PathBuf>::new();
+    let mut has_failed = false;
     for loc in locs {
         let p = PathBuf::from(&loc);
+        if !p.exists() {
+            show_error!("'{}': {}", &loc, "No such file or directory");
+            // We found an error, the return code of ls should not be 0
+            // And no need to continue the execution
+            has_failed = true;
+            continue;
+        }
         let mut dir = false;
 
         if p.is_dir() && !options.opt_present("d") {
@@ -210,6 +217,11 @@ fn list(options: getopts::Matches) {
             println!("\n{}:", dir.to_string_lossy());
         }
         enter_directory(&dir, &options);
+    }
+    if has_failed {
+        1
+    } else {
+        0
     }
 }
 
@@ -244,6 +256,18 @@ fn sort_entries(entries: &mut Vec<PathBuf>, options: &getopts::Matches) {
 }
 
 #[cfg(windows)]
+fn is_hidden(file_path: &DirEntry) -> std::io::Result<bool> {
+    let metadata = fs::metadata(file_path.path())?;
+    let attr = metadata.file_attributes();
+    Ok(((attr & 0x2) > 0) || file_path.file_name().to_string_lossy().starts_with('.'))
+}
+
+#[cfg(unix)]
+fn is_hidden(file_path: &DirEntry) -> std::io::Result<bool> {
+    Ok(file_path.file_name().to_string_lossy().starts_with('.'))
+}
+
+#[cfg(windows)]
 fn sort_entries(entries: &mut Vec<PathBuf>, options: &getopts::Matches) {
     let mut reverse = options.opt_present("r");
     if options.opt_present("t") {
@@ -274,7 +298,7 @@ fn sort_entries(entries: &mut Vec<PathBuf>, options: &getopts::Matches) {
 fn should_display(entry: &DirEntry, options: &getopts::Matches) -> bool {
     let ffi_name = entry.file_name();
     let name = ffi_name.to_string_lossy();
-    if !options.opt_present("a") && !options.opt_present("A") && name.starts_with('.') {
+    if !options.opt_present("a") && !options.opt_present("A") && is_hidden(entry).unwrap() {
         return false;
     }
     if options.opt_present("B") && name.ends_with('~') {
@@ -355,7 +379,7 @@ fn display_items(items: &[PathBuf], strip: Option<&Path>, options: &getopts::Mat
                 match md {
                     Err(e) => {
                         let filename = get_file_name(i, strip);
-                        show_error!("{}: {}", filename, e);
+                        show_error!("'{}': {}", filename, e);
                         None
                     }
                     Ok(md) => Some(display_file_name(&i, strip, &md, options)),
@@ -501,9 +525,11 @@ fn display_date(metadata: &Metadata, options: &getopts::Matches) -> String {
 
 fn display_file_size(metadata: &Metadata, options: &getopts::Matches) -> String {
     if options.opt_present("human-readable") {
-        match decimal_prefix(metadata.len() as f64) {
-            Standalone(bytes) => bytes.to_string(),
-            Prefixed(prefix, bytes) => format!("{:.2}{}", bytes, prefix).to_uppercase(),
+        match NumberPrefix::decimal(metadata.len() as f64) {
+            NumberPrefix::Standalone(bytes) => bytes.to_string(),
+            NumberPrefix::Prefixed(prefix, bytes) => {
+                format!("{:.2}{}", bytes, prefix).to_uppercase()
+            }
         }
     } else {
         metadata.len().to_string()
