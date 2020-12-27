@@ -122,7 +122,11 @@ where
     // split the file based on patterns
     for pattern in patterns.into_iter() {
         let pattern_as_str = pattern.to_string();
-        let is_skip = matches!(pattern, patterns::Pattern::SkipToMatch(_, _, _));
+        let is_skip = if let patterns::Pattern::SkipToMatch(_, _, _) = pattern {
+            true
+        } else {
+            false
+        };
         match pattern {
             patterns::Pattern::UpToLine(n, ex) => {
                 let mut up_to_line = n;
