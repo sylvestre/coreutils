@@ -147,7 +147,7 @@ fn extract_patterns(args: &[String]) -> Result<Vec<Pattern>, CsplitError> {
                 };
                 patterns.push(Pattern::SkipToMatch(pattern, offset, execute_ntimes));
             }
-        } else if let Some(line_number) = arg.parse::<usize>().ok() {
+        } else if let Ok(line_number) = arg.parse::<usize>() {
             patterns.push(Pattern::UpToLine(line_number, execute_ntimes));
         } else {
             return Err(CsplitError::InvalidPattern(arg.to_string()));
