@@ -289,9 +289,9 @@ Utilities
 | Done      | Semi-Done | To Do  |
 |-----------|-----------|--------|
 | arch      | cp        | chcon  |
-| base32    | expr      | csplit |
-| base64    | install   | dd     |
-| basename  | ls        | numfmt |
+| base32    | expr      | dd     |
+| base64    | install   | numfmt |
+| basename  | ls        | stty   |
 | cat       | more      | pr     |
 | chgrp     | od (`--strings` and 128-bit data types missing) | runcon |
 | chmod     | printf    | stty   |
