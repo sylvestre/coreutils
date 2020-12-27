@@ -1,5 +1,5 @@
 use regex::Regex;
-use crate::csplitError::CsplitError;
+use crate::csplit_error::CsplitError;
 
 /// The definition of a pattern to match on a line.
 #[derive(Debug)]

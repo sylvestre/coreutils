@@ -16,10 +16,10 @@ mod patterns;
 */
 mod splitname;
 mod patterns;
-mod csplitError;
+mod csplit_error;
 
 use crate::splitname::SplitName;
-use crate::csplitError::CsplitError;
+use crate::csplit_error::CsplitError;
 //mod split_name;
 
 
