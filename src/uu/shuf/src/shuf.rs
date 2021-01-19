@@ -10,8 +10,9 @@
 #[macro_use]
 extern crate uucore;
 
+use clap::{App, Arg};
 use rand::Rng;
-use std::fs::File;
+use std::{fs::File, path::PathBuf};
 use std::io::{stdin, stdout, BufReader, BufWriter, Read, Write};
 use std::usize::MAX as MAX_USIZE;
 
@@ -21,121 +22,163 @@ enum Mode {
     InputRange((usize, usize)),
 }
 
-static NAME: &str = "shuf";
+static ABOUT: &str = "generate random permutations";
 static VERSION: &str = env!("CARGO_PKG_VERSION");
 
+static OPT_ECHO: &str = "echo";
+static OPT_INPUT_RANGE: &str = "input-range";
+static OPT_HEAD_COUNT: &str = "head-count";
+static OPT_OUTPUT: &str = "output";
+static OPT_RANDOM_SOURCE: &str = "random-source";
+static OPT_REPEAT: &str = "repeat";
+static OPT_ZERO_TERMINATED: &str = "zero-terminated";
+
+static ARG_FILES: &str = "files";
+
+fn get_usage() -> String {
+    format!(
+        "{0} [OPTION]... [FILE]
+    {0} -e [OPTION]... [ARG]...
+    {0} -i LO-HI [OPTION]...
+  
+  Write a random permutation of the input lines to standard output.
+  With no FILE, or when FILE is -, read standard input.",
+        executable!()
+    )
+}
+
 pub fn uumain(args: impl uucore::Args) -> i32 {
-    let args = args.collect_str();
+    let usage = get_usage();
 
-    let mut opts = getopts::Options::new();
-    opts.optflag("e", "echo", "treat each ARG as an input line");
-    opts.optopt(
-        "i",
-        "input-range",
-        "treat each number LO through HI as an input line",
-        "LO-HI",
-    );
-    opts.optopt("n", "head-count", "output at most COUNT lines", "COUNT");
-    opts.optopt(
-        "o",
-        "output",
-        "write result to FILE instead of standard output",
-        "FILE",
-    );
-    opts.optopt("", "random-source", "get random bytes from FILE", "FILE");
-    opts.optflag("r", "repeat", "output lines can be repeated");
-    opts.optflag("z", "zero-terminated", "end lines with 0 byte, not newline");
-    opts.optflag("h", "help", "display this help and exit");
-    opts.optflag("V", "version", "output version information and exit");
-    let mut matches = match opts.parse(&args[1..]) {
-        Ok(m) => m,
-        Err(f) => crash!(1, "{}", f),
+    let matches = App::new(executable!())
+        .version(VERSION)
+        .about(ABOUT)
+        .usage(&usage[..])
+        .arg(
+            Arg::with_name(OPT_ECHO)
+                .short("e")
+                .long(OPT_ECHO)
+                .help("treat each ARG as an input line"),
+        )
+        .arg(
+            Arg::with_name(OPT_INPUT_RANGE)
+                .short("i")
+                .long(OPT_INPUT_RANGE)
+                .help("treat each number LO through HI as an input line")
+                .value_name("LO-HI"),
+        )
+        .arg(
+            Arg::with_name(OPT_HEAD_COUNT)
+                .short("n")
+                .long(OPT_HEAD_COUNT)
+                .help("output at most COUNT lines")
+                .value_name("COUNT"),
+        )
+        .arg(
+            Arg::with_name(OPT_OUTPUT)
+                .short("o")
+                .long(OPT_OUTPUT)
+                .help("write result to FILE instead of standard output")
+                .value_name("FILE"),
+        )
+        .arg(
+            Arg::with_name(OPT_RANDOM_SOURCE)
+                .long(OPT_RANDOM_SOURCE)
+                .help("get random bytes from FILE")
+                .value_name("FILE"),
+        )
+        .arg(
+            Arg::with_name(OPT_REPEAT)
+                .short("r")
+                .long(OPT_REPEAT)
+                .help("output lines can be repeated"),
+        )
+        .arg(
+            Arg::with_name(OPT_ZERO_TERMINATED)
+                .short("z")
+                .long(OPT_ZERO_TERMINATED)
+                .help("end lines with 0 byte, not newline"),
+        )
+        .arg(
+            Arg::with_name(ARG_FILES)
+                .multiple(true)
+                .takes_value(true)
+                .required(true)
+                .min_values(0)
+                .max_values(1)
+        )
+        .get_matches_from(args);
+
+    let paths: Vec<String> = matches
+        .values_of(ARG_FILES)
+        .map(|v| v.map(ToString::to_string).collect())
+        .unwrap_or_default();
+
+
+    let echo = matches.is_present(OPT_ECHO);
+    let mode = match matches.value_of(OPT_INPUT_RANGE) {
+        Some(range) => {
+            if echo {
+                show_error!("cannot specify more than one mode");
+                return 1;
+            }
+            match parse_range(range.to_string()) {
+                Ok(m) => Mode::InputRange(m),
+                Err(msg) => {
+                    crash!(1, "{}", msg);
+                }
+            }
+        }
+        None => {
+            if echo {
+                Mode::Echo
+            } else {
+                if paths.is_empty() {
+                    paths.push("-".to_owned());
+                }
+                Mode::Default
+            }
+        }
     };
-    if matches.opt_present("help") {
-        let msg = format!(
-            "{0} {1}
-
-Usage:
-  {0} [OPTION]... [FILE]
-  {0} -e [OPTION]... [ARG]...
-  {0} -i LO-HI [OPTION]...
-
-Write a random permutation of the input lines to standard output.
-With no FILE, or when FILE is -, read standard input.",
-            NAME, VERSION
-        );
-        print!("{}", opts.usage(&msg));
-    } else if matches.opt_present("version") {
-        println!("{} {}", NAME, VERSION);
+    let repeat = matches.is_present(OPT_REPEAT);
+    let sep = if matches.is_present(OPT_ZERO_TERMINATED) {
+        0x00 as u8
     } else {
-        let echo = matches.opt_present("echo");
-        let mode = match matches.opt_str("input-range") {
-            Some(range) => {
-                if echo {
-                    show_error!("cannot specify more than one mode");
-                    return 1;
-                }
-                match parse_range(range) {
-                    Ok(m) => Mode::InputRange(m),
-                    Err(msg) => {
-                        crash!(1, "{}", msg);
-                    }
-                }
+        0x0a as u8
+    };
+    let count = match matches.value_of(OPT_HEAD_COUNT) {
+        Some(cnt) => match cnt.parse::<usize>() {
+            Ok(val) => val,
+            Err(e) => {
+                show_error!("'{}' is not a valid count: {}", cnt, e);
+                return 1;
             }
-            None => {
-                if echo {
-                    Mode::Echo
-                } else {
-                    if matches.free.is_empty() {
-                        matches.free.push("-".to_owned());
-                    } else if matches.free.len() > 1 {
-                        show_error!("extra operand '{}'", &matches.free[1][..]);
-                    }
-                    Mode::Default
-                }
-            }
-        };
-        let repeat = matches.opt_present("repeat");
-        let sep = if matches.opt_present("zero-terminated") {
-            0x00 as u8
-        } else {
-            0x0a as u8
-        };
-        let count = match matches.opt_str("head-count") {
-            Some(cnt) => match cnt.parse::<usize>() {
-                Ok(val) => val,
-                Err(e) => {
-                    show_error!("'{}' is not a valid count: {}", cnt, e);
-                    return 1;
-                }
-            },
-            None => MAX_USIZE,
-        };
-        let output = matches.opt_str("output");
-        let random = matches.opt_str("random-source");
+        },
+        None => MAX_USIZE,
+    };
+    let output = matches.value_of(OPT_OUTPUT).map(String::from);
+    let random = matches.value_of(OPT_RANDOM_SOURCE).map(String::from);
 
-        match mode {
-            Mode::Echo => {
-                // XXX: this doesn't correctly handle non-UTF-8 cmdline args
-                let mut evec = matches
-                    .free
-                    .iter()
-                    .map(String::as_bytes)
-                    .collect::<Vec<&[u8]>>();
-                find_seps(&mut evec, sep);
-                shuf_bytes(&mut evec, repeat, count, sep, output, random);
-            }
-            Mode::InputRange((b, e)) => {
-                let rvec = (b..e).map(|x| format!("{}", x)).collect::<Vec<String>>();
-                let mut rvec = rvec.iter().map(String::as_bytes).collect::<Vec<&[u8]>>();
-                shuf_bytes(&mut rvec, repeat, count, sep, output, random);
-            }
-            Mode::Default => {
-                let fdata = read_input_file(&matches.free[0][..]);
-                let mut fdata = vec![&fdata[..]];
-                find_seps(&mut fdata, sep);
-                shuf_bytes(&mut fdata, repeat, count, sep, output, random);
-            }
+    match mode {
+        Mode::Echo => {
+            // XXX: this doesn't correctly handle non-UTF-8 cmdline args
+            let mut evec = matches
+                .values_of(ARG_FILES)
+                .map(String::as_bytes)
+                .collect::<Vec<&[u8]>>();
+            find_seps(&mut evec, sep);
+            shuf_bytes(&mut evec, repeat, count, sep, output, random);
+        }
+        Mode::InputRange((b, e)) => {
+            let rvec = (b..e).map(|x| format!("{}", x)).collect::<Vec<String>>();
+            let mut rvec = rvec.iter().map(String::as_bytes).collect::<Vec<&[u8]>>();
+            shuf_bytes(&mut rvec, repeat, count, sep, output, random);
+        }
+        Mode::Default => {
+            let fdata = read_input_file(&paths[0]);
+            let mut fdata = vec![&fdata[..]];
+            find_seps(&mut fdata, sep);
+            shuf_bytes(&mut fdata, repeat, count, sep, output, random);
         }
     }
 
