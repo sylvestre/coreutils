@@ -649,7 +649,7 @@ mod test_du {
             (Some("900KB".to_string()), Some(900 * 1000)),
             (Some("BAD_STRING".to_string()), None),
         ];
-        for it in test_data.into_iter() {
+        for it in test_data.iter() {
             assert_eq!(translate_to_pure_number(&it.0), it.1);
         }
     }
@@ -661,7 +661,7 @@ mod test_du {
             (None, 1024),
             (Some("BAD_STRING".to_string()), 1024),
         ];
-        for it in test_data.into_iter() {
+        for it in test_data.iter() {
             assert_eq!(read_block_size(it.0.clone()), it.1);
         }
     }
