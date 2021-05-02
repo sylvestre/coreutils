@@ -569,6 +569,19 @@ jobs:
         RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort'
         RUSTDOCFLAGS: '-Cpanic=abort'
         # RUSTUP_TOOLCHAIN: ${{ steps.vars.outputs.TOOLCHAIN }}
+    - name: Test individual utilities uumain
+      run: |
+        ## Dependent VARs setup
+        # * determine sub-crate utility list
+        make build-pkgs
+        UTILITY_LIST="$(./util/show-utils.sh ${CARGO_FEATURES_OPTION})"
+        # Just run help
+        CARGO_UTILITY_LIST_OPTIONS="$(for u in ${UTILITY_LIST}; do ./target/debug/${u} --help; done;)"
+      env:
+        CARGO_INCREMENTAL: '0'
+        RUSTC_WRAPPER: ''
+        RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort'
+        RUSTDOCFLAGS: '-Cpanic=abort'
     - name: "`grcov` ~ install"
       uses: actions-rs/install@v0.1
       with:
