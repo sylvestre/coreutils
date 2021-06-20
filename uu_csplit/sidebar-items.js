@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["csplit","Splits a file into severals according to the command line patterns."],["uumain",""]],"struct":[["CsplitOptions","Command line options for csplit."]]});

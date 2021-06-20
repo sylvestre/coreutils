@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["factor",""],["uumain",""]],"mod":[["numeric",""],["table",""]],"struct":[["Factors",""]]});

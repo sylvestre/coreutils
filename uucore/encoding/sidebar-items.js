@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["EncodingError",""],["Format",""]],"fn":[["decode",""],["encode",""],["wrap_print",""],["wrap_write",""]],"struct":[["Data",""]],"type":[["DecodeResult",""]]});

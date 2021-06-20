@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["MainFunction",""]],"fn":[["uumain","Main install utility function, called from main.rs."]],"struct":[["Behavior",""]]});

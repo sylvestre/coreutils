@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["uumain","parses and validates command line parameters, prepares data structures, opens the input and calls `odfunc` to process the input."]]});

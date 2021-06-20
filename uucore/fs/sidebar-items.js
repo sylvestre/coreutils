@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["CanonicalizeMode","Controls how symbolic links should be handled when canonicalizing a path."]],"fn":[["canonicalize","Return the canonical, absolute form of a path."],["display_permissions",""],["display_permissions_unix",""],["normalize_path",""],["resolve_relative_path",""]]});

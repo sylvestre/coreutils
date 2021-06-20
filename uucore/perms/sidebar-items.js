@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Verbosity","The various level of verbosity"]],"fn":[["wrap_chgrp","Perform the change of group on a path with the various options and error messages management"],["wrap_chown","Perform the change of owner on a path with the various options and error messages management"]],"mod":[["entries","Get password/group file entry"]]});
