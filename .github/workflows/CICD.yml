@@ -432,7 +432,6 @@ jobs:
       run: |
         make test
 
-
   compute_size:
     name: Binary sizes
     needs: [ min_version, deps ]
@@ -850,6 +849,37 @@ jobs:
           cargo clean
           if (test -n "$FAULT"); then exit 1 ; fi
           EOF
+
+  test_risc64:
+    name: Tests/RISC-V test suite
+    needs: [ min_version, deps ]
+    runs-on: ${{ matrix.job.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          - { os: ubuntu-latest }
+    steps:
+    - uses: actions/checkout@v2
+    - uses: docker/setup-qemu-action@v1
+      with:
+        platforms: linux/riscv64
+    - uses: Swatinem/rust-cache@v1
+    - name: Install `rust` toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        default: true
+        profile: minimal # minimal component installation (ie, no documentation)
+        platform: linux/riscv64
+    - name: "`make build`"
+      shell: bash
+      run: |
+        make build
+    - name: "`make test`"
+      shell: bash
+      run: |
+        make test
 
   coverage:
     name: Code Coverage
