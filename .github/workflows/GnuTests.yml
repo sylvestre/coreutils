@@ -75,6 +75,12 @@ jobs:
         ## Install dependencies
         sudo apt-get update
         sudo apt-get install autoconf autopoint bison texinfo gperf gcc g++ gdb python-pyinotify jq valgrind libexpect-perl
+    - name: install selinux
+      run: |
+        sudo apt-get install policycoreutils selinux-utils selinux-basics -y
+        sudo selinux-activate
+        sudo selinux-config-enforcing
+        sestatus
     - name: Add various locales
       shell: bash
       run: |
