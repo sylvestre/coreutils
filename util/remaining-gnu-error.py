@@ -10,10 +10,10 @@ import glob
 import json
 
 base = "../gnu/tests/"
-urllib.request.urlretrieve(
-    "https://raw.githubusercontent.com/uutils/coreutils-tracking/main/gnu-full-result.json",
-    "result.json",
-)
+#urllib.request.urlretrieve(
+#    "https://raw.githubusercontent.com/uutils/coreutils-tracking/main/gnu-full-result.json",
+#    "result.json",
+#)
 
 types = ("/*/*.sh", "/*/*.pl", "/*/*.xpl")
 
