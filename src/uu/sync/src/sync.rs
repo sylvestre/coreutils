@@ -10,6 +10,10 @@
 extern crate libc;
 
 use clap::{crate_version, Arg, Command};
+use nix::errno::Errno;
+use nix::fcntl::open;
+use nix::fcntl::OFlag;
+use nix::sys::stat::Mode;
 use std::path::Path;
 use uucore::display::Quotable;
 use uucore::error::{UResult, USimpleError};
@@ -174,11 +178,28 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     }
 
     for f in &files {
-        if !Path::new(&f).exists() {
-            return Err(USimpleError::new(
-                1,
-                format!("cannot stat {}: No such file or directory", f.quote()),
-            ));
+        // Use the Nix open to be able to set the NONBLOCK flags for fifo files
+        match open(Path::new(&f), OFlag::O_NONBLOCK, Mode::empty()) {
+            Ok(_) => {}
+            Err(e) => {
+                if e == Errno::ENOENT {
+                    return Err(USimpleError::new(
+                        1,
+                        format!("cannot stat {}: No such file or directory", f.quote()),
+                    ));
+                }
+                if e == Errno::EACCES {
+                    if Path::new(&f).is_dir() {
+                        return Err(USimpleError::new(
+                            1,
+                            format!("error opening {}: Permission denied", f.quote()),
+                        ));
+                    } else {
+                        // ignore the issue
+                        // ./target/debug/coreutils sync --data file
+                    }
+                }
+            }
         }
     }
 
