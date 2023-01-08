@@ -14,6 +14,9 @@ env:
   RUST_MIN_SRV: "1.60.0" ## MSRV v1.60.0
   # * style job configuration
   STYLE_FAIL_ON_FAULT: true ## (bool) fail the build if a style job contains a fault (error or warning); may be overridden on a per-job basis
+  SCCACHE_GHA_VERSION: "coreutils_cache"
+  RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+  SCCACHE_PATH: /home/runner/.cargo/bin/sccache
 
 on: [push, pull_request]
 
@@ -68,7 +71,12 @@ jobs:
       run: |
         rustup toolchain install nightly --profile minimal
         rustup default nightly
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Install `cargo-udeps`
       run: cargo install cargo-udeps
       env:
@@ -119,7 +127,12 @@ jobs:
         rm -f "${HOME}/.cargo/bin/"{rustfmt,cargo-fmt}
         rustup toolchain install stable -c rustfmt --profile minimal
         rustup default stable
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: "`cargo fmt` testing"
       shell: bash
       run: |
@@ -177,7 +190,12 @@ jobs:
       run: |
         rustup toolchain install stable -c clippy --profile minimal
         rustup default stable
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: "`cargo clippy` lint testing"
       shell: bash
       run: |
@@ -200,7 +218,12 @@ jobs:
           - { os: ubuntu-latest , features: feat_os_unix }
     steps:
     - uses: actions/checkout@v3
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Initialize workflow variables
       id: vars
       shell: bash
@@ -278,7 +301,12 @@ jobs:
       run: |
         rustup toolchain install stable -c clippy --profile minimal
         rustup default stable
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: "`cargo doc` with warnings"
       shell: bash
       run: |
@@ -309,7 +337,12 @@ jobs:
       run: |
         rustup toolchain install ${{ env.RUST_MIN_SRV }} --profile minimal
         rustup default ${{ env.RUST_MIN_SRV }}
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Confirm MinSRV compatible 'Cargo.lock'
       shell: bash
       run: |
@@ -363,7 +396,12 @@ jobs:
       run: |
         rustup toolchain install stable --profile minimal
         rustup default stable
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: "`cargo update` testing"
       shell: bash
       run: |
@@ -386,7 +424,12 @@ jobs:
       run: |
         rustup toolchain install stable --profile minimal
         rustup default stable
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: "`make build`"
       shell: bash
       run: |
@@ -417,7 +460,17 @@ jobs:
       run: |
         rustup toolchain install stable --profile minimal
         rustup default stable
-    - uses: Swatinem/rust-cache@v2
+    - name: Install `sccache`
+      run: |
+        wget -c https://github.com/mozilla/sccache/releases/download/v0.4.0-pre.5/sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz -O - | tar -xz
+        mv sccache-*/sccache ${SCCACHE_PATH}
+        chmod +x ${SCCACHE_PATH}
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Test
       run: cargo test ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }}
       env:
@@ -441,7 +494,17 @@ jobs:
       run: |
         rustup toolchain install nightly --profile minimal
         rustup default nightly
-    - uses: Swatinem/rust-cache@v2
+    - name: Install `sccache`
+      run: |
+        wget -c https://github.com/mozilla/sccache/releases/download/v0.4.0-pre.5/sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz -O - | tar -xz
+        mv sccache-*/sccache ${SCCACHE_PATH}
+        chmod +x ${SCCACHE_PATH}
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Test
       run: cargo test ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }}
       env:
@@ -468,7 +531,12 @@ jobs:
       run: |
         rustup toolchain install stable --profile minimal
         rustup default stable
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: "`make install`"
       shell: bash
       run: |
@@ -654,9 +722,12 @@ jobs:
       run: |
         rustup toolchain install ${{ env.RUST_MIN_SRV }} -t ${{ matrix.job.target }} --profile minimal
         rustup default ${{ env.RUST_MIN_SRV }}
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
       with:
-        key: ${{ matrix.job.os }}-${{ matrix.job.target }}
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Initialize toolchain-dependent workflow variables
       id: dep_vars
       shell: bash
@@ -776,7 +847,12 @@ jobs:
         ## VARs setup
         echo "TEST_SUMMARY_FILE=busybox-result.json" >> $GITHUB_OUTPUT
     - uses: actions/checkout@v3
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Install/setup prerequisites
       shell: bash
       run: |
@@ -848,7 +924,12 @@ jobs:
         ## VARs setup
         echo "TEST_SUMMARY_FILE=toybox-result.json" >> $GITHUB_OUTPUT
     - uses: actions/checkout@v3
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: rust toolchain ~ install
       run: |
         rustup toolchain install ${{ env.RUST_MIN_SRV }} --profile minimal
@@ -981,7 +1062,12 @@ jobs:
       mem: 4096
     steps:
     - uses: actions/checkout@v3
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Prepare, build and test
       ## spell-checker:ignore (ToDO) sshfs usesh vmactions
       uses: vmactions/freebsd-vm@v0.3.0
@@ -1107,7 +1193,12 @@ jobs:
       run: |
         rustup toolchain install ${{ steps.vars.outputs.TOOLCHAIN }} --profile minimal
         rustup default ${{ steps.vars.outputs.TOOLCHAIN }}
-    - uses: Swatinem/rust-cache@v2
+    - name: Configure Cache Env
+      uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Initialize toolchain-dependent workflow variables
       id: dep_vars
       shell: bash
