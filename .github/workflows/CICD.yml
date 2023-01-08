@@ -16,6 +16,7 @@ env:
   STYLE_FAIL_ON_FAULT: true ## (bool) fail the build if a style job contains a fault (error or warning); may be overridden on a per-job basis
   SCCACHE_GHA_VERSION: "coreutils_cache"
   SCCACHE_PATH: /home/runner/.cargo/bin/sccache
+  CARGO_INCREMENTAL: false
 
 on: [push, pull_request]
 
