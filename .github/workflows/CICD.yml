@@ -489,6 +489,7 @@ jobs:
           sccache_platform=windows-msvc
         fi
         sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-x86_64-${sccache_platform}.tar.gz"
+        ls -al sccache-*/
         wget -q -c "${sccache_url}" -O - | tar -xz
         mv sccache-*/sccache* ${SCCACHE_PATH}
         chmod +x ${SCCACHE_PATH} && ${SCCACHE_PATH} --version
@@ -527,8 +528,18 @@ jobs:
         rustup default nightly
     - name: Install `sccache`
       run: |
-        wget -q -c https://github.com/mozilla/sccache/releases/download/v0.4.0-pre.5/sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz -O - | tar -xz
-        mv sccache-*/sccache ${SCCACHE_PATH}
+        version=v0.4.0-pre.5
+        if [ "${{ matrix.job.os }}" = "ubuntu-latest" ]; then
+          sccache_platform=unknown-linux-musl
+        elif [ "${{ matrix.job.os }}" = "macos-latest" ]; then
+          sccache_platform=apple-darwin
+        elif [ "${{ matrix.job.os }}" = "windows-latest" ]; then
+          sccache_platform=windows-msvc
+        fi
+        sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-x86_64-${sccache_platform}.tar.gz"
+        ls -al sccache-*/
+        wget -q -c "${sccache_url}" -O - | tar -xz
+        mv sccache-*/sccache* ${SCCACHE_PATH}
         chmod +x ${SCCACHE_PATH} && ${SCCACHE_PATH} --version
     - name: Configure Cache Env
       uses: actions/github-script@v6
