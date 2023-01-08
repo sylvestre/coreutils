@@ -336,6 +336,11 @@ jobs:
       run: |
         rustup toolchain install ${{ env.RUST_MIN_SRV }} --profile minimal
         rustup default ${{ env.RUST_MIN_SRV }}
+    - name: Install `sccache`
+      run: |
+        wget -c https://github.com/mozilla/sccache/releases/download/v0.4.0-pre.5/sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz -O - | tar -xz
+        mv sccache-*/sccache ${SCCACHE_PATH}
+        chmod +x ${SCCACHE_PATH}
     - name: Configure Cache Env
       uses: actions/github-script@v6
       with:
@@ -380,6 +385,7 @@ jobs:
       env:
         RUSTFLAGS: "-Awarnings --cfg unsound_local_offset"
         RUST_BACKTRACE: "1"
+        RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
 
   deps:
     name: Dependencies
