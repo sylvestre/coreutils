@@ -341,13 +341,16 @@ jobs:
       run: |
         version=v0.4.0-pre.5
         if [ "${{ matrix.job.os }}" = "ubuntu-latest" ]; then
-          sccache_platform=unknown-linux-musl
+          # ex: sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz
+          sccache_platform=x86_64-unknown-linux-musl
         elif [ "${{ matrix.job.os }}" = "macos-latest" ]; then
-          sccache_platform=apple-darwin
+          # ex: sccache-v0.4.0-pre.5-x86_64-apple-darwin.tar.gz
+          sccache_platform=x86_64-apple-darwin
         elif [ "${{ matrix.job.os }}" = "windows-latest" ]; then
-          sccache_platform=windows-msvc
+          # ex: sccache-v0.4.0-pre.5-x86_64-pc-windows-msvc.tar.gz
+          sccache_platform=x86_64-pc-windows-msvc
         fi
-        sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-x86_64-${sccache_platform}.tar.gz"
+        sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-${sccache_platform}.tar.gz"
         echo "URL=${sccache_url}"
         wget -q -c "${sccache_url}" -O - | tar -xz
         ls -al sccache-*/
@@ -483,13 +486,16 @@ jobs:
       run: |
         version=v0.4.0-pre.5
         if [ "${{ matrix.job.os }}" = "ubuntu-latest" ]; then
-          sccache_platform=unknown-linux-musl
+          # ex: sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz
+          sccache_platform=x86_64-unknown-linux-musl
         elif [ "${{ matrix.job.os }}" = "macos-latest" ]; then
-          sccache_platform=apple-darwin
+          # ex: sccache-v0.4.0-pre.5-x86_64-apple-darwin.tar.gz
+          sccache_platform=x86_64-apple-darwin
         elif [ "${{ matrix.job.os }}" = "windows-latest" ]; then
-          sccache_platform=windows-msvc
+          # ex: sccache-v0.4.0-pre.5-x86_64-pc-windows-msvc.tar.gz
+          sccache_platform=x86_64-pc-windows-msvc
         fi
-        sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-x86_64-${sccache_platform}.tar.gz"
+        sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-${sccache_platform}.tar.gz"
         echo "URL=${sccache_url}"
         wget -q -c "${sccache_url}" -O - | tar -xz
         ls -al sccache-*/
@@ -532,13 +538,16 @@ jobs:
       run: |
         version=v0.4.0-pre.5
         if [ "${{ matrix.job.os }}" = "ubuntu-latest" ]; then
-          sccache_platform=unknown-linux-musl
+          # ex: sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz
+          sccache_platform=x86_64-unknown-linux-musl
         elif [ "${{ matrix.job.os }}" = "macos-latest" ]; then
-          sccache_platform=apple-darwin
+          # ex: sccache-v0.4.0-pre.5-x86_64-apple-darwin.tar.gz
+          sccache_platform=x86_64-apple-darwin
         elif [ "${{ matrix.job.os }}" = "windows-latest" ]; then
-          sccache_platform=windows-msvc
+          # ex: sccache-v0.4.0-pre.5-x86_64-pc-windows-msvc.tar.gz
+          sccache_platform=x86_64-pc-windows-msvc
         fi
-        sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-x86_64-${sccache_platform}.tar.gz"
+        sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-${sccache_platform}.tar.gz"
         echo "URL=${sccache_url}"
         wget -q -c "${sccache_url}" -O - | tar -xz
         ls -al sccache-*/
