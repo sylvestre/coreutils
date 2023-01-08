@@ -349,6 +349,7 @@ jobs:
         fi
         sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-x86_64-${sccache_platform}.tar.gz"
         wget -q -c "${sccache_url}" -O - | tar -xz
+        ls -al sccache-*/
         mv sccache-*/sccache* ${SCCACHE_PATH}
         chmod +x ${SCCACHE_PATH} && ${SCCACHE_PATH} --version
     - name: Configure Cache Env
