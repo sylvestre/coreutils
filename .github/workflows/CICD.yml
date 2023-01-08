@@ -382,13 +382,14 @@ jobs:
         RUSTUP_TOOLCHAIN=stable cargo fetch --locked --quiet
         RUSTUP_TOOLCHAIN=stable cargo tree --all --locked --no-dev-dependencies --no-indent ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }} | grep -vE "$PWD" | sort --unique
     - name: Test
-      run: |
-        cargo test -v ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }} -p uucore -p coreutils
-        ${SCCACHE_PATH} --show-stats
+      run: cargo test -v ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }} -p uucore -p coreutils
       env:
         RUSTFLAGS: "-Awarnings --cfg unsound_local_offset"
         RUST_BACKTRACE: "1"
         RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+    - name: `sccache --show-stats`
+      run: |
+        ${SCCACHE_PATH} --show-stats
 
   deps:
     name: Dependencies
@@ -480,12 +481,13 @@ jobs:
           core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
           core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Test
-      run: |
-        cargo test ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }}
-        ${SCCACHE_PATH} --show-stats
+      run: cargo test ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }}
       env:
         RUST_BACKTRACE: "1"
         RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+    - name: `sccache --show-stats`
+      run: |
+        ${SCCACHE_PATH} --show-stats
 
 
   build_rust_nightly:
@@ -518,12 +520,13 @@ jobs:
           core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
           core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: Test
-      run: |
-        cargo test ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }}
-        ${SCCACHE_PATH} --show-stats
+      run: cargo test ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }}
       env:
         RUST_BACKTRACE: "1"
         RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+    - name: `sccache --show-stats`
+      run: |
+        ${SCCACHE_PATH} --show-stats
 
   compute_size:
     name: Binary sizes
