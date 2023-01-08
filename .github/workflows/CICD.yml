@@ -402,12 +402,6 @@ jobs:
       run: |
         rustup toolchain install stable --profile minimal
         rustup default stable
-    - name: Configure Cache Env
-      uses: actions/github-script@v6
-      with:
-        script: |
-          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
     - name: "`cargo update` testing"
       shell: bash
       run: |
@@ -731,6 +725,9 @@ jobs:
       run: |
         rustup toolchain install ${{ env.RUST_MIN_SRV }} -t ${{ matrix.job.target }} --profile minimal
         rustup default ${{ env.RUST_MIN_SRV }}
+    - name: Install `sccache`
+      run: |
+        bash util/install-sccache.sh ${{ matrix.job.os }}
     - name: Configure Cache Env
       uses: actions/github-script@v6
       with:
@@ -829,6 +826,8 @@ jobs:
           # build dpkg
           fakeroot dpkg-deb --build "${DPKG_DIR}" "${{ steps.vars.outputs.STAGING }}/${{ steps.vars.outputs.DPKG_NAME }}"
         fi
+    - name: Run `sccache --show-stats`
+      run: ${SCCACHE_PATH} --show-stats
     - name: Publish
       uses: softprops/action-gh-release@v1
       if: steps.vars.outputs.DEPLOY
@@ -856,6 +855,9 @@ jobs:
         ## VARs setup
         echo "TEST_SUMMARY_FILE=busybox-result.json" >> $GITHUB_OUTPUT
     - uses: actions/checkout@v3
+    - name: Install `sccache`
+      run: |
+        bash util/install-sccache.sh ${{ matrix.job.os }}
     - name: Configure Cache Env
       uses: actions/github-script@v6
       with:
@@ -933,6 +935,9 @@ jobs:
         ## VARs setup
         echo "TEST_SUMMARY_FILE=toybox-result.json" >> $GITHUB_OUTPUT
     - uses: actions/checkout@v3
+    - name: Install `sccache`
+      run: |
+        bash util/install-sccache.sh ${{ matrix.job.os }}
     - name: Configure Cache Env
       uses: actions/github-script@v6
       with:
@@ -1202,6 +1207,9 @@ jobs:
       run: |
         rustup toolchain install ${{ steps.vars.outputs.TOOLCHAIN }} --profile minimal
         rustup default ${{ steps.vars.outputs.TOOLCHAIN }}
+    - name: Install `sccache`
+      run: |
+        bash util/install-sccache.sh ${{ matrix.job.os }}
     - name: Configure Cache Env
       uses: actions/github-script@v6
       with:
