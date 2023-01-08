@@ -348,6 +348,7 @@ jobs:
           sccache_platform=windows-msvc
         fi
         sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-x86_64-${sccache_platform}.tar.gz"
+        echo "URL=${sccache_url}"
         wget -q -c "${sccache_url}" -O - | tar -xz
         ls -al sccache-*/
         mv sccache-*/sccache* ${SCCACHE_PATH}
@@ -489,8 +490,9 @@ jobs:
           sccache_platform=windows-msvc
         fi
         sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-x86_64-${sccache_platform}.tar.gz"
-        ls -al sccache-*/
+        echo "URL=${sccache_url}"
         wget -q -c "${sccache_url}" -O - | tar -xz
+        ls -al sccache-*/
         mv sccache-*/sccache* ${SCCACHE_PATH}
         chmod +x ${SCCACHE_PATH} && ${SCCACHE_PATH} --version
     - name: Configure Cache Env
@@ -537,8 +539,9 @@ jobs:
           sccache_platform=windows-msvc
         fi
         sccache_url="https://github.com/mozilla/sccache/releases/download/${version}/sccache-${version}-x86_64-${sccache_platform}.tar.gz"
-        ls -al sccache-*/
+        echo "URL=${sccache_url}"
         wget -q -c "${sccache_url}" -O - | tar -xz
+        ls -al sccache-*/
         mv sccache-*/sccache* ${SCCACHE_PATH}
         chmod +x ${SCCACHE_PATH} && ${SCCACHE_PATH} --version
     - name: Configure Cache Env
