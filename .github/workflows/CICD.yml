@@ -338,9 +338,9 @@ jobs:
         rustup default ${{ env.RUST_MIN_SRV }}
     - name: Install `sccache`
       run: |
-        wget -c https://github.com/mozilla/sccache/releases/download/v0.4.0-pre.5/sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz -O - | tar -xz
+        wget -q -c https://github.com/mozilla/sccache/releases/download/v0.4.0-pre.5/sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz -O - | tar -xz
         mv sccache-*/sccache ${SCCACHE_PATH}
-        chmod +x ${SCCACHE_PATH}
+        chmod +x ${SCCACHE_PATH} && ${SCCACHE_PATH} --version
     - name: Configure Cache Env
       uses: actions/github-script@v6
       with:
@@ -467,9 +467,9 @@ jobs:
         rustup default stable
     - name: Install `sccache`
       run: |
-        wget -c https://github.com/mozilla/sccache/releases/download/v0.4.0-pre.5/sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz -O - | tar -xz
+        wget -q -c https://github.com/mozilla/sccache/releases/download/v0.4.0-pre.5/sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz -O - | tar -xz
         mv sccache-*/sccache ${SCCACHE_PATH}
-        chmod +x ${SCCACHE_PATH}
+        chmod +x ${SCCACHE_PATH} && ${SCCACHE_PATH} --version
     - name: Configure Cache Env
       uses: actions/github-script@v6
       with:
@@ -503,9 +503,9 @@ jobs:
         rustup default nightly
     - name: Install `sccache`
       run: |
-        wget -c https://github.com/mozilla/sccache/releases/download/v0.4.0-pre.5/sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz -O - | tar -xz
+        wget -q -c https://github.com/mozilla/sccache/releases/download/v0.4.0-pre.5/sccache-v0.4.0-pre.5-x86_64-unknown-linux-musl.tar.gz -O - | tar -xz
         mv sccache-*/sccache ${SCCACHE_PATH}
-        chmod +x ${SCCACHE_PATH}
+        chmod +x ${SCCACHE_PATH} && ${SCCACHE_PATH} --version
     - name: Configure Cache Env
       uses: actions/github-script@v6
       with:
