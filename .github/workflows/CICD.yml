@@ -387,9 +387,8 @@ jobs:
         RUSTFLAGS: "-Awarnings --cfg unsound_local_offset"
         RUST_BACKTRACE: "1"
         RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
-    - name: `sccache --show-stats`
-      run: |
-        ${SCCACHE_PATH} --show-stats
+    - name: Run `sccache --show-stats`
+      run: ${SCCACHE_PATH} --show-stats
 
   deps:
     name: Dependencies
@@ -485,9 +484,8 @@ jobs:
       env:
         RUST_BACKTRACE: "1"
         RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
-    - name: `sccache --show-stats`
-      run: |
-        ${SCCACHE_PATH} --show-stats
+    - name: Run `sccache --show-stats`
+      run: ${SCCACHE_PATH} --show-stats
 
 
   build_rust_nightly:
@@ -524,9 +522,8 @@ jobs:
       env:
         RUST_BACKTRACE: "1"
         RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
-    - name: `sccache --show-stats`
-      run: |
-        ${SCCACHE_PATH} --show-stats
+    - name: Run `sccache --show-stats`
+      run: ${SCCACHE_PATH} --show-stats
 
   compute_size:
     name: Binary sizes
