@@ -15,7 +15,6 @@ env:
   # * style job configuration
   STYLE_FAIL_ON_FAULT: true ## (bool) fail the build if a style job contains a fault (error or warning); may be overridden on a per-job basis
   SCCACHE_GHA_VERSION: "coreutils_cache"
-  RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
   SCCACHE_PATH: /home/runner/.cargo/bin/sccache
 
 on: [push, pull_request]
@@ -475,6 +474,8 @@ jobs:
       run: cargo test ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }}
       env:
         RUST_BACKTRACE: "1"
+        RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+
 
   build_rust_nightly:
     name: Build/nightly
@@ -509,6 +510,7 @@ jobs:
       run: cargo test ${{ steps.vars.outputs.CARGO_FEATURES_OPTION }}
       env:
         RUST_BACKTRACE: "1"
+        RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
 
   compute_size:
     name: Binary sizes
