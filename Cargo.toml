@@ -172,11 +172,11 @@ feat_os_unix_android = [
 #
 # ** NOTE: these `feat_require_...` sets should be minimized as much as possible to encourage cross-platform availability of utilities
 #
-# "feat_require_crate_cpp" == set of utilities requiring the `cpp` crate (which fail to compile on several platforms; as of 2020-04-23)
+# "feat_require_crate_cpp" == set of utilities requiring the `cpp` crate (which fail to compile on several platforms
 feat_require_crate_cpp = [
     "stdbuf",
 ]
-# "feat_require_unix" == set of utilities requiring support which is only available on unix platforms (as of 2020-04-23)
+# "feat_require_unix" == set of utilities requiring support which is only available on unix platforms
 feat_require_unix = [
     "chgrp",
     "chmod",
