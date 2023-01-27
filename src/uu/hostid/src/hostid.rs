@@ -8,16 +8,10 @@
 // spell-checker:ignore (ToDO) gethostid
 
 use clap::{crate_version, Command};
-use libc::c_long;
 use uucore::{error::UResult, format_usage};
 
 const USAGE: &str = "{} [options]";
 const ABOUT: &str = "Print the numeric identifier (in hexadecimal) for the current host";
-
-// currently rust libc interface doesn't include gethostid
-extern "C" {
-    pub fn gethostid() -> c_long;
-}
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
@@ -41,9 +35,9 @@ fn hostid() {
      * is a no-op unless unsigned int is wider than 32 bits.
      */
 
-    let mut result: c_long;
+    let mut result;
     unsafe {
-        result = gethostid();
+        result = libc::gethostid();
     }
 
     #[allow(overflowing_literals)]
