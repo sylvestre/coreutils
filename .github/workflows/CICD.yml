@@ -665,7 +665,7 @@ jobs:
     - name: rust toolchain ~ install
       run: |
         ## rust toolchain ~ install
-        rustup toolchain install ${{ env.RUST_MIN_SRV }} -t ${{ matrix.job.target }} --profile minimal
+        rustup toolchain install +${{ env.RUST_MIN_SRV }} -t ${{ matrix.job.target }} --profile minimal
         rustup default ${{ env.RUST_MIN_SRV }}
     - uses: Swatinem/rust-cache@v2
       with:
@@ -871,7 +871,7 @@ jobs:
     - name: rust toolchain ~ install
       run: |
         ## rust toolchain ~ install
-        rustup toolchain install ${{ env.RUST_MIN_SRV }} --profile minimal
+        rustup toolchain install +${{ env.RUST_MIN_SRV }} --profile minimal
         rustup default ${{ env.RUST_MIN_SRV }}
     - name: Build coreutils as multiple binaries
       shell: bash
