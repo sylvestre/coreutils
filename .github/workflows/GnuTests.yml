@@ -119,14 +119,14 @@ jobs:
         path_GNU='${{ steps.vars.outputs.path_GNU }}'
         path_UUTILS='${{ steps.vars.outputs.path_UUTILS }}'
         # Run in script to get a proper tty
-        unbuffer bash "${path_UUTILS}/util/run-gnu-test.sh"
+        bash "${path_UUTILS}/util/run-gnu-test.sh"
     - name: Run GNU root tests
       shell: bash
       run: |
         ## Run GNU root tests
         path_GNU='${{ steps.vars.outputs.path_GNU }}'
         path_UUTILS='${{ steps.vars.outputs.path_UUTILS }}'
-        unbuffer bash "${path_UUTILS}/util/run-gnu-test.sh" run-root
+        bash "${path_UUTILS}/util/run-gnu-test.sh" run-root
     - name: Extract testing info into JSON
       shell: bash
       run : |
