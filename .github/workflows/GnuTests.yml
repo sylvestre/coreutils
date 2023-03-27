@@ -226,7 +226,7 @@ jobs:
           for LINE in ${REF_FAILING}
           do
             if ! grep -Fxq ${LINE}<<<"${NEW_FAILING}"; then
-              if ! grep ${LINE} ${IGNORE_INTERMITTENT}
+              if ! grep ${LINE} "${IGNORE_INTERMITTENT}"
               then
                 MSG="Congrats! The gnu test ${LINE} is no longer failing!"
                 echo "::warning ::$MSG"
@@ -243,7 +243,7 @@ jobs:
           do
             if ! grep -Fxq ${LINE}<<<"${REF_FAILING}"
             then
-              if ! grep ${LINE} ${IGNORE_INTERMITTENT}
+              if ! grep ${LINE} "${IGNORE_INTERMITTENT}"
               then
                 MSG="GNU test failed: ${LINE}. ${LINE} is passing on '${{ steps.vars.outputs.repo_default_branch }}'. Maybe you have to rebase?"
                 echo "::error ::$MSG"
