@@ -29,7 +29,8 @@ pub fn from_str(s: &str) -> UResult<FileTime> {
     // Tue Dec  3 ...
     // ("%c", POSIX_LOCALE_FORMAT),
     //
-    if let Ok(parsed) = time::OffsetDateTime::parse(s, &POSIX_LOCALE_FORMAT) {
+
+    if let Ok(parsed) = time::PrimitiveDateTime::parse(s, &POSIX_LOCALE_FORMAT) {
         return Ok(local_dt_to_filetime(to_local(parsed)));
     }
 
@@ -109,21 +110,18 @@ mod tests {
     #[test]
     fn test_from_str_iso_8601_format() {
         let s = "2023-04-23";
-        let expected = local_dt_to_filetime(
-            to_local(time::PrimitiveDateTime::new(
-                time::Date::parse(s, &ISO_8601_FORMAT).unwrap(),
-                time!(00:00),
-            )),
-        );
+        let expected = local_dt_to_filetime(to_local(time::PrimitiveDateTime::new(
+            time::Date::parse(s, &ISO_8601_FORMAT).unwrap(),
+            time!(00:00),
+        )));
         assert_file_time_eq(s, expected);
     }
 
     #[test]
     fn test_from_str_seconds_since_epoch() {
         let s = "@1609459200";
-        let expected = local_dt_to_filetime(
-            time::OffsetDateTime::from_unix_timestamp(1609459200).unwrap(),
-        );
+        let expected =
+            local_dt_to_filetime(time::OffsetDateTime::from_unix_timestamp(1609459200).unwrap());
         assert_file_time_eq(s, expected);
     }
 
