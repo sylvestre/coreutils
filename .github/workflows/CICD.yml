@@ -150,8 +150,10 @@ jobs:
         ls -al
         cd fuzz
         ls -al
+        ls -al corpus.tar.gz
         tar -xzf corpus.tar.gz
         ls -al
+        
       continue-on-error: true  # It's okay if no artifact exists yet
 
     - name: Run fuzz_date for XX seconds
