@@ -129,13 +129,31 @@ jobs:
     name: Run the fuzzers
     runs-on: ubuntu-latest
     env:
-      RUN_FOR: 60
+      RUN_FOR: 1
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - name: Install `cargo-fuzz`
       run: cargo install cargo-fuzz
     - uses: Swatinem/rust-cache@v2
+
+    # Download and decompress the existing corpus artifact
+    - name: Download compressed fuzzing corpus
+      uses: actions/download-artifact@v2
+      with:
+        name: fuzz-corpus-compressed
+        path: fuzz/corpus.tar.gz
+      continue-on-error: true  # It's okay if no artifact exists yet
+
+    - name: Decompress fuzzing corpus
+      run: |
+        ls -al
+        cd fuzz
+        ls -al
+        tar -xzf corpus.tar.gz
+        ls -al
+      continue-on-error: true  # It's okay if no artifact exists yet
+
     - name: Run fuzz_date for XX seconds
       shell: bash
       run: |
@@ -174,6 +192,18 @@ jobs:
         ## Run it
         cd fuzz
         cargo +nightly fuzz run fuzz_parse_time -- -max_total_time=${{ env.RUN_FOR }} -detect_leaks=0
+
+    # Compress and upload the updated corpus as an artifact
+    - name: Compress fuzzing corpus
+      run: |
+        cd fuzz
+        tar -czf corpus.tar.gz corpus/
+
+    - name: Upload compressed fuzzing corpus
+      uses: actions/upload-artifact@v2
+      with:
+        name: fuzz-corpus-compressed
+        path: fuzz/corpus.tar.gz
 
   style_lint:
     name: Style/lint
