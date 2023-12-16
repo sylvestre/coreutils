@@ -3059,18 +3059,7 @@ fn display_file_name(
     }
 
     if let Some(ls_colors) = &config.color {
-        let md = path.md(out);
-        name = if md.is_some() {
-            color_name(name, &path.p_buf, md, ls_colors, style_manager)
-        } else {
-            color_name(
-                name,
-                &path.p_buf,
-                path.p_buf.symlink_metadata().ok().as_ref(),
-                ls_colors,
-                style_manager,
-            )
-        };
+        name = color_name(name, path, ls_colors, style_manager, out, true);
     }
 
     if config.format != Format::Long && !more_info.is_empty() {
@@ -3142,22 +3131,13 @@ fn display_file_name(
                     {
                         name.push_str(&path.p_buf.read_link().unwrap().to_string_lossy());
                     } else {
-                        // Use fn get_metadata instead of md() here and above because ls
-                        // should not exit with an err, if we are unable to obtain the target_metadata
-                        let target_metadata = match get_metadata(
-                            target_data.p_buf.as_path(),
-                            target_data.must_dereference,
-                        ) {
-                            Ok(md) => md,
-                            Err(_) => path.md(out).unwrap().clone(),
-                        };
-
                         name.push_str(&color_name(
                             escape_name(target.as_os_str(), &config.quoting_style),
-                            &target_data.p_buf,
-                            Some(&target_metadata),
+                            &target_data,
                             ls_colors,
                             style_manager,
+                            out,
+                            true,
                         ));
                     }
                 } else {
@@ -3229,12 +3209,30 @@ impl StyleManager {
 /// Colors the provided name based on the style determined for the given path.
 fn color_name(
     name: String,
-    path: &Path,
-    md: Option<&Metadata>,
+    path: &PathData,
     ls_colors: &LsColors,
     style_manager: &mut StyleManager,
+    out: &mut BufWriter<Stdout>,
+    force_read_metadata: bool,
 ) -> String {
-    match ls_colors.style_for_path_with_metadata(path, md) {
+    let style = if force_read_metadata {
+        // Use fn get_metadata instead of md() here and above because ls
+        // should not exit with an err, if we are unable to obtain the target_metadata
+        let md = match get_metadata(path.p_buf.as_path(), path.must_dereference) {
+            Ok(md) => md,
+            Err(_) => path.md(out).unwrap().clone(),
+        };
+        ls_colors.style_for_path_with_metadata(&path.p_buf, Some(&md))
+    } else if let Some(dir_entry) = &path.de {
+        // First, try to get the color by using the DirEntry (de),
+        // it will avoid some unnecessary stat() system call
+        ls_colors.style_for(dir_entry)
+    } else {
+        // We didn't have the direntry, use the metadata
+        ls_colors.style_for_path_with_metadata(&path.p_buf, path.md(out))
+    };
+
+    match style {
         Some(style) => style_manager.apply_style(style, &name),
         None => name,
     }
