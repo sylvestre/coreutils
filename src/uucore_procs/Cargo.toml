@@ -2,7 +2,7 @@
 [package]
 name = "uucore_procs"
 version = "0.0.24"
-authors = ["Roy Ivy III <rivy.dev@gmail.com>"]
+authors = ["uutils developers"]
 license = "MIT"
 description = "uutils ~ 'uucore' proc-macros"
 
