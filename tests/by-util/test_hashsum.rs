@@ -462,7 +462,11 @@ fn test_check_empty_line() {
     let scene = TestScenario::new(util_name!());
     let at = &scene.fixtures;
 
+<<<<<<< HEAD
     at.touch("f");
+=======
+    at.write("f", "");
+>>>>>>> 29d926002 (hashsum: ignore empty lines in --check)
     at.write(
         "in.md5",
         "d41d8cd98f00b204e9800998ecf8427e  f\n\nd41d8cd98f00b204e9800998ecf8427e  f\ninvalid\n\n",
@@ -471,7 +475,11 @@ fn test_check_empty_line() {
         .ccmd("md5sum")
         .arg("--check")
         .arg(at.subdir.join("in.md5"))
+<<<<<<< HEAD
         .succeeds()
+=======
+        .fails()
+>>>>>>> 29d926002 (hashsum: ignore empty lines in --check)
         .stderr_contains("WARNING: 1 line is improperly formatted");
 }
 
