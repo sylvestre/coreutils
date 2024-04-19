@@ -607,6 +607,15 @@ fn gnu_re_template(bytes_marker: &str, format_marker: &str) -> Result<Regex, Has
     .map_err(|_| HashsumError::InvalidRegex)
 }
 
+fn bsd_re_template(algoname: &str, bytes_marker: &str) -> Result<Regex, HashsumError> {
+    Regex::new(&format!(
+        r"^(\\)?{algorithm}\s*\((?P<fileName>.*)\)\s*=\s*(?P<digest>[a-fA-F0-9]{digest_size})$",
+        algorithm = algoname,
+        digest_size = bytes_marker,
+    ))
+    .map_err(|_| HashsumError::InvalidRegex)
+}
+
 fn handle_captures(
     caps: &Captures,
     bytes_marker: &str,
@@ -679,13 +688,6 @@ where
             let mut bsd_reversed = None;
 
             let mut gnu_re = gnu_re_template(&bytes_marker, r"(?P<binary>[ \*])?")?;
-            let bsd_re = Regex::new(&format!(
-                // it can start with \
-                r"^(\\)?{algorithm}\s*\((?P<fileName>.*)\)\s*=\s*(?P<digest>[a-fA-F0-9]{digest_size})$",
-                algorithm = options.algoname,
-                digest_size = bytes_marker,
-            ))
-            .map_err(|_| HashsumError::InvalidRegex)?;
 
             let buffer = file;
             // iterate on the lines of the file
@@ -702,32 +704,35 @@ where
                     Some(caps) => {
                         handle_captures(&caps, &bytes_marker, &mut bsd_reversed, &mut gnu_re)?
                     }
-                    None => match bsd_re.captures(&line) {
+                    None => {
                         // if the GNU style parsing failed, try the BSD style
-                        Some(caps) => (
-                            caps.name("fileName").unwrap().as_str().to_string(),
-                            caps.name("digest").unwrap().as_str().to_ascii_lowercase(),
-                            true,
-                        ),
-                        None => {
-                            bad_format += 1;
-                            if options.strict {
-                                // if we use strict, the warning "lines are improperly formatted"
-                                // will trigger an exit code of 1
-                                set_exit_code(1);
+                        let bsd_re = bsd_re_template(options.algoname, &bytes_marker)?;
+                        match bsd_re.captures(&line) {
+                            Some(caps) => (
+                                caps.name("fileName").unwrap().as_str().to_string(),
+                                caps.name("digest").unwrap().as_str().to_ascii_lowercase(),
+                                true,
+                            ),
+                            None => {
+                                bad_format += 1;
+                                if options.strict {
+                                    // if we use strict, the warning "lines are improperly formatted"
+                                    // will trigger an exit code of 1
+                                    set_exit_code(1);
+                                }
+                                if options.warn {
+                                    eprintln!(
+                                        "{}: {}: {}: improperly formatted {} checksum line",
+                                        util_name(),
+                                        filename.maybe_quote(),
+                                        i + 1,
+                                        options.algoname
+                                    );
+                                }
+                                continue;
                             }
-                            if options.warn {
-                                eprintln!(
-                                    "{}: {}: {}: improperly formatted {} checksum line",
-                                    util_name(),
-                                    filename.maybe_quote(),
-                                    i + 1,
-                                    options.algoname
-                                );
-                            }
-                            continue;
                         }
-                    },
+                    }
                 };
                 let (ck_filename_unescaped, prefix) = unescape_filename(&ck_filename);
                 let f = match File::open(ck_filename_unescaped) {
