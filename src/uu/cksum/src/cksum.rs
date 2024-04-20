@@ -330,6 +330,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     };
 
     let input_length = matches.get_one::<usize>(options::LENGTH);
+    let check = matches.get_flag(options::CHECK);
+
     let length = if let Some(length) = input_length {
         match length.to_owned() {
             0 => None,
@@ -370,6 +372,14 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         None
     };
 
+    if algo_name == "bsd" && check {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "--check is not supported with --algorithm={bsd,sysv,crc}",
+        )
+        .into());
+    }
+
     let (name, algo, bits) = detect_algo(algo_name, length);
 
     let output_format = if matches.get_flag(options::RAW) {
@@ -388,7 +398,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         untagged: matches.get_flag(options::UNTAGGED),
         output_format,
         strict: matches.get_flag(options::STRICT),
-        check: matches.get_flag(options::CHECK),
+        check,
         binary: matches.get_flag(options::BINARY),
     };
 
