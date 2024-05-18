@@ -18,6 +18,7 @@ use crate::{
         Blake2b, Digest, DigestWriter, Md5, Sha1, Sha224, Sha256, Sha384, Sha512, Sm3, BSD, CRC,
         SYSV,
     },
+    util_name,
 };
 use std::io::stdin;
 use std::io::BufRead;
@@ -47,6 +48,7 @@ pub const SUPPORTED_ALGO: [&str; 11] = [
     ALGORITHM_OPTIONS_BLAKE2B,
     ALGORITHM_OPTIONS_SM3,
 ];
+
 #[allow(clippy::comparison_chain)]
 pub fn cksum_output(bad_format: i32, failed_cksum: i32, failed_open_file: i32) {
     if bad_format == 1 {
@@ -143,6 +145,7 @@ pub fn perform_checksum_validation<'a, I>(
     files: I,
     strict: bool,
     status: bool,
+    warn: bool,
     algo_name_input: Option<&str>,
 ) -> UResult<()>
 where
@@ -183,7 +186,7 @@ where
         let reader = BufReader::new(file);
 
         // for each line in the input, check if it is a valid checksum line
-        for line in reader.lines() {
+        for (i, line) in reader.lines().enumerate() {
             let line = line.unwrap_or_else(|_| String::new());
             if let Some(caps) = re.captures(&line) {
                 properly_formatted = true;
@@ -283,6 +286,15 @@ where
                     failed_cksum += 1;
                 }
             } else {
+                if warn {
+                    eprintln!(
+                        "{}: {}: {}: improperly formatted {:?} checksum line",
+                        util_name(),
+                        &filename_input.maybe_quote(),
+                        i + 1,
+                        algo_name_input
+                    );
+                }
                 if line.is_empty() {
                     continue;
                 }

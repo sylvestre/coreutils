@@ -392,13 +392,18 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
 
         // Execute the checksum validation based on the presence of files or the use of stdin
         return match matches.get_many::<OsString>("FILE") {
-            Some(files) => {
-                perform_checksum_validation(files.map(OsStr::new), strict, opts.status, algo_option)
-            }
+            Some(files) => perform_checksum_validation(
+                files.map(OsStr::new),
+                strict,
+                status,
+                warn,
+                algo_option,
+            ),
             None => perform_checksum_validation(
                 iter::once(OsStr::new("-")),
                 strict,
-                opts.status,
+                status,
+                warn,
                 algo_option,
             ),
         };

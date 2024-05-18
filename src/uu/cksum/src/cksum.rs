@@ -203,6 +203,7 @@ mod options {
     pub const TEXT: &str = "text";
     pub const BINARY: &str = "binary";
     pub const STATUS: &str = "status";
+    pub const WARN: &str = "warn";
 }
 
 /// Determines whether to prompt an asterisk (*) in the output.
@@ -339,6 +340,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         let binary_flag: bool = matches.get_flag(options::BINARY);
         let strict = matches.get_flag(options::STRICT);
         let status = matches.get_flag(options::STATUS);
+        let warn = matches.get_flag(options::WARN);
 
         if (binary_flag || text_flag) && check {
             return Err(io::Error::new(
@@ -356,13 +358,18 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         // Execute the checksum validation based on the presence of files or the use of stdin
         return match matches.get_many::<String>(options::FILE) {
-            Some(files) => {
-                perform_checksum_validation(files.map(OsStr::new), strict, status, algo_option)
-            }
+            Some(files) => perform_checksum_validation(
+                files.map(OsStr::new),
+                strict,
+                status,
+                warn,
+                algo_option,
+            ),
             None => perform_checksum_validation(
                 iter::once(OsStr::new("-")),
                 strict,
                 status,
+                warn,
                 algo_option,
             ),
         };
@@ -487,6 +494,13 @@ pub fn uu_app() -> Command {
                 .short('b')
                 .hide(true)
                 .overrides_with(options::TEXT)
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new(options::WARN)
+                .short('w')
+                .long("warn")
+                .help("warn about improperly formatted checksum lines")
                 .action(ArgAction::SetTrue),
         )
         .arg(
