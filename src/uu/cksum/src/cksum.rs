@@ -202,6 +202,7 @@ mod options {
     pub const STRICT: &str = "strict";
     pub const TEXT: &str = "text";
     pub const BINARY: &str = "binary";
+    pub const STATUS: &str = "status";
 }
 
 /// Determines whether to prompt an asterisk (*) in the output.
@@ -337,6 +338,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         let text_flag: bool = matches.get_flag(options::TEXT);
         let binary_flag: bool = matches.get_flag(options::BINARY);
         let strict = matches.get_flag(options::STRICT);
+        let status = matches.get_flag(options::STATUS);
 
         if (binary_flag || text_flag) && check {
             return Err(io::Error::new(
@@ -354,8 +356,15 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         // Execute the checksum validation based on the presence of files or the use of stdin
         return match matches.get_many::<String>(options::FILE) {
-            Some(files) => perform_checksum_validation(files.map(OsStr::new), strict, algo_option),
-            None => perform_checksum_validation(iter::once(OsStr::new("-")), strict, algo_option),
+            Some(files) => {
+                perform_checksum_validation(files.map(OsStr::new), strict, status, algo_option)
+            }
+            None => perform_checksum_validation(
+                iter::once(OsStr::new("-")),
+                strict,
+                status,
+                algo_option,
+            ),
         };
     }
 
@@ -478,6 +487,13 @@ pub fn uu_app() -> Command {
                 .short('b')
                 .hide(true)
                 .overrides_with(options::TEXT)
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new(options::STATUS)
+                .short('s')
+                .long("status")
+                .help("don't output anything, status code shows success")
                 .action(ArgAction::SetTrue),
         )
         .after_help(AFTER_HELP)

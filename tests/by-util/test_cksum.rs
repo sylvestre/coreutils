@@ -554,6 +554,15 @@ fn test_blake2b_512() {
         .arg("checksum")
         .succeeds()
         .stdout_contains("f: OK");
+
+    scene
+        .ucmd()
+        .arg("--status")
+        .arg("--check")
+        .arg("checksum")
+        .succeeds()
+        .stdout_contains("")
+        .stderr_contains("");
 }
 
 #[test]

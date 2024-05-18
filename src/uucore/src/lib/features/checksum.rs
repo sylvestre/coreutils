@@ -142,6 +142,7 @@ pub fn detect_algo(
 pub fn perform_checksum_validation<'a, I>(
     files: I,
     strict: bool,
+    status: bool,
     algo_name_input: Option<&str>,
 ) -> UResult<()>
 where
@@ -276,7 +277,9 @@ where
                 if expected_checksum == calculated_checksum {
                     println!("{}: OK", filename_to_check);
                 } else {
-                    println!("{}: FAILED", filename_to_check);
+                    if !status {
+                        println!("{}: FAILED", filename_to_check);
+                    }
                     failed_cksum += 1;
                 }
             } else {
