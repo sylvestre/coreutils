@@ -2494,7 +2494,6 @@ version = "0.0.26"
 dependencies = [
  "clap",
  "hex",
- "regex",
  "uucore",
 ]
 
@@ -3406,6 +3405,7 @@ dependencies = [
  "number_prefix",
  "once_cell",
  "os_display",
+ "regex",
  "sha1",
  "sha2",
  "sha3",
