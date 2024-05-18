@@ -20,6 +20,7 @@ use std::iter;
 use std::num::ParseIntError;
 use std::path::Path;
 use uucore::checksum::cksum_output;
+use uucore::checksum::perform_checksum_validation;
 use uucore::display::Quotable;
 use uucore::error::USimpleError;
 use uucore::error::{set_exit_code, FromIo, UError, UResult};
@@ -370,6 +371,39 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
         ignore_missing,
     };
 
+    if check {
+        let text_flag: bool = matches.get_flag("text");
+        let binary_flag: bool = matches.get_flag("binary");
+        let strict = matches.get_flag("strict");
+
+        if (binary_flag || text_flag) && check {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "the --binary and --text options are meaningless when verifying checksums",
+            )
+            .into());
+        }
+        // Determine the appropriate algorithm option to pass
+        let algo_option = if algoname.is_empty() {
+            None
+        } else {
+            Some(algoname)
+        };
+
+        // Execute the checksum validation based on the presence of files or the use of stdin
+        return match matches.get_many::<OsString>("FILE") {
+            Some(files) => {
+                perform_checksum_validation(files.map(OsStr::new), strict, opts.status, algo_option)
+            }
+            None => perform_checksum_validation(
+                iter::once(OsStr::new("-")),
+                strict,
+                opts.status,
+                algo_option,
+            ),
+        };
+    }
+
     match matches.get_many::<OsString>("FILE") {
         Some(files) => hashsum(opts, files.map(|f| f.as_os_str())),
         None => hashsum(opts, iter::once(OsStr::new("-"))),
@@ -662,154 +696,34 @@ where
                 File::open(filename).map_err_context(|| "failed to open file".to_string())?;
             Box::new(file_buf) as Box<dyn Read>
         });
-        if options.check {
-            // Set up Regexes for line validation and parsing
-            //
-            // First, we compute the number of bytes we expect to be in
-            // the digest string. If the algorithm has a variable number
-            // of output bits, then we use the `+` modifier in the
-            // regular expression, otherwise we use the `{n}` modifier,
-            // where `n` is the number of bytes.
-            let bytes = options.digest.output_bits() / 4;
-            let bytes_marker = if bytes > 0 {
-                format!("{{{bytes}}}")
+
+        let sum = digest_reader(
+            &mut options.digest,
+            &mut file,
+            options.binary,
+            options.output_bits,
+        )
+        .map_err_context(|| "failed to read input".to_string())?;
+        let (escaped_filename, prefix) = escape_filename(filename);
+        if options.tag {
+            if options.algoname == "BLAKE2b" && options.digest.output_bits() != 512 {
+                // special case for BLAKE2b with non-default output length
+                println!(
+                    "BLAKE2b-{} ({escaped_filename}) = {sum}",
+                    options.digest.output_bits()
+                );
             } else {
-                "+".to_string()
-            };
-            // BSD reversed mode format is similar to the default mode, but doesn’t use a character to distinguish binary and text modes.
-            let mut bsd_reversed = None;
-
-            let mut gnu_re = gnu_re_template(&bytes_marker, r"(?P<binary>[ \*])?")?;
-            let bsd_re = Regex::new(&format!(
-                // it can start with \
-                r"^(\\)?{algorithm}\s*\((?P<fileName>.*)\)\s*=\s*(?P<digest>[a-fA-F0-9]{digest_size})$",
-                algorithm = options.algoname,
-                digest_size = bytes_marker,
-            ))
-            .map_err(|_| HashsumError::InvalidRegex)?;
-
-            let buffer = file;
-            // iterate on the lines of the file
-            for (i, maybe_line) in buffer.lines().enumerate() {
-                let line = match maybe_line {
-                    Ok(l) => l,
-                    Err(e) => return Err(e.map_err_context(|| "failed to read file".to_string())),
-                };
-                if line.is_empty() {
-                    // empty line, skip it
-                    continue;
-                }
-                let (ck_filename, sum, binary_check) = match gnu_re.captures(&line) {
-                    Some(caps) => {
-                        handle_captures(&caps, &bytes_marker, &mut bsd_reversed, &mut gnu_re)?
-                    }
-                    None => match bsd_re.captures(&line) {
-                        // if the GNU style parsing failed, try the BSD style
-                        Some(caps) => (
-                            caps.name("fileName").unwrap().as_str().to_string(),
-                            caps.name("digest").unwrap().as_str().to_ascii_lowercase(),
-                            true,
-                        ),
-                        None => {
-                            bad_format += 1;
-                            if options.strict {
-                                // if we use strict, the warning "lines are improperly formatted"
-                                // will trigger an exit code of 1
-                                set_exit_code(1);
-                            }
-                            if options.warn {
-                                eprintln!(
-                                    "{}: {}: {}: improperly formatted {} checksum line",
-                                    util_name(),
-                                    filename.maybe_quote(),
-                                    i + 1,
-                                    options.algoname
-                                );
-                            }
-                            continue;
-                        }
-                    },
-                };
-                let (ck_filename_unescaped, prefix) = unescape_filename(&ck_filename);
-                let f = match File::open(ck_filename_unescaped) {
-                    Err(_) => {
-                        if options.ignore_missing {
-                            // No need to show or return an error
-                            // except when the file doesn't have any successful checks
-                            continue;
-                        }
-
-                        failed_open_file += 1;
-                        println!(
-                            "{}: {}: No such file or directory",
-                            uucore::util_name(),
-                            ck_filename
-                        );
-                        println!("{ck_filename}: FAILED open or read");
-                        set_exit_code(1);
-                        continue;
-                    }
-                    Ok(file) => file,
-                };
-                let mut ckf = BufReader::new(Box::new(f) as Box<dyn Read>);
-                let real_sum = digest_reader(
-                    &mut options.digest,
-                    &mut ckf,
-                    binary_check,
-                    options.output_bits,
-                )
-                .map_err_context(|| "failed to read input".to_string())?
-                .to_ascii_lowercase();
-                // FIXME: Filenames with newlines should be treated specially.
-                // GNU appears to replace newlines by \n and backslashes by
-                // \\ and prepend a backslash (to the hash or filename) if it did
-                // this escaping.
-                // Different sorts of output (checking vs outputting hashes) may
-                // handle this differently. Compare carefully to GNU.
-                // If you can, try to preserve invalid unicode using OsStr(ing)Ext
-                // and display it using uucore::display::print_verbatim(). This is
-                // easier (and more important) on Unix than on Windows.
-                if sum == real_sum {
-                    correct_format += 1;
-                    if !options.quiet {
-                        println!("{prefix}{ck_filename}: OK");
-                    }
-                } else {
-                    if !options.status {
-                        println!("{prefix}{ck_filename}: FAILED");
-                    }
-                    failed_cksum += 1;
-                    set_exit_code(1);
-                }
+                println!("{prefix}{} ({escaped_filename}) = {sum}", options.algoname);
             }
+        } else if options.nonames {
+            println!("{sum}");
+        } else if options.zero {
+            // with zero, we don't escape the filename
+            print!("{sum} {binary_marker}{}\0", filename.display());
         } else {
-            let sum = digest_reader(
-                &mut options.digest,
-                &mut file,
-                options.binary,
-                options.output_bits,
-            )
-            .map_err_context(|| "failed to read input".to_string())?;
-            let (escaped_filename, prefix) = escape_filename(filename);
-            if options.tag {
-                if options.algoname == "BLAKE2b" && options.digest.output_bits() != 512 {
-                    // special case for BLAKE2b with non-default output length
-                    println!(
-                        "BLAKE2b-{} ({escaped_filename}) = {sum}",
-                        options.digest.output_bits()
-                    );
-                } else {
-                    println!("{prefix}{} ({escaped_filename}) = {sum}", options.algoname);
-                }
-            } else if options.nonames {
-                println!("{sum}");
-            } else if options.zero {
-                // with zero, we don't escape the filename
-                print!("{sum} {binary_marker}{}\0", filename.display());
-            } else {
-                println!("{prefix}{sum} {binary_marker}{escaped_filename}");
-            }
+            println!("{prefix}{sum} {binary_marker}{escaped_filename}");
         }
+
         if bad_format > 0 && failed_cksum == 0 && correct_format == 0 && !options.status {
             // we have only bad format. we didn't have anything correct.
             // GNU has a different error message for this (with the filename)
