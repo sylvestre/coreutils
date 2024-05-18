@@ -391,7 +391,7 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
         };
 
         // Execute the checksum validation based on the presence of files or the use of stdin
-        return match matches.get_many::<OsString>("FILE") {
+        return match matches.get_many::<OsString>(options::FILE) {
             Some(files) => perform_checksum_validation(
                 files.map(OsStr::new),
                 strict,
@@ -415,6 +415,22 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
     }
 }
 
+mod options {
+    pub const ALGORITHM: &str = "algorithm";
+    pub const FILE: &str = "file";
+    pub const UNTAGGED: &str = "untagged";
+    pub const TAG: &str = "tag";
+    pub const LENGTH: &str = "length";
+    pub const RAW: &str = "raw";
+    pub const BASE64: &str = "base64";
+    pub const CHECK: &str = "check";
+    pub const STRICT: &str = "strict";
+    pub const TEXT: &str = "text";
+    pub const BINARY: &str = "binary";
+    pub const STATUS: &str = "status";
+    pub const WARN: &str = "warn";
+}
+
 pub fn uu_app_common() -> Command {
     #[cfg(windows)]
     const BINARY_HELP: &str = "read in binary mode (default)";
@@ -430,14 +446,14 @@ pub fn uu_app_common() -> Command {
         .override_usage(format_usage(USAGE))
         .infer_long_args(true)
         .arg(
-            Arg::new("binary")
+            Arg::new(options::BINARY)
                 .short('b')
                 .long("binary")
                 .help(BINARY_HELP)
                 .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::new("check")
+            Arg::new(options::CHECK)
                 .short('c')
                 .long("check")
                 .help("read hashsums from the FILEs and check them")
@@ -445,14 +461,14 @@ pub fn uu_app_common() -> Command {
                 .conflicts_with("tag"),
         )
         .arg(
-            Arg::new("tag")
+            Arg::new(options::TAG)
                 .long("tag")
                 .help("create a BSD-style checksum")
                 .action(ArgAction::SetTrue)
                 .conflicts_with("text"),
         )
         .arg(
-            Arg::new("text")
+            Arg::new(options::TEXT)
                 .short('t')
                 .long("text")
                 .help(TEXT_HELP)
@@ -467,14 +483,14 @@ pub fn uu_app_common() -> Command {
                 .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::new("status")
+            Arg::new(options::STATUS)
                 .short('s')
                 .long("status")
                 .help("don't output anything, status code shows success")
                 .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::new("strict")
+            Arg::new(options::STRICT)
                 .long("strict")
                 .help("exit non-zero for improperly formatted checksum lines")
                 .action(ArgAction::SetTrue),
@@ -486,7 +502,7 @@ pub fn uu_app_common() -> Command {
                 .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::new("warn")
+            Arg::new(options::WARN)
                 .short('w')
                 .long("warn")
                 .help("warn about improperly formatted checksum lines")
@@ -500,10 +516,10 @@ pub fn uu_app_common() -> Command {
                 .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::new("FILE")
+            Arg::new(options::FILE)
                 .index(1)
                 .action(ArgAction::Append)
-                .value_name("FILE")
+                .value_name(options::FILE)
                 .value_hint(clap::ValueHint::FilePath)
                 .value_parser(ValueParser::os_string()),
         )
