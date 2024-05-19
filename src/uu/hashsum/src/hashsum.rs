@@ -260,7 +260,7 @@ fn create_algorithm_from_flags(
         set_or_err("SHA512", Box::new(Sha512::new()), 512)?;
     }
     if matches.get_flag("b2sum") {
-        set_or_err("BLAKE2", Box::new(Blake2b::new()), 512)?;
+        set_or_err("BLAKE2b", Box::new(Blake2b::new()), 512)?;
     }
     if matches.get_flag("b3sum") {
         set_or_err("BLAKE3", Box::new(Blake3::new()), 256)?;
