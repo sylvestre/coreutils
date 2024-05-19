@@ -367,6 +367,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 warn,
                 binary_flag,
                 algo_option,
+                length,
             ),
             None => perform_checksum_validation(
                 iter::once(OsStr::new("-")),
@@ -375,6 +376,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 warn,
                 binary_flag,
                 algo_option,
+                length,
             ),
         };
     }

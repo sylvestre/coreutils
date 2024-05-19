@@ -15,7 +15,8 @@ use crate::{
     error::{set_exit_code, FromIo, UResult},
     show, show_error, show_warning_caps,
     sum::{
-        Blake2b, Blake3, Digest, DigestWriter, Md5, Sha1, Sha224, Sha256, Sha384, Sha512, Sm3, BSD, CRC, SYSV
+        Blake2b, Blake3, Digest, DigestWriter, Md5, Sha1, Sha224, Sha256, Sha384, Sha512, Sm3, BSD,
+        CRC, SYSV,
     },
     util_name,
 };
@@ -34,7 +35,6 @@ pub const ALGORITHM_OPTIONS_SHA512: &str = "sha512";
 pub const ALGORITHM_OPTIONS_BLAKE2B: &str = "blake2b";
 pub const ALGORITHM_OPTIONS_BLAKE3: &str = "blake3";
 pub const ALGORITHM_OPTIONS_SM3: &str = "sm3";
-
 
 pub const SUPPORTED_ALGO: [&str; 12] = [
     ALGORITHM_OPTIONS_SYSV,
@@ -155,6 +155,7 @@ pub fn perform_checksum_validation<'a, I>(
     warn: bool,
     binary: bool,
     algo_name_input: Option<&str>,
+    length_input: Option<usize>,
 ) -> UResult<()>
 where
     I: Iterator<Item = &'a OsStr>,
@@ -245,7 +246,7 @@ where
                     (algorithm, bits.unwrap())
                 } else if let Some(a) = algo_name_input {
                     // When a specific algorithm name is input, use it and default bits to None
-                    (a.to_lowercase(), None)
+                    (a.to_lowercase(), length_input.map(|length| length / 8))
                 } else {
                     // Default case if no algorithm is specified and non-algo based format is matched
                     (String::new(), None)
@@ -300,7 +301,7 @@ where
                         util_name(),
                         &filename_input.maybe_quote(),
                         i + 1,
-                        algo_name_input
+                        algo_name_input.unwrap_or("Unknown algorithm")
                     );
                 }
                 if line.is_empty() {
