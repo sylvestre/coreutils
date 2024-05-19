@@ -146,6 +146,7 @@ pub fn perform_checksum_validation<'a, I>(
     strict: bool,
     status: bool,
     warn: bool,
+    binary: bool,
     algo_name_input: Option<&str>,
 ) -> UResult<()>
 where
@@ -274,7 +275,7 @@ where
                 let mut file_reader = BufReader::new(file_to_check);
                 // Read the file and calculate the checksum
                 let (calculated_checksum, _) =
-                    digest_read(&mut algo, &mut file_reader, bits).unwrap();
+                    digest_reader(&mut algo, &mut file_reader, binary, bits).unwrap();
 
                 // Do the checksum validation
                 if expected_checksum == calculated_checksum {
@@ -333,9 +334,10 @@ where
     Ok(())
 }
 
-pub fn digest_read<T: Read>(
+pub fn digest_reader<T: Read>(
     digest: &mut Box<dyn Digest>,
     reader: &mut BufReader<T>,
+    binary: bool,
     output_bits: usize,
 ) -> io::Result<(String, usize)> {
     digest.reset();

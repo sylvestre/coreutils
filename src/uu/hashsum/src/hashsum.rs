@@ -20,6 +20,7 @@ use std::iter;
 use std::num::ParseIntError;
 use std::path::Path;
 use uucore::checksum::cksum_output;
+use uucore::checksum::digest_reader;
 use uucore::checksum::perform_checksum_validation;
 use uucore::display::Quotable;
 use uucore::error::USimpleError;
@@ -397,6 +398,7 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
                 strict,
                 status,
                 warn,
+                binary_flag,
                 algo_option,
             ),
             None => perform_checksum_validation(
@@ -719,7 +721,7 @@ where
             Box::new(file_buf) as Box<dyn Read>
         });
 
-        let sum = digest_reader(
+        let (sum, _) = digest_reader(
             &mut options.digest,
             &mut file,
             options.binary,
@@ -794,38 +796,4 @@ fn escape_filename(filename: &Path) -> (String, &'static str) {
         .replace('\r', "\\r");
     let prefix = if escaped == original { "" } else { "\\" };
     (escaped, prefix)
-}
-
-fn digest_reader<T: Read>(
-    digest: &mut Box<dyn Digest>,
-    reader: &mut BufReader<T>,
-    binary: bool,
-    output_bits: usize,
-) -> io::Result<String> {
-    digest.reset();
-
-    // Read bytes from `reader` and write those bytes to `digest`.
-    //
-    // If `binary` is `false` and the operating system is Windows, then
-    // `DigestWriter` replaces "\r\n" with "\n" before it writes the
-    // bytes into `digest`. Otherwise, it just inserts the bytes as-is.
-    //
-    // In order to support replacing "\r\n", we must call `finalize()`
-    // in order to support the possibility that the last character read
-    // from the reader was "\r". (This character gets buffered by
-    // `DigestWriter` and only written if the following character is
-    // "\n". But when "\r" is the last character read, we need to force
-    // it to be written.)
-    let mut digest_writer = DigestWriter::new(digest, binary);
-    std::io::copy(reader, &mut digest_writer)?;
-    digest_writer.finalize();
-
-    if digest.output_bits() > 0 {
-        Ok(digest.result_str())
-    } else {
-        // Assume it's SHAKE.  result_str() doesn't work with shake (as of 8/30/2016)
-        let mut bytes = vec![0; (output_bits + 7) / 8];
-        digest.hash_finalize(&mut bytes);
-        Ok(encode(bytes))
-    }
 }

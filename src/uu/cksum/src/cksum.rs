@@ -14,7 +14,7 @@ use std::io::{self, stdin, stdout, BufReader, Read, Write};
 use std::iter;
 use std::path::Path;
 use uucore::checksum::{
-    detect_algo, digest_read, perform_checksum_validation, ALGORITHM_OPTIONS_BLAKE2B,
+    detect_algo, digest_reader, perform_checksum_validation, ALGORITHM_OPTIONS_BLAKE2B,
     ALGORITHM_OPTIONS_BSD, ALGORITHM_OPTIONS_CRC, ALGORITHM_OPTIONS_SYSV, SUPPORTED_ALGO,
 };
 use uucore::{
@@ -109,8 +109,9 @@ where
             Box::new(file_buf) as Box<dyn Read>
         });
 
-        let (sum_hex, sz) = digest_read(&mut options.digest, &mut file, options.output_bits)
-            .map_err_context(|| "failed to read input".to_string())?;
+        let (sum_hex, sz) =
+            digest_reader(&mut options.digest, &mut file, false, options.output_bits)
+                .map_err_context(|| "failed to read input".to_string())?;
         if filename.is_dir() {
             show!(USimpleError::new(
                 1,
@@ -364,6 +365,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 strict,
                 status,
                 warn,
+                binary_flag,
                 algo_option,
             ),
             None => perform_checksum_validation(
@@ -371,6 +373,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 strict,
                 status,
                 warn,
+                binary_flag,
                 algo_option,
             ),
         };
