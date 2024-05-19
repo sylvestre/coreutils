@@ -9,6 +9,7 @@ use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt::Display;
 use std::fs::File;
+use std::io::BufRead;
 use std::io::{self, stdin, stdout, BufReader, Read, Write};
 use std::iter;
 use std::path::Path;
