@@ -15,8 +15,7 @@ use crate::{
     error::{set_exit_code, FromIo, UResult},
     show, show_error, show_warning_caps,
     sum::{
-        Blake2b, Digest, DigestWriter, Md5, Sha1, Sha224, Sha256, Sha384, Sha512, Sm3, BSD, CRC,
-        SYSV,
+        Blake2b, Blake3, Digest, DigestWriter, Md5, Sha1, Sha224, Sha256, Sha384, Sha512, Sm3, BSD, CRC, SYSV
     },
     util_name,
 };
@@ -33,9 +32,11 @@ pub const ALGORITHM_OPTIONS_SHA256: &str = "sha256";
 pub const ALGORITHM_OPTIONS_SHA384: &str = "sha384";
 pub const ALGORITHM_OPTIONS_SHA512: &str = "sha512";
 pub const ALGORITHM_OPTIONS_BLAKE2B: &str = "blake2b";
+pub const ALGORITHM_OPTIONS_BLAKE3: &str = "blake3";
 pub const ALGORITHM_OPTIONS_SM3: &str = "sm3";
 
-pub const SUPPORTED_ALGO: [&str; 11] = [
+
+pub const SUPPORTED_ALGO: [&str; 12] = [
     ALGORITHM_OPTIONS_SYSV,
     ALGORITHM_OPTIONS_BSD,
     ALGORITHM_OPTIONS_CRC,
@@ -46,6 +47,7 @@ pub const SUPPORTED_ALGO: [&str; 11] = [
     ALGORITHM_OPTIONS_SHA384,
     ALGORITHM_OPTIONS_SHA512,
     ALGORITHM_OPTIONS_BLAKE2B,
+    ALGORITHM_OPTIONS_BLAKE3,
     ALGORITHM_OPTIONS_SM3,
 ];
 
@@ -128,6 +130,11 @@ pub fn detect_algo(
                 Blake2b::new()
             }) as Box<dyn Digest>,
             512,
+        ),
+        ALGORITHM_OPTIONS_BLAKE3 => (
+            ALGORITHM_OPTIONS_BLAKE3,
+            Box::new(Blake3::new()) as Box<dyn Digest>,
+            256,
         ),
         ALGORITHM_OPTIONS_SM3 => (
             ALGORITHM_OPTIONS_SM3,
