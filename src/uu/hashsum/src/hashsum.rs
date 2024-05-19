@@ -404,12 +404,13 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
                 strict,
                 status,
                 warn,
+                binary_flag,
                 algo_option,
             ),
         };
     }
 
-    match matches.get_many::<OsString>("FILE") {
+    match matches.get_many::<OsString>(options::FILE) {
         Some(files) => hashsum(opts, files.map(|f| f.as_os_str())),
         None => hashsum(opts, iter::once(OsStr::new("-"))),
     }
