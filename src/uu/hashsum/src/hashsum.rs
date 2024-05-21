@@ -7,9 +7,9 @@
 
 use clap::builder::ValueParser;
 use clap::crate_version;
+use clap::value_parser;
 use clap::ArgAction;
 use clap::{Arg, ArgMatches, Command};
-use hex::encode;
 use regex::Captures;
 use regex::Regex;
 use std::error::Error;
@@ -19,9 +19,12 @@ use std::io::{self, stdin, BufRead, BufReader, Read};
 use std::iter;
 use std::num::ParseIntError;
 use std::path::Path;
+use uucore::checksum::calculate_blake2b_length;
 use uucore::checksum::cksum_output;
+use uucore::checksum::detect_algo;
 use uucore::checksum::digest_reader;
 use uucore::checksum::perform_checksum_validation;
+use uucore::checksum::ALGORITHM_OPTIONS_BLAKE2B;
 use uucore::display::Quotable;
 use uucore::error::USimpleError;
 use uucore::error::{set_exit_code, FromIo, UError, UResult};
@@ -60,7 +63,7 @@ struct Options {
 /// the output length in bits or an Err if the length is not a multiple of 8 or if it is
 /// greater than 512.
 fn create_blake2b(matches: &ArgMatches) -> UResult<(&'static str, Box<dyn Digest>, usize)> {
-    match matches.get_one::<usize>("length") {
+    match matches.get_one::<usize>(options::LENGTH) {
         Some(0) | None => Ok(("BLAKE2b", Box::new(Blake2b::new()) as Box<dyn Digest>, 512)),
         Some(length_in_bits) => {
             if *length_in_bits > 512 {
@@ -97,22 +100,22 @@ fn create_blake2b(matches: &ArgMatches) -> UResult<(&'static str, Box<dyn Digest
 fn create_sha3(matches: &ArgMatches) -> UResult<(&'static str, Box<dyn Digest>, usize)> {
     match matches.get_one::<usize>("bits") {
         Some(224) => Ok((
-            "SHA3-224",
+            "SHA3_224",
             Box::new(Sha3_224::new()) as Box<dyn Digest>,
             224,
         )),
         Some(256) => Ok((
-            "SHA3-256",
+            "SHA3_256",
             Box::new(Sha3_256::new()) as Box<dyn Digest>,
             256,
         )),
         Some(384) => Ok((
-            "SHA3-384",
+            "SHA3_384",
             Box::new(Sha3_384::new()) as Box<dyn Digest>,
             384,
         )),
         Some(512) => Ok((
-            "SHA3-512",
+            "SHA3_512",
             Box::new(Sha3_512::new()) as Box<dyn Digest>,
             512,
         )),
@@ -155,57 +158,6 @@ fn create_shake256(matches: &ArgMatches) -> UResult<(&'static str, Box<dyn Diges
             *bits,
         )),
         None => Err(USimpleError::new(1, "--bits required for SHAKE-256")),
-    }
-}
-
-/// Detects the hash algorithm from the program name or command-line arguments.
-///
-/// # Arguments
-///
-/// * `program` - A string slice containing the program name.
-/// * `matches` - A reference to the `ArgMatches` object containing the command-line arguments.
-///
-/// # Returns
-///
-/// Returns a UResult of a tuple containing the algorithm name, the hasher instance, and
-/// the output length in bits, or an Err if a matching algorithm is not found.
-fn detect_algo(
-    program: &str,
-    matches: &ArgMatches,
-) -> UResult<(&'static str, Box<dyn Digest + 'static>, usize)> {
-    match program {
-        "md5sum" => Ok(("MD5", Box::new(Md5::new()) as Box<dyn Digest>, 128)),
-        "sha1sum" => Ok(("SHA1", Box::new(Sha1::new()) as Box<dyn Digest>, 160)),
-        "sha224sum" => Ok(("SHA224", Box::new(Sha224::new()) as Box<dyn Digest>, 224)),
-        "sha256sum" => Ok(("SHA256", Box::new(Sha256::new()) as Box<dyn Digest>, 256)),
-        "sha384sum" => Ok(("SHA384", Box::new(Sha384::new()) as Box<dyn Digest>, 384)),
-        "sha512sum" => Ok(("SHA512", Box::new(Sha512::new()) as Box<dyn Digest>, 512)),
-        "b2sum" => create_blake2b(matches),
-        "b3sum" => Ok(("BLAKE3", Box::new(Blake3::new()) as Box<dyn Digest>, 256)),
-        "sha3sum" => create_sha3(matches),
-        "sha3-224sum" => Ok((
-            "SHA3-224",
-            Box::new(Sha3_224::new()) as Box<dyn Digest>,
-            224,
-        )),
-        "sha3-256sum" => Ok((
-            "SHA3-256",
-            Box::new(Sha3_256::new()) as Box<dyn Digest>,
-            256,
-        )),
-        "sha3-384sum" => Ok((
-            "SHA3-384",
-            Box::new(Sha3_384::new()) as Box<dyn Digest>,
-            384,
-        )),
-        "sha3-512sum" => Ok((
-            "SHA3-512",
-            Box::new(Sha3_512::new()) as Box<dyn Digest>,
-            512,
-        )),
-        "shake128sum" => create_shake128(matches),
-        "shake256sum" => create_shake256(matches),
-        _ => create_algorithm_from_flags(matches),
     }
 }
 
@@ -293,13 +245,7 @@ fn create_algorithm_from_flags(
             None => return Err(USimpleError::new(1, "--bits required for SHAKE-256")),
         };
     }
-
-    let alg = match alg {
-        Some(a) => a,
-        None => return Err(USimpleError::new(1, "You must specify hash algorithm!")),
-    };
-
-    Ok((name, alg, output_bits))
+    Ok((name, alg.unwrap(), output_bits))
 }
 
 // TODO: return custom error type
@@ -321,7 +267,7 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
     // Default binary in Windows, text mode otherwise
     let binary_flag_default = cfg!(windows);
 
-    let command = uu_app(&binary_name);
+    let (command, is_hashsum_bin) = uu_app(&binary_name);
 
     // FIXME: this should use try_get_matches_from() and crash!(), but at the moment that just
     //        causes "error: " to be printed twice (once from crash!() and once from clap).  With
@@ -329,7 +275,32 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
     //        least somewhat better from a user's perspective.
     let matches = command.try_get_matches_from(args)?;
 
-    let (algoname, algo, bits) = detect_algo(&binary_name, &matches)?;
+    let input_length: Option<&usize> = if binary_name == "b2sum" {
+        matches.get_one::<usize>(options::LENGTH)
+    } else {
+        None
+    };
+
+    let length = match input_length {
+        Some(length) => {
+            if binary_name == ALGORITHM_OPTIONS_BLAKE2B || binary_name == "b2sum" {
+                calculate_blake2b_length(*length)?
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "--length is only supported with --algorithm=blake2b",
+                )
+                .into());
+            }
+        }
+        None => None,
+    };
+
+    let (algoname, algo, bits) = if is_hashsum_bin {
+        create_algorithm_from_flags(&matches)?
+    } else {
+        detect_algo(&binary_name, length)
+    };
 
     let binary = if matches.get_flag("binary") {
         true
@@ -348,7 +319,7 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
     let quiet = matches.get_flag("quiet") || status;
     let strict = matches.get_flag("strict");
     let warn = matches.get_flag("warn") && !status;
-    let zero = matches.get_flag("zero");
+    let zero: bool = matches.get_flag("zero");
     let ignore_missing = matches.get_flag("ignore-missing");
 
     if ignore_missing && !check {
@@ -395,10 +366,12 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
         return match matches.get_many::<OsString>(options::FILE) {
             Some(files) => perform_checksum_validation(
                 files.map(OsStr::new),
+                // TODO use option
                 strict,
                 status,
                 warn,
                 binary_flag,
+                ignore_missing,
                 algo_option,
                 Some(bits),
             ),
@@ -408,12 +381,14 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
                 status,
                 warn,
                 binary_flag,
+                ignore_missing,
                 algo_option,
                 Some(bits),
             ),
         };
     }
 
+    // Show the hashsum of the input
     match matches.get_many::<OsString>(options::FILE) {
         Some(files) => hashsum(opts, files.map(|f| f.as_os_str())),
         None => hashsum(opts, iter::once(OsStr::new("-"))),
@@ -536,13 +511,16 @@ pub fn uu_app_length() -> Command {
 
 fn uu_app_opt_length(command: Command) -> Command {
     command.arg(
-        Arg::new("length")
+        Arg::new(options::LENGTH)
+            .long(options::LENGTH)
+            .value_parser(value_parser!(usize))
             .short('l')
-            .long("length")
-            .help("digest length in bits; must not exceed the max for the blake2 algorithm (512) and must be a multiple of 8")
-            .value_name("BITS")
-            .value_parser(parse_bit_num)
-            .overrides_with("length"),
+            .help(
+                "digest length in bits; must not exceed the max for the blake2 algorithm \
+                    and must be a multiple of 8",
+            )
+            .overrides_with(options::LENGTH)
+            .action(ArgAction::Set),
     )
 }
 
@@ -614,25 +592,25 @@ pub fn uu_app_custom() -> Command {
 
 // hashsum is handled differently in build.rs, therefore this is not the same
 // as in other utilities.
-fn uu_app(binary_name: &str) -> Command {
+fn uu_app(binary_name: &str) -> (Command, bool) {
     match binary_name {
         // These all support the same options.
         "md5sum" | "sha1sum" | "sha224sum" | "sha256sum" | "sha384sum" | "sha512sum" => {
-            uu_app_common()
+            (uu_app_common(), false)
         }
         // b2sum supports the md5sum options plus -l/--length.
-        "b2sum" => uu_app_length(),
+        "b2sum" => (uu_app_length(), false),
         // These have never been part of GNU Coreutils, but can function with the same
         // options as md5sum.
-        "sha3-224sum" | "sha3-256sum" | "sha3-384sum" | "sha3-512sum" => uu_app_common(),
+        "sha3-224sum" | "sha3-256sum" | "sha3-384sum" | "sha3-512sum" => (uu_app_common(), false),
         // These have never been part of GNU Coreutils, and require an additional --bits
         // option to specify their output size.
-        "sha3sum" | "shake128sum" | "shake256sum" => uu_app_bits(),
+        "sha3sum" | "shake128sum" | "shake256sum" => (uu_app_bits(), false),
         // b3sum has never been part of GNU Coreutils, and has a --no-names option in
         // addition to the b2sum options.
-        "b3sum" => uu_app_b3sum(),
+        "b3sum" => (uu_app_b3sum(), false),
         // We're probably just being called as `hashsum`, so give them everything.
-        _ => uu_app_custom(),
+        _ => (uu_app_custom(), true),
     }
 }
 
@@ -655,47 +633,6 @@ impl std::fmt::Display for HashsumError {
             ),
         }
     }
-}
-
-/// Creates a Regex for parsing lines based on the given format.
-/// The default value of `gnu_re` created with this function has to be recreated
-/// after the initial line has been parsed, as this line dictates the format
-/// for the rest of them, and mixing of formats is disallowed.
-fn gnu_re_template(bytes_marker: &str, format_marker: &str) -> Result<Regex, HashsumError> {
-    Regex::new(&format!(
-        r"^(?P<digest>[a-fA-F0-9]{bytes_marker}) {format_marker}(?P<fileName>.*)"
-    ))
-    .map_err(|_| HashsumError::InvalidRegex)
-}
-
-fn handle_captures(
-    caps: &Captures,
-    bytes_marker: &str,
-    bsd_reversed: &mut Option<bool>,
-    gnu_re: &mut Regex,
-) -> Result<(String, String, bool), HashsumError> {
-    if bsd_reversed.is_none() {
-        let is_bsd_reversed = caps.name("binary").is_none();
-        let format_marker = if is_bsd_reversed {
-            ""
-        } else {
-            r"(?P<binary>[ \*])"
-        }
-        .to_string();
-
-        *bsd_reversed = Some(is_bsd_reversed);
-        *gnu_re = gnu_re_template(bytes_marker, &format_marker)?;
-    }
-
-    Ok((
-        caps.name("fileName").unwrap().as_str().to_string(),
-        caps.name("digest").unwrap().as_str().to_ascii_lowercase(),
-        if *bsd_reversed == Some(false) {
-            caps.name("binary").unwrap().as_str() == "*"
-        } else {
-            false
-        },
-    ))
 }
 
 #[allow(clippy::cognitive_complexity)]
@@ -732,14 +669,21 @@ where
         .map_err_context(|| "failed to read input".to_string())?;
         let (escaped_filename, prefix) = escape_filename(filename);
         if options.tag {
-            if options.algoname == "BLAKE2b" && options.digest.output_bits() != 512 {
+            if options.algoname == "blake2b" {
                 // special case for BLAKE2b with non-default output length
-                println!(
-                    "BLAKE2b-{} ({escaped_filename}) = {sum}",
-                    options.digest.output_bits()
-                );
+                if options.digest.output_bits() != 512 {
+                    println!(
+                        "BLAKE2b-{} ({escaped_filename}) = {sum}",
+                        options.digest.output_bits()
+                    );
+                } else {
+                    println!("BLAKE2b ({escaped_filename}) = {sum}");
+                }
             } else {
-                println!("{prefix}{} ({escaped_filename}) = {sum}", options.algoname);
+                println!(
+                    "{prefix}{} ({escaped_filename}) = {sum}",
+                    options.algoname.to_ascii_uppercase()
+                );
             }
         } else if options.nonames {
             println!("{sum}");
@@ -775,7 +719,12 @@ where
     }
 
     if !options.status && !skip_summary {
-        cksum_output(bad_format, failed_cksum, failed_open_file);
+        cksum_output(
+            bad_format,
+            failed_cksum,
+            failed_open_file,
+            options.ignore_missing,
+        );
     }
 
     Ok(())

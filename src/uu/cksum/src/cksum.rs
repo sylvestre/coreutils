@@ -9,13 +9,13 @@ use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt::Display;
 use std::fs::File;
-use std::io::BufRead;
 use std::io::{self, stdin, stdout, BufReader, Read, Write};
 use std::iter;
 use std::path::Path;
 use uucore::checksum::{
-    detect_algo, digest_reader, perform_checksum_validation, ALGORITHM_OPTIONS_BLAKE2B,
-    ALGORITHM_OPTIONS_BSD, ALGORITHM_OPTIONS_CRC, ALGORITHM_OPTIONS_SYSV, SUPPORTED_ALGO,
+    calculate_blake2b_length, detect_algo, digest_reader, perform_checksum_validation,
+    ALGORITHM_OPTIONS_BLAKE2B, ALGORITHM_OPTIONS_BSD, ALGORITHM_OPTIONS_CRC,
+    ALGORITHM_OPTIONS_SYSV, SUPPORTED_ALGO,
 };
 use uucore::{
     encoding,
@@ -206,6 +206,7 @@ mod options {
     pub const BINARY: &str = "binary";
     pub const STATUS: &str = "status";
     pub const WARN: &str = "warn";
+    pub const IGNORE_MISSING: &str = "ignore-missing";
 }
 
 /// Determines whether to prompt an asterisk (*) in the output.
@@ -242,35 +243,6 @@ fn had_reset(args: &[String]) -> bool {
     match (binary_index, tag_index, untagged_index) {
         (Some(b), Some(t), Some(u)) => b < t && t < u,
         _ => false,
-    }
-}
-
-/// Calculates the length of the digest for the given algorithm.
-fn calculate_blake2b_length(length: usize) -> UResult<Option<usize>> {
-    match length {
-        0 => Ok(None),
-        n if n % 8 != 0 => {
-            uucore::show_error!("invalid length: \u{2018}{length}\u{2019}");
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "length is not a multiple of 8").into())
-        }
-        n if n > 512 => {
-            uucore::show_error!("invalid length: \u{2018}{length}\u{2019}");
-            Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "maximum digest length for \u{2018}BLAKE2b\u{2019} is 512 bits",
-            )
-            .into())
-        }
-        n => {
-            // Divide by 8, as our blake2b implementation expects bytes instead of bits.
-            if n == 512 {
-                // When length is 512, it is blake2b's default.
-                // So, don't show it
-                Ok(None)
-            } else {
-                Ok(Some(n / 8))
-            }
-        }
     }
 }
 
@@ -320,7 +292,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         .into());
     }
 
-    let input_length = matches.get_one::<usize>(options::LENGTH);
+    let input_length: Option<&usize> = matches.get_one::<usize>(options::LENGTH);
 
     let length = match input_length {
         Some(length) => {
@@ -343,6 +315,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         let strict = matches.get_flag(options::STRICT);
         let status = matches.get_flag(options::STATUS);
         let warn = matches.get_flag(options::WARN);
+        let ignore_missing = matches.get_flag(options::IGNORE_MISSING);
 
         if (binary_flag || text_flag) && check {
             return Err(io::Error::new(
@@ -366,6 +339,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 status,
                 warn,
                 binary_flag,
+                ignore_missing,
                 algo_option,
                 length,
             ),
@@ -375,6 +349,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 status,
                 warn,
                 binary_flag,
+                ignore_missing,
                 algo_option,
                 length,
             ),
@@ -514,6 +489,12 @@ pub fn uu_app() -> Command {
                 .short('s')
                 .long("status")
                 .help("don't output anything, status code shows success")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new(options::IGNORE_MISSING)
+                .long(options::IGNORE_MISSING)
+                .help("don't fail or report status for missing files")
                 .action(ArgAction::SetTrue),
         )
         .after_help(AFTER_HELP)

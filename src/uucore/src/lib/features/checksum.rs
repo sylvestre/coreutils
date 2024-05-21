@@ -15,8 +15,8 @@ use crate::{
     error::{set_exit_code, FromIo, UResult},
     show, show_error, show_warning_caps,
     sum::{
-        Blake2b, Blake3, Digest, DigestWriter, Md5, Sha1, Sha224, Sha256, Sha384, Sha512, Sm3, BSD,
-        CRC, SYSV,
+        Blake2b, Blake3, Digest, DigestWriter, Md5, Sha1, Sha224, Sha256, Sha384, Sha3_224,
+        Sha3_256, Sha3_384, Sha3_512, Sha512, Shake128, Shake256, Sm3, BSD, CRC, SYSV,
     },
     util_name,
 };
@@ -28,6 +28,8 @@ pub const ALGORITHM_OPTIONS_BSD: &str = "bsd";
 pub const ALGORITHM_OPTIONS_CRC: &str = "crc";
 pub const ALGORITHM_OPTIONS_MD5: &str = "md5";
 pub const ALGORITHM_OPTIONS_SHA1: &str = "sha1";
+pub const ALGORITHM_OPTIONS_SHA3: &str = "sha3";
+
 pub const ALGORITHM_OPTIONS_SHA224: &str = "sha224";
 pub const ALGORITHM_OPTIONS_SHA256: &str = "sha256";
 pub const ALGORITHM_OPTIONS_SHA384: &str = "sha384";
@@ -35,13 +37,16 @@ pub const ALGORITHM_OPTIONS_SHA512: &str = "sha512";
 pub const ALGORITHM_OPTIONS_BLAKE2B: &str = "blake2b";
 pub const ALGORITHM_OPTIONS_BLAKE3: &str = "blake3";
 pub const ALGORITHM_OPTIONS_SM3: &str = "sm3";
+pub const ALGORITHM_OPTIONS_SHAKE128: &str = "shake128";
+pub const ALGORITHM_OPTIONS_SHAKE256: &str = "shake256";
 
-pub const SUPPORTED_ALGO: [&str; 12] = [
+pub const SUPPORTED_ALGO: [&str; 15] = [
     ALGORITHM_OPTIONS_SYSV,
     ALGORITHM_OPTIONS_BSD,
     ALGORITHM_OPTIONS_CRC,
     ALGORITHM_OPTIONS_MD5,
     ALGORITHM_OPTIONS_SHA1,
+    ALGORITHM_OPTIONS_SHA3,
     ALGORITHM_OPTIONS_SHA224,
     ALGORITHM_OPTIONS_SHA256,
     ALGORITHM_OPTIONS_SHA384,
@@ -49,10 +54,17 @@ pub const SUPPORTED_ALGO: [&str; 12] = [
     ALGORITHM_OPTIONS_BLAKE2B,
     ALGORITHM_OPTIONS_BLAKE3,
     ALGORITHM_OPTIONS_SM3,
+    ALGORITHM_OPTIONS_SHAKE128,
+    ALGORITHM_OPTIONS_SHAKE256,
 ];
 
 #[allow(clippy::comparison_chain)]
-pub fn cksum_output(bad_format: i32, failed_cksum: i32, failed_open_file: i32) {
+pub fn cksum_output(
+    bad_format: i32,
+    failed_cksum: i32,
+    failed_open_file: i32,
+    ignore_missing: bool,
+) {
     if bad_format == 1 {
         show_warning_caps!("{} line is improperly formatted", bad_format);
     } else if bad_format > 1 {
@@ -64,11 +76,12 @@ pub fn cksum_output(bad_format: i32, failed_cksum: i32, failed_open_file: i32) {
     } else if failed_cksum > 1 {
         show_warning_caps!("{} computed checksums did NOT match", failed_cksum);
     }
-
-    if failed_open_file == 1 {
-        show_warning_caps!("{} listed file could not be read", failed_open_file);
-    } else if failed_open_file > 1 {
-        show_warning_caps!("{} listed files could not be read", failed_open_file);
+    if !ignore_missing {
+        if failed_open_file == 1 {
+            show_warning_caps!("{} listed file could not be read", failed_open_file);
+        } else if failed_open_file > 1 {
+            show_warning_caps!("{} listed files could not be read", failed_open_file);
+        }
     }
 }
 
@@ -92,37 +105,37 @@ pub fn detect_algo(
             Box::new(CRC::new()) as Box<dyn Digest>,
             256,
         ),
-        ALGORITHM_OPTIONS_MD5 => (
+        ALGORITHM_OPTIONS_MD5 | "md5sum" => (
             ALGORITHM_OPTIONS_MD5,
             Box::new(Md5::new()) as Box<dyn Digest>,
             128,
         ),
-        ALGORITHM_OPTIONS_SHA1 => (
+        ALGORITHM_OPTIONS_SHA1 | "sha1sum" => (
             ALGORITHM_OPTIONS_SHA1,
             Box::new(Sha1::new()) as Box<dyn Digest>,
             160,
         ),
-        ALGORITHM_OPTIONS_SHA224 => (
+        ALGORITHM_OPTIONS_SHA224 | "sha224sum" => (
             ALGORITHM_OPTIONS_SHA224,
             Box::new(Sha224::new()) as Box<dyn Digest>,
             224,
         ),
-        ALGORITHM_OPTIONS_SHA256 => (
+        ALGORITHM_OPTIONS_SHA256 | "sha256sum" => (
             ALGORITHM_OPTIONS_SHA256,
             Box::new(Sha256::new()) as Box<dyn Digest>,
             256,
         ),
-        ALGORITHM_OPTIONS_SHA384 => (
+        ALGORITHM_OPTIONS_SHA384 | "sha384sum" => (
             ALGORITHM_OPTIONS_SHA384,
             Box::new(Sha384::new()) as Box<dyn Digest>,
             384,
         ),
-        ALGORITHM_OPTIONS_SHA512 => (
+        ALGORITHM_OPTIONS_SHA512 | "sha512sum" => (
             ALGORITHM_OPTIONS_SHA512,
             Box::new(Sha512::new()) as Box<dyn Digest>,
             512,
         ),
-        ALGORITHM_OPTIONS_BLAKE2B => (
+        ALGORITHM_OPTIONS_BLAKE2B | "b2sum" => (
             ALGORITHM_OPTIONS_BLAKE2B,
             Box::new(if let Some(length) = length {
                 Blake2b::with_output_bytes(length)
@@ -131,16 +144,54 @@ pub fn detect_algo(
             }) as Box<dyn Digest>,
             512,
         ),
-        ALGORITHM_OPTIONS_BLAKE3 => (
+        ALGORITHM_OPTIONS_BLAKE3 | "b3sum" => (
             ALGORITHM_OPTIONS_BLAKE3,
             Box::new(Blake3::new()) as Box<dyn Digest>,
             256,
         ),
         ALGORITHM_OPTIONS_SM3 => (
+            // TODO check if we have sm3sum
             ALGORITHM_OPTIONS_SM3,
             Box::new(Sm3::new()) as Box<dyn Digest>,
             512,
         ),
+        ALGORITHM_OPTIONS_SHAKE128 | "shake128sum" => (
+            ALGORITHM_OPTIONS_SHAKE128,
+            Box::new(Shake128::new()) as Box<dyn Digest>,
+            length.unwrap(),
+        ),
+
+        ALGORITHM_OPTIONS_SHAKE256 | "shake256sum" => (
+            ALGORITHM_OPTIONS_SHAKE256,
+            Box::new(Shake256::new()) as Box<dyn Digest>,
+            length.unwrap(),
+        ),
+
+        //ALGORITHM_OPTIONS_SHA3 | "sha3" => (
+        alg if alg.starts_with("sha3") => match alg {
+            "sha3_224" => (
+                "SHA3_224",
+                Box::new(Sha3_224::new()) as Box<dyn Digest>,
+                224,
+            ),
+            "sha3_256" => (
+                "SHA3_256",
+                Box::new(Sha3_256::new()) as Box<dyn Digest>,
+                256,
+            ),
+            "sha3_384" => (
+                "SHA3_384",
+                Box::new(Sha3_384::new()) as Box<dyn Digest>,
+                384,
+            ),
+            "sha3_512" => (
+                "SHA3_512",
+                Box::new(Sha3_512::new()) as Box<dyn Digest>,
+                512,
+            ),
+            _ => panic!("Unsupported SHA3 algorithm"),
+        },
+
         _ => unreachable!("unknown algorithm: clap should have prevented this case"),
     }
 }
@@ -154,6 +205,7 @@ pub fn perform_checksum_validation<'a, I>(
     status: bool,
     warn: bool,
     binary: bool,
+    ignore_missing: bool,
     algo_name_input: Option<&str>,
     length_input: Option<usize>,
 ) -> UResult<()>
@@ -172,6 +224,7 @@ where
         let mut bad_format = 0;
         let mut failed_cksum = 0;
         let mut failed_open_file = 0;
+        let mut correct_format = 0;
         let mut properly_formatted = false;
         let input_is_stdin = filename_input == OsStr::new("-");
 
@@ -246,7 +299,7 @@ where
                     (algorithm, bits.unwrap())
                 } else if let Some(a) = algo_name_input {
                     // When a specific algorithm name is input, use it and default bits to None
-                    (a.to_lowercase(), length_input.map(|length| length / 8))
+                    (a.to_lowercase(), length_input.map(|length| length)) // / 8))
                 } else {
                     // Default case if no algorithm is specified and non-algo based format is matched
                     (String::new(), None)
@@ -271,11 +324,14 @@ where
                     match File::open(filename_to_check) {
                         Ok(f) => Box::new(f),
                         Err(err) => {
-                            // yes, we have both stderr and stdout here
-                            show!(err.map_err_context(|| filename_to_check.to_string()));
-                            println!("{}: FAILED open or read", filename_to_check);
+                            if !ignore_missing {
+                                // yes, we have both stderr and stdout here
+                                show!(err.map_err_context(|| filename_to_check.to_string()));
+                                println!("{}: FAILED open or read", filename_to_check);
+                            }
                             failed_open_file += 1;
                             // we could not open the file but we want to continue
+
                             continue;
                         }
                     }
@@ -288,6 +344,7 @@ where
                 // Do the checksum validation
                 if expected_checksum == calculated_checksum {
                     println!("{}: OK", filename_to_check);
+                    correct_format += 1;
                 } else {
                     if !status {
                         println!("{}: FAILED", filename_to_check);
@@ -295,6 +352,10 @@ where
                     failed_cksum += 1;
                 }
             } else {
+                if line.is_empty() {
+                    // Don't show any warning for empty lines
+                    continue;
+                }
                 if warn {
                     eprintln!(
                         "{}: {}: {}: improperly formatted {:?} checksum line",
@@ -304,9 +365,7 @@ where
                         algo_name_input.unwrap_or("Unknown algorithm")
                     );
                 }
-                if line.is_empty() {
-                    continue;
-                }
+
                 bad_format += 1;
             }
         }
@@ -326,6 +385,19 @@ where
             );
             set_exit_code(1);
         }
+
+        if ignore_missing && correct_format == 0 {
+            // we have only bad format
+            // and we had ignore-missing
+            eprintln!(
+                "{}: {}: no file was verified",
+                util_name(),
+                filename_input.maybe_quote(),
+            );
+            //skip_summary = true;
+            set_exit_code(1);
+        }
+
         // strict means that we should have an exit code.
         if strict && bad_format > 0 {
             set_exit_code(1);
@@ -337,7 +409,7 @@ where
         }
 
         // if any incorrectly formatted line, show it
-        cksum_output(bad_format, failed_cksum, failed_open_file);
+        cksum_output(bad_format, failed_cksum, failed_open_file, ignore_missing);
     }
     Ok(())
 }
@@ -362,7 +434,7 @@ pub fn digest_reader<T: Read>(
     // `DigestWriter` and only written if the following character is
     // "\n". But when "\r" is the last character read, we need to force
     // it to be written.)
-    let mut digest_writer = DigestWriter::new(digest, true);
+    let mut digest_writer = DigestWriter::new(digest, binary);
     let output_size = std::io::copy(reader, &mut digest_writer)? as usize;
     digest_writer.finalize();
 
@@ -373,5 +445,34 @@ pub fn digest_reader<T: Read>(
         let mut bytes = vec![0; (output_bits + 7) / 8];
         digest.hash_finalize(&mut bytes);
         Ok((hex::encode(bytes), output_size))
+    }
+}
+
+/// Calculates the length of the digest for the given algorithm.
+pub fn calculate_blake2b_length(length: usize) -> UResult<Option<usize>> {
+    match length {
+        0 => Ok(None),
+        n if n % 8 != 0 => {
+            show_error!("invalid length: \u{2018}{length}\u{2019}");
+            Err(io::Error::new(io::ErrorKind::InvalidInput, "length is not a multiple of 8").into())
+        }
+        n if n > 512 => {
+            show_error!("invalid length: \u{2018}{length}\u{2019}");
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "maximum digest length for \u{2018}BLAKE2b\u{2019} is 512 bits",
+            )
+            .into())
+        }
+        n => {
+            // Divide by 8, as our blake2b implementation expects bytes instead of bits.
+            if n == 512 {
+                // When length is 512, it is blake2b's default.
+                // So, don't show it
+                Ok(None)
+            } else {
+                Ok(Some(n / 8))
+            }
+        }
     }
 }
