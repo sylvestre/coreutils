@@ -9,6 +9,7 @@ use std::{
     ffi::OsStr,
     fs::File,
     io::{self, BufReader, Read},
+    path::Path,
 };
 
 use crate::{
@@ -317,11 +318,13 @@ where
                 }
                 let (_, mut algo, bits) = detect_algo(&algo_name, length);
 
+                let (filename_to_check_unescaped, prefix) = unescape_filename(filename_to_check);
+
                 // manage the input file
                 let file_to_check: Box<dyn Read> = if filename_to_check == "-" {
                     Box::new(stdin()) // Use stdin if "-" is specified in the checksum file
                 } else {
-                    match File::open(filename_to_check) {
+                    match File::open(filename_to_check_unescaped) {
                         Ok(f) => Box::new(f),
                         Err(err) => {
                             if !ignore_missing {
@@ -343,11 +346,11 @@ where
 
                 // Do the checksum validation
                 if expected_checksum == calculated_checksum {
-                    println!("{}: OK", filename_to_check);
+                    println!("{prefix}{filename_to_check}: OK");
                     correct_format += 1;
                 } else {
                     if !status {
-                        println!("{}: FAILED", filename_to_check);
+                        println!("{prefix}{filename_to_check}: FAILED");
                     }
                     failed_cksum += 1;
                 }
@@ -475,4 +478,23 @@ pub fn calculate_blake2b_length(length: usize) -> UResult<Option<usize>> {
             }
         }
     }
+}
+
+pub fn unescape_filename(filename: &str) -> (String, &'static str) {
+    let unescaped = filename
+        .replace("\\\\", "\\")
+        .replace("\\n", "\n")
+        .replace("\\r", "\r");
+    let prefix = if unescaped == filename { "" } else { "\\" };
+    (unescaped, prefix)
+}
+
+pub fn escape_filename(filename: &Path) -> (String, &'static str) {
+    let original = filename.as_os_str().to_string_lossy();
+    let escaped = original
+        .replace('\\', "\\\\")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r");
+    let prefix = if escaped == original { "" } else { "\\" };
+    (escaped, prefix)
 }

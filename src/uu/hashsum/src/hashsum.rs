@@ -23,6 +23,7 @@ use uucore::checksum::calculate_blake2b_length;
 use uucore::checksum::cksum_output;
 use uucore::checksum::detect_algo;
 use uucore::checksum::digest_reader;
+use uucore::checksum::escape_filename;
 use uucore::checksum::perform_checksum_validation;
 use uucore::checksum::ALGORITHM_OPTIONS_BLAKE2B;
 use uucore::display::Quotable;
@@ -728,23 +729,4 @@ where
     }
 
     Ok(())
-}
-
-fn unescape_filename(filename: &str) -> (String, &'static str) {
-    let unescaped = filename
-        .replace("\\\\", "\\")
-        .replace("\\n", "\n")
-        .replace("\\r", "\r");
-    let prefix = if unescaped == filename { "" } else { "\\" };
-    (unescaped, prefix)
-}
-
-fn escape_filename(filename: &Path) -> (String, &'static str) {
-    let original = filename.as_os_str().to_string_lossy();
-    let escaped = original
-        .replace('\\', "\\\\")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r");
-    let prefix = if escaped == original { "" } else { "\\" };
-    (escaped, prefix)
 }
