@@ -279,17 +279,19 @@ fn test_check_b2sum_verify() {
 
     scene
         .ccmd("b2sum")
-        .arg("-c")
-        .arg("a")
-        .succeeds()
-        .stdout_only("BLAKE2b-128 (a) = b93e0fc7bb21633c08bba07c5e71dc00\n");
-
-    scene
-        .ccmd("b2sum")
-        .arg("-c")
+        .arg("--tag")
         .arg("a")
         .succeeds()
         .stdout_only("BLAKE2b (a) = bedfbb90d858c2d67b7ee8f7523be3d3b54004ef9e4f02f2ad79a1d05bfdfe49b81e3c92ebf99b504102b6bf003fa342587f5b3124c205f55204e8c4b4ce7d7c\n");
+
+    scene
+        .ccmd("b2sum")
+        .arg("--tag")
+        .arg("-l")
+        .arg("128")
+        .arg("a")
+        .succeeds()
+        .stdout_only("BLAKE2b-128 (a) = b93e0fc7bb21633c08bba07c5e71dc00\n");
 }
 
 #[test]

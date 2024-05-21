@@ -246,6 +246,13 @@ fn create_algorithm_from_flags(
             None => return Err(USimpleError::new(1, "--bits required for SHAKE-256")),
         };
     }
+    if alg.is_none() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Needs an algorithm to hash with.\nUse --help for more information.",
+        )
+        .into());
+    }
     Ok((name, alg.unwrap(), output_bits))
 }
 

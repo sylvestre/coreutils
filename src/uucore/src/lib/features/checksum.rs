@@ -217,7 +217,7 @@ where
     // 1. <algo>[-<bits>] (<filename>) = <checksum>
     //    algo must be uppercase or b (for blake2b)
     // 2. <checksum> [* ]<filename>
-    let regex_pattern = r"^\s*\\?(?P<algo>(?:[A-Z0-9]+|BLAKE2b))(?:-(?P<bits>\d+))?\s?\((?P<filename1>.*)\) = (?P<checksum1>[a-fA-F0-9]+)$|^(?P<checksum2>[a-fA-F0-9]+)\s[* ](?P<filename2>.*)";
+    let regex_pattern = r"^\s*\\?(?P<algo>(?:[A-Z0-9]+|BLAKE2b))(?:-(?P<bits>\d+))?\s?\((?P<filename1>.*)\)\s*=\s*(?P<checksum1>[a-fA-F0-9]+)$|^(?P<checksum2>[a-fA-F0-9]+)\s[* ](?P<filename2>.*)";
     let re = Regex::new(regex_pattern).unwrap();
 
     // if cksum has several input files, it will print the result for each file
@@ -360,12 +360,17 @@ where
                     continue;
                 }
                 if warn {
+                    let algo = if let Some(algo_name_input) = algo_name_input {
+                        algo_name_input.to_uppercase()
+                    } else {
+                        "Unknown algorithm".to_string()
+                    };
                     eprintln!(
-                        "{}: {}: {}: improperly formatted {:?} checksum line",
+                        "{}: {}: {}: improperly formatted {} checksum line",
                         util_name(),
                         &filename_input.maybe_quote(),
                         i + 1,
-                        algo_name_input.unwrap_or("Unknown algorithm")
+                        algo
                     );
                 }
 
@@ -407,7 +412,8 @@ where
         }
 
         // if we have any failed checksum verification, we set an exit code
-        if failed_cksum > 0 || failed_open_file > 0 {
+        // except if we have ignore_missing
+        if (failed_cksum > 0 || failed_open_file > 0) && !ignore_missing {
             set_exit_code(1);
         }
 
