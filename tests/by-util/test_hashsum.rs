@@ -50,6 +50,8 @@ macro_rules! test_digest {
         #[test]
         fn test_check() {
             let ts = TestScenario::new("hashsum");
+            println!("File content='{}'", ts.fixtures.read("input.txt"));
+
             ts.ucmd()
                 .args(&[DIGEST_ARG, BITS_ARG, "--check", CHECK_FILE])
                 .succeeds()
