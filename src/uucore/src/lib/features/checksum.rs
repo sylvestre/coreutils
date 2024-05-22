@@ -603,64 +603,66 @@ mod tests {
     #[test]
     fn test_detect_algo() {
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SYSV, None).0,
+            detect_algo(ALGORITHM_OPTIONS_SYSV, None).unwrap().0,
             ALGORITHM_OPTIONS_SYSV
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_BSD, None).0,
+            detect_algo(ALGORITHM_OPTIONS_BSD, None).unwrap().0,
             ALGORITHM_OPTIONS_BSD
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_CRC, None).0,
+            detect_algo(ALGORITHM_OPTIONS_CRC, None).unwrap().0,
             ALGORITHM_OPTIONS_CRC
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_MD5, None).0,
+            detect_algo(ALGORITHM_OPTIONS_MD5, None).unwrap().0,
             ALGORITHM_OPTIONS_MD5
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHA1, None).0,
+            detect_algo(ALGORITHM_OPTIONS_SHA1, None).unwrap().0,
             ALGORITHM_OPTIONS_SHA1
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHA224, None).0,
+            detect_algo(ALGORITHM_OPTIONS_SHA224, None).unwrap().0,
             ALGORITHM_OPTIONS_SHA224
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHA256, None).0,
+            detect_algo(ALGORITHM_OPTIONS_SHA256, None).unwrap().0,
             ALGORITHM_OPTIONS_SHA256
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHA384, None).0,
+            detect_algo(ALGORITHM_OPTIONS_SHA384, None).unwrap().0,
             ALGORITHM_OPTIONS_SHA384
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHA512, None).0,
+            detect_algo(ALGORITHM_OPTIONS_SHA512, None).unwrap().0,
             ALGORITHM_OPTIONS_SHA512
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_BLAKE2B, None).0,
+            detect_algo(ALGORITHM_OPTIONS_BLAKE2B, None).unwrap().0,
             ALGORITHM_OPTIONS_BLAKE2B
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_BLAKE3, None).0,
+            detect_algo(ALGORITHM_OPTIONS_BLAKE3, None).unwrap().0,
             ALGORITHM_OPTIONS_BLAKE3
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SM3, None).0,
+            detect_algo(ALGORITHM_OPTIONS_SM3, None).unwrap().0,
             ALGORITHM_OPTIONS_SM3
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHAKE128, Some(128)).0,
+            detect_algo(ALGORITHM_OPTIONS_SHAKE128, Some(128)).unwrap().0,
             ALGORITHM_OPTIONS_SHAKE128
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHAKE256, Some(256)).0,
+            detect_algo(ALGORITHM_OPTIONS_SHAKE256, Some(256)).unwrap().0,
             ALGORITHM_OPTIONS_SHAKE256
         );
-        assert_eq!(detect_algo("sha3_224", None).0, "SHA3_224");
-        assert_eq!(detect_algo("sha3_256", None).0, "SHA3_256");
-        assert_eq!(detect_algo("sha3_384", None).0, "SHA3_384");
-        assert_eq!(detect_algo("sha3_512", None).0, "SHA3_512");
+        assert_eq!(detect_algo("sha3_224", Some(224)).unwrap().0, "SHA3_224");
+        assert_eq!(detect_algo("sha3_256", Some(256)).unwrap().0, "SHA3_256");
+        assert_eq!(detect_algo("sha3_384", Some(384)).unwrap().0, "SHA3_384");
+        assert_eq!(detect_algo("sha3_512", Some(512)).unwrap().0, "SHA3_512");
+
+        assert!(detect_algo("sha3_512", None).is_err());
     }
 }
