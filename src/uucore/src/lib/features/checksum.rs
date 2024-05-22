@@ -531,3 +531,117 @@ pub fn escape_filename(filename: &Path) -> (String, &'static str) {
     let prefix = if escaped == original { "" } else { "\\" };
     (escaped, prefix)
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unescape_filename() {
+        let (unescaped, prefix) = unescape_filename("test\\nfile.txt");
+        assert_eq!(unescaped, "test\nfile.txt");
+        assert_eq!(prefix, "\\");
+        let (unescaped, prefix) = unescape_filename("test\\nfile.txt");
+        assert_eq!(unescaped, "test\nfile.txt");
+        assert_eq!(prefix, "\\");
+
+        let (unescaped, prefix) = unescape_filename("test\\rfile.txt");
+        assert_eq!(unescaped, "test\rfile.txt");
+        assert_eq!(prefix, "\\");
+
+        let (unescaped, prefix) = unescape_filename("test\\\\file.txt");
+        assert_eq!(unescaped, "test\\file.txt");
+        assert_eq!(prefix, "\\");
+    }
+
+    #[test]
+    fn test_escape_filename() {
+        let (escaped, prefix) = escape_filename(&Path::new("testfile.txt"));
+        assert_eq!(escaped, "testfile.txt");
+        assert_eq!(prefix, "");
+
+        let (escaped, prefix) = escape_filename(&Path::new("test\nfile.txt"));
+        assert_eq!(escaped, "test\\nfile.txt");
+        assert_eq!(prefix, "\\");
+
+        let (escaped, prefix) = escape_filename(&Path::new("test\rfile.txt"));
+        assert_eq!(escaped, "test\\rfile.txt");
+        assert_eq!(prefix, "\\");
+
+        let (escaped, prefix) = escape_filename(&Path::new("test\\file.txt"));
+        assert_eq!(escaped, "test\\\\file.txt");
+        assert_eq!(prefix, "\\");
+    }
+
+    #[test]
+    fn test_calculate_blake2b_length() {
+        assert_eq!(calculate_blake2b_length(0).unwrap(), None);
+        assert!(calculate_blake2b_length(10).is_err());
+        assert!(calculate_blake2b_length(520).is_err());
+        assert_eq!(calculate_blake2b_length(512).unwrap(), None);
+        assert_eq!(calculate_blake2b_length(256).unwrap(), Some(32));
+    }
+
+    #[test]
+    fn test_detect_algo() {
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_SYSV, None).0,
+            ALGORITHM_OPTIONS_SYSV
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_BSD, None).0,
+            ALGORITHM_OPTIONS_BSD
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_CRC, None).0,
+            ALGORITHM_OPTIONS_CRC
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_MD5, None).0,
+            ALGORITHM_OPTIONS_MD5
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_SHA1, None).0,
+            ALGORITHM_OPTIONS_SHA1
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_SHA224, None).0,
+            ALGORITHM_OPTIONS_SHA224
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_SHA256, None).0,
+            ALGORITHM_OPTIONS_SHA256
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_SHA384, None).0,
+            ALGORITHM_OPTIONS_SHA384
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_SHA512, None).0,
+            ALGORITHM_OPTIONS_SHA512
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_BLAKE2B, None).0,
+            ALGORITHM_OPTIONS_BLAKE2B
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_BLAKE3, None).0,
+            ALGORITHM_OPTIONS_BLAKE3
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_SM3, None).0,
+            ALGORITHM_OPTIONS_SM3
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_SHAKE128, Some(128)).0,
+            ALGORITHM_OPTIONS_SHAKE128
+        );
+        assert_eq!(
+            detect_algo(ALGORITHM_OPTIONS_SHAKE256, Some(256)).0,
+            ALGORITHM_OPTIONS_SHAKE256
+        );
+        assert_eq!(detect_algo("sha3_224", None).0, "SHA3_224");
+        assert_eq!(detect_algo("sha3_256", None).0, "SHA3_256");
+        assert_eq!(detect_algo("sha3_384", None).0, "SHA3_384");
+        assert_eq!(detect_algo("sha3_512", None).0, "SHA3_512");
+    }
+}
