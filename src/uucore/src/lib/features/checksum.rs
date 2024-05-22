@@ -59,6 +59,43 @@ pub const SUPPORTED_ALGO: [&str; 15] = [
     ALGORITHM_OPTIONS_SHAKE256,
 ];
 
+/// Creates a SHA3 hasher instance based on the specified bits argument.
+///
+/// # Returns
+///
+/// Returns a UResult of a tuple containing the algorithm name, the hasher instance, and
+/// the output length in bits or an Err if an unsupported output size is provided, or if
+/// the `--bits` flag is missing.
+pub fn create_sha3(bits: Option<usize>) -> UResult<(&'static str, Box<dyn Digest>, usize)> {
+    match bits {
+        Some(224) => Ok((
+            "SHA3_224",
+            Box::new(Sha3_224::new()) as Box<dyn Digest>,
+            224,
+        )),
+        Some(256) => Ok((
+            "SHA3_256",
+            Box::new(Sha3_256::new()) as Box<dyn Digest>,
+            256,
+        )),
+        Some(384) => Ok((
+            "SHA3_384",
+            Box::new(Sha3_384::new()) as Box<dyn Digest>,
+            384,
+        )),
+        Some(512) => Ok((
+            "SHA3_512",
+            Box::new(Sha3_512::new()) as Box<dyn Digest>,
+            512,
+        )),
+        Some(_) => Err(USimpleError::new(
+            1,
+            "Invalid output size for SHA3 (expected 224, 256, 384, or 512)",
+        )),
+        None => Err(USimpleError::new(1, "--bits required for SHA3")),
+    }
+}
+
 #[allow(clippy::comparison_chain)]
 pub fn cksum_output(
     bad_format: i32,
@@ -92,54 +129,54 @@ pub fn cksum_output(
 pub fn detect_algo(
     algo: &str,
     length: Option<usize>,
-) -> (&'static str, Box<dyn Digest + 'static>, usize) {
+) -> UResult<(&'static str, Box<dyn Digest + 'static>, usize)> {
     match algo {
-        ALGORITHM_OPTIONS_SYSV => (
+        ALGORITHM_OPTIONS_SYSV => Ok((
             ALGORITHM_OPTIONS_SYSV,
             Box::new(SYSV::new()) as Box<dyn Digest>,
             512,
-        ),
-        ALGORITHM_OPTIONS_BSD => (
+        )),
+        ALGORITHM_OPTIONS_BSD => Ok((
             ALGORITHM_OPTIONS_BSD,
             Box::new(BSD::new()) as Box<dyn Digest>,
             1024,
-        ),
-        ALGORITHM_OPTIONS_CRC => (
+        )),
+        ALGORITHM_OPTIONS_CRC => Ok((
             ALGORITHM_OPTIONS_CRC,
             Box::new(CRC::new()) as Box<dyn Digest>,
             256,
-        ),
-        ALGORITHM_OPTIONS_MD5 | "md5sum" => (
+        )),
+        ALGORITHM_OPTIONS_MD5 | "md5sum" => Ok((
             ALGORITHM_OPTIONS_MD5,
             Box::new(Md5::new()) as Box<dyn Digest>,
             128,
-        ),
-        ALGORITHM_OPTIONS_SHA1 | "sha1sum" => (
+        )),
+        ALGORITHM_OPTIONS_SHA1 | "sha1sum" => Ok((
             ALGORITHM_OPTIONS_SHA1,
             Box::new(Sha1::new()) as Box<dyn Digest>,
             160,
-        ),
-        ALGORITHM_OPTIONS_SHA224 | "sha224sum" => (
+        )),
+        ALGORITHM_OPTIONS_SHA224 | "sha224sum" => Ok((
             ALGORITHM_OPTIONS_SHA224,
             Box::new(Sha224::new()) as Box<dyn Digest>,
             224,
-        ),
-        ALGORITHM_OPTIONS_SHA256 | "sha256sum" => (
+        )),
+        ALGORITHM_OPTIONS_SHA256 | "sha256sum" => Ok((
             ALGORITHM_OPTIONS_SHA256,
             Box::new(Sha256::new()) as Box<dyn Digest>,
             256,
-        ),
-        ALGORITHM_OPTIONS_SHA384 | "sha384sum" => (
+        )),
+        ALGORITHM_OPTIONS_SHA384 | "sha384sum" => Ok((
             ALGORITHM_OPTIONS_SHA384,
             Box::new(Sha384::new()) as Box<dyn Digest>,
             384,
-        ),
-        ALGORITHM_OPTIONS_SHA512 | "sha512sum" => (
+        )),
+        ALGORITHM_OPTIONS_SHA512 | "sha512sum" => Ok((
             ALGORITHM_OPTIONS_SHA512,
             Box::new(Sha512::new()) as Box<dyn Digest>,
             512,
-        ),
-        ALGORITHM_OPTIONS_BLAKE2B | "b2sum" => (
+        )),
+        ALGORITHM_OPTIONS_BLAKE2B | "b2sum" => Ok((
             ALGORITHM_OPTIONS_BLAKE2B,
             Box::new(if let Some(length) = length {
                 if length == 512 {
@@ -155,56 +192,59 @@ pub fn detect_algo(
             } else {
                 512
             },
-        ),
-        ALGORITHM_OPTIONS_BLAKE3 | "b3sum" => (
+        )),
+        ALGORITHM_OPTIONS_BLAKE3 | "b3sum" => Ok((
             ALGORITHM_OPTIONS_BLAKE3,
             Box::new(Blake3::new()) as Box<dyn Digest>,
             256,
-        ),
-        ALGORITHM_OPTIONS_SM3 => (
+        )),
+        ALGORITHM_OPTIONS_SM3 => Ok((
             // TODO check if we have sm3sum
             ALGORITHM_OPTIONS_SM3,
             Box::new(Sm3::new()) as Box<dyn Digest>,
             512,
-        ),
-        ALGORITHM_OPTIONS_SHAKE128 | "shake128sum" => (
+        )),
+        ALGORITHM_OPTIONS_SHAKE128 | "shake128sum" => Ok((
             ALGORITHM_OPTIONS_SHAKE128,
             Box::new(Shake128::new()) as Box<dyn Digest>,
             length.unwrap(),
-        ),
+        )),
 
-        ALGORITHM_OPTIONS_SHAKE256 | "shake256sum" => (
+        ALGORITHM_OPTIONS_SHAKE256 | "shake256sum" => Ok((
             ALGORITHM_OPTIONS_SHAKE256,
             Box::new(Shake256::new()) as Box<dyn Digest>,
             length.unwrap(),
-        ),
+        )),
 
         //ALGORITHM_OPTIONS_SHA3 | "sha3" => (
         alg if alg.starts_with("sha3") => match alg {
-            "sha3_224" => (
+            "sha3_224" => Ok((
                 "SHA3_224",
                 Box::new(Sha3_224::new()) as Box<dyn Digest>,
                 224,
-            ),
-            "sha3_256" => (
+            )),
+            "sha3_256" => Ok((
                 "SHA3_256",
                 Box::new(Sha3_256::new()) as Box<dyn Digest>,
                 256,
-            ),
-            "sha3_384" => (
+            )),
+            "sha3_384" => Ok((
                 "SHA3_384",
                 Box::new(Sha3_384::new()) as Box<dyn Digest>,
                 384,
-            ),
-            "sha3_512" => (
+            )),
+            "sha3_512" => Ok((
                 "SHA3_512",
                 Box::new(Sha3_512::new()) as Box<dyn Digest>,
                 512,
-            ),
-            _ => panic!("Unsupported SHA3 algorithm"),
+            )),
+            _ => Err(USimpleError::new(1, "Unsupported SHA3 algorithm")),
         },
 
-        _ => unreachable!("unknown algorithm: clap should have prevented this case"),
+        _ => Err(USimpleError::new(
+            1,
+            "unknown algorithm: clap should have prevented this case",
+        )),
     }
 }
 
@@ -327,7 +367,7 @@ where
                     properly_formatted = false;
                     continue;
                 }
-                let (_, mut algo, bits) = detect_algo(&algo_name, length);
+                let (_, mut algo, bits) = detect_algo(&algo_name, length)?;
 
                 let (filename_to_check_unescaped, prefix) = unescape_filename(filename_to_check);
 

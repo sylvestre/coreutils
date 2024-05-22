@@ -360,7 +360,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     let (tag, asterisk) = handle_tag_text_binary_flags(&matches)?;
 
-    let (name, algo, bits) = detect_algo(algo_name, length);
+    let (name, algo, bits) = detect_algo(algo_name, length)?;
 
     let output_format = if matches.get_flag(options::RAW) {
         OutputFormat::Raw

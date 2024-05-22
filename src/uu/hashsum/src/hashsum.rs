@@ -19,6 +19,7 @@ use std::num::ParseIntError;
 use std::path::Path;
 use uucore::checksum::calculate_blake2b_length;
 use uucore::checksum::cksum_output;
+use uucore::checksum::create_sha3;
 use uucore::checksum::detect_algo;
 use uucore::checksum::digest_reader;
 use uucore::checksum::escape_filename;
@@ -52,43 +53,6 @@ struct Options {
     output_bits: usize,
     zero: bool,
     ignore_missing: bool,
-}
-
-/// Creates a SHA3 hasher instance based on the specified bits argument.
-///
-/// # Returns
-///
-/// Returns a UResult of a tuple containing the algorithm name, the hasher instance, and
-/// the output length in bits or an Err if an unsupported output size is provided, or if
-/// the `--bits` flag is missing.
-fn create_sha3(bits: Option<usize>) -> UResult<(&'static str, Box<dyn Digest>, usize)> {
-    match bits {
-        Some(224) => Ok((
-            "SHA3_224",
-            Box::new(Sha3_224::new()) as Box<dyn Digest>,
-            224,
-        )),
-        Some(256) => Ok((
-            "SHA3_256",
-            Box::new(Sha3_256::new()) as Box<dyn Digest>,
-            256,
-        )),
-        Some(384) => Ok((
-            "SHA3_384",
-            Box::new(Sha3_384::new()) as Box<dyn Digest>,
-            384,
-        )),
-        Some(512) => Ok((
-            "SHA3_512",
-            Box::new(Sha3_512::new()) as Box<dyn Digest>,
-            512,
-        )),
-        Some(_) => Err(USimpleError::new(
-            1,
-            "Invalid output size for SHA3 (expected 224, 256, 384, or 512)",
-        )),
-        None => Err(USimpleError::new(1, "--bits required for SHA3")),
-    }
 }
 
 /// Creates a hasher instance based on the command-line flags.
@@ -237,7 +201,7 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
     let (algoname, algo, bits) = if is_hashsum_bin {
         create_algorithm_from_flags(&matches)?
     } else {
-        detect_algo(&binary_name, length)
+        detect_algo(&binary_name, length)?
     };
 
     let binary = if matches.get_flag("binary") {
