@@ -28,8 +28,8 @@ use uucore::display::Quotable;
 use uucore::error::USimpleError;
 use uucore::error::{set_exit_code, FromIo, UError, UResult};
 use uucore::sum::{
-    Blake2b, Blake3, Digest, Md5, Sha1, Sha224, Sha256, Sha384, Sha3_224, Sha3_256,
-    Sha3_384, Sha3_512, Sha512, Shake128, Shake256,
+    Blake2b, Blake3, Digest, Md5, Sha1, Sha224, Sha256, Sha384, Sha3_224, Sha3_256, Sha3_384,
+    Sha3_512, Sha512, Shake128, Shake256,
 };
 use uucore::util_name;
 use uucore::{format_usage, help_about, help_usage};
@@ -61,8 +61,8 @@ struct Options {
 /// Returns a UResult of a tuple containing the algorithm name, the hasher instance, and
 /// the output length in bits or an Err if an unsupported output size is provided, or if
 /// the `--bits` flag is missing.
-fn create_sha3(matches: &ArgMatches) -> UResult<(&'static str, Box<dyn Digest>, usize)> {
-    match matches.get_one::<usize>("bits") {
+fn create_sha3(bits: Option<usize>) -> UResult<(&'static str, Box<dyn Digest>, usize)> {
+    match bits {
         Some(224) => Ok((
             "SHA3_224",
             Box::new(Sha3_224::new()) as Box<dyn Digest>,
@@ -148,7 +148,8 @@ fn create_algorithm_from_flags(
         set_or_err("BLAKE3", Box::new(Blake3::new()), 256)?;
     }
     if matches.get_flag("sha3") {
-        let (n, val, bits) = create_sha3(matches)?;
+        let bits = matches.get_one::<usize>("bits").cloned();
+        let (n, val, bits) = create_sha3(bits)?;
         set_or_err(n, val, bits)?;
     }
     if matches.get_flag("sha3-224") {
