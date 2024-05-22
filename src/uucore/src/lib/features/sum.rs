@@ -44,7 +44,7 @@ impl Blake2b {
     /// Return a new Blake2b instance with a custom output bytes length
     pub fn with_output_bytes(output_bytes: usize) -> Self {
         let mut params = blake2b_simd::Params::new();
-        params.hash_length(output_bytes);
+         params.hash_length(output_bytes);
 
         let state = params.to_state();
         Self(state, output_bytes * 8)

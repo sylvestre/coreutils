@@ -310,8 +310,8 @@ fn test_check_file_not_found_warning() {
         .arg("-c")
         .arg(at.subdir.join("testf.sha1"))
         .fails()
-        .stdout_is("sha1sum: testf: No such file or directory\ntestf: FAILED open or read\n")
-        .stderr_is("sha1sum: WARNING: 1 listed file could not be read\n");
+        .stdout_is("testf: FAILED open or read\n")
+        .stderr_is("sha1sum: testf: No such file or directory\nsha1sum: WARNING: 1 listed file could not be read\n");
 }
 
 // Asterisk `*` is a reserved paths character on win32, nor the path can end with a whitespace.
