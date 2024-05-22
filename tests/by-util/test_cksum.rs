@@ -1177,3 +1177,5 @@ fn test_unknown_sha() {
         .fails()
         .stderr_contains("f: no properly formatted checksum lines found");
 }
+
+// TODO add tests with directory as file to verify the error

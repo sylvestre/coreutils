@@ -13,7 +13,7 @@ use std::{
 };
 
 use crate::{
-    error::{set_exit_code, FromIo, UResult},
+    error::{set_exit_code, FromIo, UResult, USimpleError},
     show, show_error, show_warning_caps,
     sum::{
         Blake2b, Blake3, Digest, DigestWriter, Md5, Sha1, Sha224, Sha256, Sha384, Sha3_224,
@@ -335,8 +335,17 @@ where
                 let file_to_check: Box<dyn Read> = if filename_to_check == "-" {
                     Box::new(stdin()) // Use stdin if "-" is specified in the checksum file
                 } else {
-                    match File::open(filename_to_check_unescaped) {
-                        Ok(f) => Box::new(f),
+                    match File::open(&filename_to_check_unescaped) {
+                        Ok(f) => {
+                            if f.metadata()?.is_dir() {
+                                show!(USimpleError::new(
+                                    1,
+                                    format!("{}: Is a directory", filename_to_check_unescaped)
+                                ));
+                                continue;
+                            }
+                            Box::new(f)
+                        }
                         Err(err) => {
                             if !ignore_missing {
                                 // yes, we have both stderr and stdout here
@@ -350,6 +359,7 @@ where
                         }
                     }
                 };
+
                 let mut file_reader = BufReader::new(file_to_check);
                 // Read the file and calculate the checksum
                 let (calculated_checksum, _) =

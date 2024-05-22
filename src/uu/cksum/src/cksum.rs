@@ -109,9 +109,6 @@ where
             Box::new(file_buf) as Box<dyn Read>
         });
 
-        let (sum_hex, sz) =
-            digest_reader(&mut options.digest, &mut file, false, options.output_bits)
-                .map_err_context(|| "failed to read input".to_string())?;
         if filename.is_dir() {
             show!(USimpleError::new(
                 1,
@@ -119,6 +116,11 @@ where
             ));
             continue;
         }
+
+        let (sum_hex, sz) =
+            digest_reader(&mut options.digest, &mut file, false, options.output_bits)
+                .map_err_context(|| "failed to read input".to_string())?;
+
         let sum = match options.output_format {
             OutputFormat::Raw => {
                 let bytes = match options.algo_name {

@@ -676,3 +676,4 @@ fn test_check_check_ignore_no_file() {
         .fails()
         .stderr_contains("in.md5: no file was verified");
 }
+// TODO add tests with directory as file to verify the error
