@@ -10,12 +10,10 @@ use clap::crate_version;
 use clap::value_parser;
 use clap::ArgAction;
 use clap::{Arg, ArgMatches, Command};
-use regex::Captures;
-use regex::Regex;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
-use std::io::{self, stdin, BufRead, BufReader, Read};
+use std::io::{self, stdin, BufReader, Read};
 use std::iter;
 use std::num::ParseIntError;
 use std::path::Path;
@@ -30,7 +28,7 @@ use uucore::display::Quotable;
 use uucore::error::USimpleError;
 use uucore::error::{set_exit_code, FromIo, UError, UResult};
 use uucore::sum::{
-    Blake2b, Blake3, Digest, DigestWriter, Md5, Sha1, Sha224, Sha256, Sha384, Sha3_224, Sha3_256,
+    Blake2b, Blake3, Digest, Md5, Sha1, Sha224, Sha256, Sha384, Sha3_224, Sha3_256,
     Sha3_384, Sha3_512, Sha512, Shake128, Shake256,
 };
 use uucore::util_name;
@@ -54,41 +52,6 @@ struct Options {
     output_bits: usize,
     zero: bool,
     ignore_missing: bool,
-}
-
-/// Creates a Blake2b hasher instance based on the specified length argument.
-///
-/// # Returns
-///
-/// Returns a UResult of a tuple containing the algorithm name, the hasher instance, and
-/// the output length in bits or an Err if the length is not a multiple of 8 or if it is
-/// greater than 512.
-fn create_blake2b(matches: &ArgMatches) -> UResult<(&'static str, Box<dyn Digest>, usize)> {
-    match matches.get_one::<usize>(options::LENGTH) {
-        Some(0) | None => Ok(("BLAKE2b", Box::new(Blake2b::new()) as Box<dyn Digest>, 512)),
-        Some(length_in_bits) => {
-            if *length_in_bits > 512 {
-                return Err(USimpleError::new(
-                    1,
-                    "Invalid length (maximum digest length is 512 bits)",
-                ));
-            }
-
-            if length_in_bits % 8 == 0 {
-                let length_in_bytes = length_in_bits / 8;
-                Ok((
-                    "BLAKE2b",
-                    Box::new(Blake2b::with_output_bytes(length_in_bytes)),
-                    *length_in_bits,
-                ))
-            } else {
-                Err(USimpleError::new(
-                    1,
-                    "Invalid length (expected a multiple of 8)",
-                ))
-            }
-        }
-    }
 }
 
 /// Creates a SHA3 hasher instance based on the specified bits argument.
@@ -125,40 +88,6 @@ fn create_sha3(matches: &ArgMatches) -> UResult<(&'static str, Box<dyn Digest>, 
             "Invalid output size for SHA3 (expected 224, 256, 384, or 512)",
         )),
         None => Err(USimpleError::new(1, "--bits required for SHA3")),
-    }
-}
-
-/// Creates a SHAKE-128 hasher instance based on the specified bits argument.
-///
-/// # Returns
-///
-/// Returns a UResult of a tuple containing the algorithm name, the hasher instance, and
-/// the output length in bits, or an Err if `--bits` flag is missing.
-fn create_shake128(matches: &ArgMatches) -> UResult<(&'static str, Box<dyn Digest>, usize)> {
-    match matches.get_one::<usize>("bits") {
-        Some(bits) => Ok((
-            "SHAKE128",
-            Box::new(Shake128::new()) as Box<dyn Digest>,
-            *bits,
-        )),
-        None => Err(USimpleError::new(1, "--bits required for SHAKE-128")),
-    }
-}
-
-/// Creates a SHAKE-256 hasher instance based on the specified bits argument.
-///
-/// # Returns
-///
-/// Returns a UResult of a tuple containing the algorithm name, the hasher instance, and
-/// the output length in bits, or an Err if the `--bits` flag is missing.
-fn create_shake256(matches: &ArgMatches) -> UResult<(&'static str, Box<dyn Digest>, usize)> {
-    match matches.get_one::<usize>("bits") {
-        Some(bits) => Ok((
-            "SHAKE256",
-            Box::new(Shake256::new()) as Box<dyn Digest>,
-            *bits,
-        )),
-        None => Err(USimpleError::new(1, "--bits required for SHAKE-256")),
     }
 }
 
@@ -648,10 +577,10 @@ fn hashsum<'a, I>(mut options: Options, files: I) -> UResult<()>
 where
     I: Iterator<Item = &'a OsStr>,
 {
-    let mut bad_format = 0;
-    let mut correct_format = 0;
-    let mut failed_cksum = 0;
-    let mut failed_open_file = 0;
+    let bad_format = 0;
+    let correct_format = 0;
+    let failed_cksum = 0;
+    let failed_open_file = 0;
     let mut skip_summary = false;
     let binary_marker = if options.binary { "*" } else { " " };
     for filename in files {
