@@ -139,7 +139,11 @@ pub fn detect_algo(
         ALGORITHM_OPTIONS_BLAKE2B | "b2sum" => (
             ALGORITHM_OPTIONS_BLAKE2B,
             Box::new(if let Some(length) = length {
-                Blake2b::with_output_bytes(length)
+                if length == 512 {
+                    Blake2b::new()
+                } else {
+                    Blake2b::with_output_bytes(length)
+                }
             } else {
                 Blake2b::new()
             }) as Box<dyn Digest>,
