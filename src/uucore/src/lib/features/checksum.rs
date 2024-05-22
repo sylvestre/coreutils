@@ -147,7 +147,11 @@ pub fn detect_algo(
             } else {
                 Blake2b::new()
             }) as Box<dyn Digest>,
-            512,
+            if let Some(length) = length {
+                length
+            } else {
+                512
+            },
         ),
         ALGORITHM_OPTIONS_BLAKE3 | "b3sum" => (
             ALGORITHM_OPTIONS_BLAKE3,
