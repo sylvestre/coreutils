@@ -366,6 +366,29 @@ fn test_check_md5sum() {
 }
 
 #[test]
+fn test_check_md5sum_not_enough_space() {
+    let scene = TestScenario::new(util_name!());
+    let at = &scene.fixtures;
+
+        for f in &["a", " b"] {
+            at.write(f, &format!("{f}\n"));
+        }
+        at.write(
+            "check.md5sum",
+            "60b725f10c9c85c70d97880dfe8191b3 a\n\
+             bf35d7536c785cf06730d5a40301eba2 b\n"
+        );
+        scene
+            .ccmd("md5sum")
+            .arg("--strict")
+            .arg("-c")
+            .arg("check.md5sum")
+            .fails()
+            .stdout_is("")
+            .stderr_is("md5sum: check.md5sum: no properly formatted checksum lines found\nmd5sum: WARNING: 2 lines are improperly formatted\n");
+}
+
+#[test]
 fn test_check_md5sum_reverse_bsd() {
     let scene = TestScenario::new(util_name!());
     let at = &scene.fixtures;
