@@ -176,23 +176,17 @@ pub fn detect_algo(
             Box::new(Sha512::new()) as Box<dyn Digest>,
             512,
         )),
-        ALGORITHM_OPTIONS_BLAKE2B | "b2sum" => Ok((
-            ALGORITHM_OPTIONS_BLAKE2B,
-            Box::new(if let Some(length) = length {
-                if length == 512 {
-                    Blake2b::new()
-                } else {
-                    Blake2b::with_output_bytes(length)
-                }
+        ALGORITHM_OPTIONS_BLAKE2B | "b2sum" => {
+            // Set default length to 512 if None
+            let length = length.unwrap_or(512);
+            let digest = if length == 512 {
+                Box::new(Blake2b::new()) as Box<dyn Digest>
             } else {
-                Blake2b::new()
-            }) as Box<dyn Digest>,
-            if let Some(length) = length {
-                length
-            } else {
-                512
-            },
-        )),
+                Box::new(Blake2b::with_output_bytes(length)) as Box<dyn Digest>
+            };
+
+            Ok((ALGORITHM_OPTIONS_BLAKE2B, digest, length))
+        }
         ALGORITHM_OPTIONS_BLAKE3 | "b3sum" => Ok((
             ALGORITHM_OPTIONS_BLAKE3,
             Box::new(Blake3::new()) as Box<dyn Digest>,
@@ -217,7 +211,6 @@ pub fn detect_algo(
         )),
 
         //ALGORITHM_OPTIONS_SHA3 | "sha3" => (
-        
         alg if alg.starts_with("sha3") => create_sha3(length),
 
         _ => Err(USimpleError::new(
@@ -651,11 +644,15 @@ mod tests {
             ALGORITHM_OPTIONS_SM3
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHAKE128, Some(128)).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_SHAKE128, Some(128))
+                .unwrap()
+                .0,
             ALGORITHM_OPTIONS_SHAKE128
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHAKE256, Some(256)).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_SHAKE256, Some(256))
+                .unwrap()
+                .0,
             ALGORITHM_OPTIONS_SHAKE256
         );
         assert_eq!(detect_algo("sha3_224", Some(224)).unwrap().0, "SHA3_224");
