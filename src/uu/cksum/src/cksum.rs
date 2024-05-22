@@ -334,28 +334,21 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         };
 
         // Execute the checksum validation based on the presence of files or the use of stdin
-        return match matches.get_many::<String>(options::FILE) {
-            Some(files) => perform_checksum_validation(
-                files.map(OsStr::new),
-                strict,
-                status,
-                warn,
-                binary_flag,
-                ignore_missing,
-                algo_option,
-                length,
-            ),
-            None => perform_checksum_validation(
-                iter::once(OsStr::new("-")),
-                strict,
-                status,
-                warn,
-                binary_flag,
-                ignore_missing,
-                algo_option,
-                length,
-            ),
-        };
+
+        let files = matches.get_many::<String>(options::FILE).map_or_else(
+            || iter::once(OsStr::new("-")).collect::<Vec<_>>(),
+            |files| files.map(OsStr::new).collect::<Vec<_>>(),
+        );
+        return perform_checksum_validation(
+            files.iter().copied(),
+            strict,
+            status,
+            warn,
+            binary_flag,
+            ignore_missing,
+            algo_option,
+            length,
+        );
     }
 
     let (tag, asterisk) = handle_tag_text_binary_flags(&matches)?;

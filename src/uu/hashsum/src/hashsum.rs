@@ -265,29 +265,23 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
         };
 
         // Execute the checksum validation based on the presence of files or the use of stdin
-        return match matches.get_many::<OsString>(options::FILE) {
-            Some(files) => perform_checksum_validation(
-                files.map(OsStr::new),
-                // TODO use option
-                strict,
-                status,
-                warn,
-                binary_flag,
-                ignore_missing,
-                algo_option,
-                Some(bits),
-            ),
-            None => perform_checksum_validation(
-                iter::once(OsStr::new("-")),
-                strict,
-                status,
-                warn,
-                binary_flag,
-                ignore_missing,
-                algo_option,
-                Some(bits),
-            ),
-        };
+        // Determine the source of input: a list of files or stdin.
+        let input = matches.get_many::<OsString>(options::FILE).map_or_else(
+            || iter::once(OsStr::new("-")).collect::<Vec<_>>(),
+            |files| files.map(OsStr::new).collect::<Vec<_>>(),
+        );
+
+        // Execute the checksum validation
+        return perform_checksum_validation(
+            input.iter().copied(),
+            strict,
+            status,
+            warn,
+            binary_flag,
+            ignore_missing,
+            algo_option,
+            Some(bits),
+        );
     }
 
     // Show the hashsum of the input
