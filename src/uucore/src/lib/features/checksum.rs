@@ -65,6 +65,7 @@ pub fn cksum_output(
     failed_cksum: i32,
     failed_open_file: i32,
     ignore_missing: bool,
+    status: bool,
 ) {
     if bad_format == 1 {
         show_warning_caps!("{} line is improperly formatted", bad_format);
@@ -72,10 +73,12 @@ pub fn cksum_output(
         show_warning_caps!("{} lines are improperly formatted", bad_format);
     }
 
-    if failed_cksum == 1 {
-        show_warning_caps!("{} computed checksum did NOT match", failed_cksum);
-    } else if failed_cksum > 1 {
-        show_warning_caps!("{} computed checksums did NOT match", failed_cksum);
+    if !status {
+        if failed_cksum == 1 {
+            show_warning_caps!("{} computed checksum did NOT match", failed_cksum);
+        } else if failed_cksum > 1 {
+            show_warning_caps!("{} computed checksums did NOT match", failed_cksum);
+        }
     }
     if !ignore_missing {
         if failed_open_file == 1 {
@@ -426,7 +429,13 @@ where
         }
 
         // if any incorrectly formatted line, show it
-        cksum_output(bad_format, failed_cksum, failed_open_file, ignore_missing);
+        cksum_output(
+            bad_format,
+            failed_cksum,
+            failed_open_file,
+            ignore_missing,
+            status,
+        );
     }
     Ok(())
 }

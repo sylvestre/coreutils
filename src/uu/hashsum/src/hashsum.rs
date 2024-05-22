@@ -732,6 +732,7 @@ where
             failed_cksum,
             failed_open_file,
             options.ignore_missing,
+            options.status,
         );
     }
 
