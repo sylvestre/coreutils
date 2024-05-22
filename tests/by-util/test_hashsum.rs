@@ -370,15 +370,15 @@ fn test_check_md5sum_not_enough_space() {
     let scene = TestScenario::new(util_name!());
     let at = &scene.fixtures;
 
-        for f in &["a", " b"] {
-            at.write(f, &format!("{f}\n"));
-        }
-        at.write(
-            "check.md5sum",
-            "60b725f10c9c85c70d97880dfe8191b3 a\n\
-             bf35d7536c785cf06730d5a40301eba2 b\n"
-        );
-        scene
+    for f in &["a", " b"] {
+        at.write(f, &format!("{f}\n"));
+    }
+    at.write(
+        "check.md5sum",
+        "60b725f10c9c85c70d97880dfe8191b3 a\n\
+             bf35d7536c785cf06730d5a40301eba2 b\n",
+    );
+    scene
             .ccmd("md5sum")
             .arg("--strict")
             .arg("-c")
