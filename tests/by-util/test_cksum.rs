@@ -1178,4 +1178,17 @@ fn test_unknown_sha() {
         .stderr_contains("f: no properly formatted checksum lines found");
 }
 
-// TODO add tests with directory as file to verify the error
+#[test]
+fn test_check_directory_error() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.mkdir("d");
+    at.write(
+        "f",
+        "BLAKE2b (d) = 786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce\n"
+    );
+    ucmd.arg("--check")
+        .arg(at.subdir.join("f"))
+        .fails()
+        .stderr_contains("cksum: d: Is a directory\n");
+}

@@ -699,4 +699,18 @@ fn test_check_check_ignore_no_file() {
         .fails()
         .stderr_contains("in.md5: no file was verified");
 }
-// TODO add tests with directory as file to verify the error
+
+#[test]
+fn test_check_directory_error() {
+    let scene = TestScenario::new(util_name!());
+    let at = &scene.fixtures;
+
+    at.mkdir("d");
+    at.write("in.md5", "d41d8cd98f00b204e9800998ecf8427f  d\n");
+    scene
+        .ccmd("md5sum")
+        .arg("--check")
+        .arg(at.subdir.join("in.md5"))
+        .fails()
+        .stderr_contains("md5sum: d: Is a directory\n");
+}
