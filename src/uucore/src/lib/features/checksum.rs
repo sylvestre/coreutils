@@ -217,29 +217,8 @@ pub fn detect_algo(
         )),
 
         //ALGORITHM_OPTIONS_SHA3 | "sha3" => (
-        alg if alg.starts_with("sha3") => match alg {
-            "sha3_224" => Ok((
-                "SHA3_224",
-                Box::new(Sha3_224::new()) as Box<dyn Digest>,
-                224,
-            )),
-            "sha3_256" => Ok((
-                "SHA3_256",
-                Box::new(Sha3_256::new()) as Box<dyn Digest>,
-                256,
-            )),
-            "sha3_384" => Ok((
-                "SHA3_384",
-                Box::new(Sha3_384::new()) as Box<dyn Digest>,
-                384,
-            )),
-            "sha3_512" => Ok((
-                "SHA3_512",
-                Box::new(Sha3_512::new()) as Box<dyn Digest>,
-                512,
-            )),
-            _ => Err(USimpleError::new(1, "Unsupported SHA3 algorithm")),
-        },
+        
+        alg if alg.starts_with("sha3") => create_sha3(length),
 
         _ => Err(USimpleError::new(
             1,
