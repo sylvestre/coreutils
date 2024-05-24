@@ -30,8 +30,8 @@ use uucore::display::Quotable;
 use uucore::error::USimpleError;
 use uucore::error::{set_exit_code, FromIo, UError, UResult};
 use uucore::sum::{
-    Blake2b, Blake3, Digest, Md5, Sha1, Sha224, Sha256, Sha384, Sha3_224, Sha3_256, Sha3_384,
-    Sha3_512, Sha512, Shake128, Shake256,
+    Digest,Sha3_224, Sha3_256, Sha3_384,
+    Sha3_512, Shake128, Shake256,
 };
 use uucore::util_name;
 use uucore::{format_usage, help_about, help_usage};
@@ -44,13 +44,13 @@ struct Options {
     algoname: &'static str,
     digest: Box<dyn Digest + 'static>,
     binary: bool,
-    check: bool,
+    //check: bool,
     tag: bool,
     nonames: bool,
     status: bool,
-    quiet: bool,
-    strict: bool,
-    warn: bool,
+    //quiet: bool,
+    //strict: bool,
+    //warn: bool,
     output_bits: usize,
     zero: bool,
     ignore_missing: bool,
@@ -237,8 +237,8 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
         .unwrap_or(None)
         .unwrap_or(&false);
     let status = matches.get_flag("status");
-    let quiet = matches.get_flag("quiet") || status;
-    let strict = matches.get_flag("strict");
+    //let quiet = matches.get_flag("quiet") || status;
+    //let strict = matches.get_flag("strict");
     let warn = matches.get_flag("warn") && !status;
     let zero: bool = matches.get_flag("zero");
     let ignore_missing = matches.get_flag("ignore-missing");
@@ -253,13 +253,13 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
         digest: (algo.create_fn)(),
         output_bits: algo.bits,
         binary,
-        check,
+        //check,
         tag,
         nonames,
         status,
-        quiet,
-        strict,
-        warn,
+        //quiet,
+        //strict,
+        //warn,
         zero,
         ignore_missing,
     };
@@ -311,13 +311,13 @@ pub fn uumain(mut args: impl uucore::Args) -> UResult<()> {
 }
 
 mod options {
-    pub const ALGORITHM: &str = "algorithm";
+    //pub const ALGORITHM: &str = "algorithm";
     pub const FILE: &str = "file";
-    pub const UNTAGGED: &str = "untagged";
+    //pub const UNTAGGED: &str = "untagged";
     pub const TAG: &str = "tag";
     pub const LENGTH: &str = "length";
-    pub const RAW: &str = "raw";
-    pub const BASE64: &str = "base64";
+    //pub const RAW: &str = "raw";
+    //pub const BASE64: &str = "base64";
     pub const CHECK: &str = "check";
     pub const STRICT: &str = "strict";
     pub const TEXT: &str = "text";
@@ -531,7 +531,7 @@ fn uu_app(binary_name: &str) -> (Command, bool) {
 
 #[derive(Debug)]
 enum HashsumError {
-    InvalidRegex,
+    //InvalidRegex,
     IgnoreNotCheck,
 }
 
@@ -541,7 +541,7 @@ impl UError for HashsumError {}
 impl std::fmt::Display for HashsumError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::InvalidRegex => write!(f, "invalid regular expression"),
+            //Self::InvalidRegex => write!(f, "invalid regular expression"),
             Self::IgnoreNotCheck => write!(
                 f,
                 "the --ignore-missing option is meaningful only when verifying checksums"

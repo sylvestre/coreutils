@@ -79,12 +79,6 @@ pub fn create_sha3(bits: Option<usize>) -> UResult<HashAlgorithm> {
             create_fn: Box::new(|| Box::new(Sha3_224::new())),
             bits: 224,
         }),
-
-        Some(224) => Ok(HashAlgorithm {
-            name: "SHA3_224",
-            create_fn: Box::new(|| Box::new(Sha3_224::new())),
-            bits: 224,
-        }),
         Some(256) => Ok(HashAlgorithm {
             name: "SHA3_256",
             create_fn: Box::new(|| Box::new(Sha3_256::new())),
@@ -190,18 +184,18 @@ pub fn detect_algo(algo: &str, length: Option<usize>) -> UResult<HashAlgorithm> 
             // Set default length to 512 if None
             let bits = length.unwrap_or(512);
             if bits == 512 {
-                return Ok(HashAlgorithm {
+                Ok(HashAlgorithm {
                     name: ALGORITHM_OPTIONS_BLAKE2B,
                     create_fn: Box::new(move || Box::new(Blake2b::new())),
                     bits: 512,
-                });
+                })
             } else {
-                return Ok(HashAlgorithm {
+                Ok(HashAlgorithm {
                     name: ALGORITHM_OPTIONS_BLAKE2B,
                     create_fn: Box::new(move || Box::new(Blake2b::with_output_bytes(bits))),
                     bits,
-                });
-            };
+                })
+            }
         }
         ALGORITHM_OPTIONS_BLAKE3 | "b3sum" => Ok(HashAlgorithm {
             name: ALGORITHM_OPTIONS_BLAKE3,
@@ -344,7 +338,7 @@ where
                     (algorithm, bits.unwrap())
                 } else if let Some(a) = algo_name_input {
                     // When a specific algorithm name is input, use it and default bits to None
-                    (a.to_lowercase(), length_input.map(|length| length)) // / 8))
+                    (a.to_lowercase(), length_input)
                 } else {
                     // Default case if no algorithm is specified and non-algo based format is matched
                     (String::new(), None)
