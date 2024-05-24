@@ -353,7 +353,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     let (tag, asterisk) = handle_tag_text_binary_flags(&matches)?;
 
-    let (name, algo, bits) = detect_algo(algo_name, length)?;
+    let algo = detect_algo(algo_name, length)?;
 
     let output_format = if matches.get_flag(options::RAW) {
         OutputFormat::Raw
@@ -364,9 +364,9 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     };
 
     let opts = Options {
-        algo_name: name,
-        digest: algo,
-        output_bits: bits,
+        algo_name: algo.name,
+        digest: (algo.create_fn)(),
+        output_bits: algo.bits,
         length,
         tag,
         output_format,

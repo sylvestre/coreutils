@@ -59,6 +59,12 @@ pub const SUPPORTED_ALGO: [&str; 15] = [
     ALGORITHM_OPTIONS_SHAKE256,
 ];
 
+pub struct HashAlgorithm {
+    pub name: &'static str,
+    pub create_fn: Box<dyn Fn() -> Box<dyn Digest + 'static>>,
+    pub bits: usize,
+}
+
 /// Creates a SHA3 hasher instance based on the specified bits argument.
 ///
 /// # Returns
@@ -66,28 +72,35 @@ pub const SUPPORTED_ALGO: [&str; 15] = [
 /// Returns a UResult of a tuple containing the algorithm name, the hasher instance, and
 /// the output length in bits or an Err if an unsupported output size is provided, or if
 /// the `--bits` flag is missing.
-pub fn create_sha3(bits: Option<usize>) -> UResult<(&'static str, Box<dyn Digest>, usize)> {
+pub fn create_sha3(bits: Option<usize>) -> UResult<HashAlgorithm> {
     match bits {
-        Some(224) => Ok((
-            "SHA3_224",
-            Box::new(Sha3_224::new()) as Box<dyn Digest>,
-            224,
-        )),
-        Some(256) => Ok((
-            "SHA3_256",
-            Box::new(Sha3_256::new()) as Box<dyn Digest>,
-            256,
-        )),
-        Some(384) => Ok((
-            "SHA3_384",
-            Box::new(Sha3_384::new()) as Box<dyn Digest>,
-            384,
-        )),
-        Some(512) => Ok((
-            "SHA3_512",
-            Box::new(Sha3_512::new()) as Box<dyn Digest>,
-            512,
-        )),
+        Some(224) => Ok(HashAlgorithm {
+            name: "SHA3_224",
+            create_fn: Box::new(|| Box::new(Sha3_224::new())),
+            bits: 224,
+        }),
+
+        Some(224) => Ok(HashAlgorithm {
+            name: "SHA3_224",
+            create_fn: Box::new(|| Box::new(Sha3_224::new())),
+            bits: 224,
+        }),
+        Some(256) => Ok(HashAlgorithm {
+            name: "SHA3_256",
+            create_fn: Box::new(|| Box::new(Sha3_256::new())),
+            bits: 256,
+        }),
+        Some(384) => Ok(HashAlgorithm {
+            name: "SHA3_384",
+            create_fn: Box::new(|| Box::new(Sha3_384::new())),
+            bits: 384,
+        }),
+        Some(512) => Ok(HashAlgorithm {
+            name: "SHA3_512",
+            create_fn: Box::new(|| Box::new(Sha3_512::new())),
+            bits: 512,
+        }),
+
         Some(_) => Err(USimpleError::new(
             1,
             "Invalid output size for SHA3 (expected 224, 256, 384, or 512)",
@@ -126,90 +139,98 @@ pub fn cksum_output(
     }
 }
 
-pub fn detect_algo(
-    algo: &str,
-    length: Option<usize>,
-) -> UResult<(&'static str, Box<dyn Digest + 'static>, usize)> {
+pub fn detect_algo(algo: &str, length: Option<usize>) -> UResult<HashAlgorithm> {
     match algo {
-        ALGORITHM_OPTIONS_SYSV => Ok((
-            ALGORITHM_OPTIONS_SYSV,
-            Box::new(SYSV::new()) as Box<dyn Digest>,
-            512,
-        )),
-        ALGORITHM_OPTIONS_BSD => Ok((
-            ALGORITHM_OPTIONS_BSD,
-            Box::new(BSD::new()) as Box<dyn Digest>,
-            1024,
-        )),
-        ALGORITHM_OPTIONS_CRC => Ok((
-            ALGORITHM_OPTIONS_CRC,
-            Box::new(CRC::new()) as Box<dyn Digest>,
-            256,
-        )),
-        ALGORITHM_OPTIONS_MD5 | "md5sum" => Ok((
-            ALGORITHM_OPTIONS_MD5,
-            Box::new(Md5::new()) as Box<dyn Digest>,
-            128,
-        )),
-        ALGORITHM_OPTIONS_SHA1 | "sha1sum" => Ok((
-            ALGORITHM_OPTIONS_SHA1,
-            Box::new(Sha1::new()) as Box<dyn Digest>,
-            160,
-        )),
-        ALGORITHM_OPTIONS_SHA224 | "sha224sum" => Ok((
-            ALGORITHM_OPTIONS_SHA224,
-            Box::new(Sha224::new()) as Box<dyn Digest>,
-            224,
-        )),
-        ALGORITHM_OPTIONS_SHA256 | "sha256sum" => Ok((
-            ALGORITHM_OPTIONS_SHA256,
-            Box::new(Sha256::new()) as Box<dyn Digest>,
-            256,
-        )),
-        ALGORITHM_OPTIONS_SHA384 | "sha384sum" => Ok((
-            ALGORITHM_OPTIONS_SHA384,
-            Box::new(Sha384::new()) as Box<dyn Digest>,
-            384,
-        )),
-        ALGORITHM_OPTIONS_SHA512 | "sha512sum" => Ok((
-            ALGORITHM_OPTIONS_SHA512,
-            Box::new(Sha512::new()) as Box<dyn Digest>,
-            512,
-        )),
+        ALGORITHM_OPTIONS_SYSV => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_SYSV,
+            create_fn: Box::new(|| Box::new(SYSV::new())),
+            bits: 512,
+        }),
+        ALGORITHM_OPTIONS_BSD => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_BSD,
+            create_fn: Box::new(|| Box::new(BSD::new())),
+            bits: 1024,
+        }),
+        ALGORITHM_OPTIONS_CRC => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_CRC,
+            create_fn: Box::new(|| Box::new(CRC::new())),
+            bits: 256,
+        }),
+        ALGORITHM_OPTIONS_MD5 | "md5sum" => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_MD5,
+            create_fn: Box::new(|| Box::new(Md5::new())),
+            bits: 128,
+        }),
+        ALGORITHM_OPTIONS_SHA1 | "sha1sum" => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_SHA1,
+            create_fn: Box::new(|| Box::new(Sha1::new())),
+            bits: 160,
+        }),
+        ALGORITHM_OPTIONS_SHA224 | "sha224sum" => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_SHA224,
+            create_fn: Box::new(|| Box::new(Sha224::new())),
+            bits: 224,
+        }),
+        ALGORITHM_OPTIONS_SHA256 | "sha256sum" => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_SHA256,
+            create_fn: Box::new(|| Box::new(Sha256::new())),
+            bits: 256,
+        }),
+        ALGORITHM_OPTIONS_SHA384 | "sha384sum" => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_SHA384,
+            create_fn: Box::new(|| Box::new(Sha384::new())),
+            bits: 384,
+        }),
+        ALGORITHM_OPTIONS_SHA512 | "sha512sum" => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_SHA512,
+            create_fn: Box::new(|| Box::new(Sha512::new())),
+            bits: 512,
+        }),
         ALGORITHM_OPTIONS_BLAKE2B | "b2sum" => {
             // Set default length to 512 if None
-            let length = length.unwrap_or(512);
-            let digest = if length == 512 {
-                Box::new(Blake2b::new()) as Box<dyn Digest>
+            let bits = length.unwrap_or(512);
+            if bits == 512 {
+                return Ok(HashAlgorithm {
+                    name: ALGORITHM_OPTIONS_BLAKE2B,
+                    create_fn: Box::new(move || Box::new(Blake2b::new())),
+                    bits: 512,
+                });
             } else {
-                Box::new(Blake2b::with_output_bytes(length)) as Box<dyn Digest>
+                return Ok(HashAlgorithm {
+                    name: ALGORITHM_OPTIONS_BLAKE2B,
+                    create_fn: Box::new(move || Box::new(Blake2b::with_output_bytes(bits))),
+                    bits,
+                });
             };
-
-            Ok((ALGORITHM_OPTIONS_BLAKE2B, digest, length))
         }
-        ALGORITHM_OPTIONS_BLAKE3 | "b3sum" => Ok((
-            ALGORITHM_OPTIONS_BLAKE3,
-            Box::new(Blake3::new()) as Box<dyn Digest>,
-            256,
-        )),
-        ALGORITHM_OPTIONS_SM3 => Ok((
-            // TODO check if we have sm3sum
-            ALGORITHM_OPTIONS_SM3,
-            Box::new(Sm3::new()) as Box<dyn Digest>,
-            512,
-        )),
-        ALGORITHM_OPTIONS_SHAKE128 | "shake128sum" => Ok((
-            ALGORITHM_OPTIONS_SHAKE128,
-            Box::new(Shake128::new()) as Box<dyn Digest>,
-            length.unwrap(),
-        )),
-
-        ALGORITHM_OPTIONS_SHAKE256 | "shake256sum" => Ok((
-            ALGORITHM_OPTIONS_SHAKE256,
-            Box::new(Shake256::new()) as Box<dyn Digest>,
-            length.unwrap(),
-        )),
-
+        ALGORITHM_OPTIONS_BLAKE3 | "b3sum" => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_BLAKE3,
+            create_fn: Box::new(|| Box::new(Blake3::new())),
+            bits: 256,
+        }),
+        ALGORITHM_OPTIONS_SM3 => Ok(HashAlgorithm {
+            name: ALGORITHM_OPTIONS_SM3,
+            create_fn: Box::new(|| Box::new(Sm3::new())),
+            bits: 512,
+        }),
+        ALGORITHM_OPTIONS_SHAKE128 | "shake128sum" => {
+            let bits =
+                length.ok_or_else(|| USimpleError::new(1, "--bits required for SHAKE128"))?;
+            Ok(HashAlgorithm {
+                name: ALGORITHM_OPTIONS_SHAKE128,
+                create_fn: Box::new(|| Box::new(Shake128::new())),
+                bits,
+            })
+        }
+        ALGORITHM_OPTIONS_SHAKE256 | "shake256sum" => {
+            let bits =
+                length.ok_or_else(|| USimpleError::new(1, "--bits required for SHAKE256"))?;
+            Ok(HashAlgorithm {
+                name: ALGORITHM_OPTIONS_SHAKE256,
+                create_fn: Box::new(|| Box::new(Shake256::new())),
+                bits,
+            })
+        }
         //ALGORITHM_OPTIONS_SHA3 | "sha3" => (
         alg if alg.starts_with("sha3") => create_sha3(length),
 
@@ -339,7 +360,7 @@ where
                     properly_formatted = false;
                     continue;
                 }
-                let (_, mut algo, bits) = detect_algo(&algo_name, length)?;
+                let mut algo = detect_algo(&algo_name, length)?;
 
                 let (filename_to_check_unescaped, prefix) = unescape_filename(filename_to_check);
 
@@ -374,8 +395,10 @@ where
 
                 let mut file_reader = BufReader::new(file_to_check);
                 // Read the file and calculate the checksum
+                let create_fn = &mut algo.create_fn;
+                let mut digest = create_fn();
                 let (calculated_checksum, _) =
-                    digest_reader(&mut algo, &mut file_reader, binary, bits).unwrap();
+                    digest_reader(&mut digest, &mut file_reader, binary, algo.bits).unwrap();
 
                 // Do the checksum validation
                 if expected_checksum == calculated_checksum {
@@ -596,69 +619,69 @@ mod tests {
     #[test]
     fn test_detect_algo() {
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SYSV, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_SYSV, None).unwrap().name,
             ALGORITHM_OPTIONS_SYSV
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_BSD, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_BSD, None).unwrap().name,
             ALGORITHM_OPTIONS_BSD
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_CRC, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_CRC, None).unwrap().name,
             ALGORITHM_OPTIONS_CRC
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_MD5, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_MD5, None).unwrap().name,
             ALGORITHM_OPTIONS_MD5
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHA1, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_SHA1, None).unwrap().name,
             ALGORITHM_OPTIONS_SHA1
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHA224, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_SHA224, None).unwrap().name,
             ALGORITHM_OPTIONS_SHA224
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHA256, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_SHA256, None).unwrap().name,
             ALGORITHM_OPTIONS_SHA256
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHA384, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_SHA384, None).unwrap().name,
             ALGORITHM_OPTIONS_SHA384
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SHA512, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_SHA512, None).unwrap().name,
             ALGORITHM_OPTIONS_SHA512
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_BLAKE2B, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_BLAKE2B, None).unwrap().name,
             ALGORITHM_OPTIONS_BLAKE2B
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_BLAKE3, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_BLAKE3, None).unwrap().name,
             ALGORITHM_OPTIONS_BLAKE3
         );
         assert_eq!(
-            detect_algo(ALGORITHM_OPTIONS_SM3, None).unwrap().0,
+            detect_algo(ALGORITHM_OPTIONS_SM3, None).unwrap().name,
             ALGORITHM_OPTIONS_SM3
         );
         assert_eq!(
             detect_algo(ALGORITHM_OPTIONS_SHAKE128, Some(128))
                 .unwrap()
-                .0,
+                .name,
             ALGORITHM_OPTIONS_SHAKE128
         );
         assert_eq!(
             detect_algo(ALGORITHM_OPTIONS_SHAKE256, Some(256))
                 .unwrap()
-                .0,
+                .name,
             ALGORITHM_OPTIONS_SHAKE256
         );
-        assert_eq!(detect_algo("sha3_224", Some(224)).unwrap().0, "SHA3_224");
-        assert_eq!(detect_algo("sha3_256", Some(256)).unwrap().0, "SHA3_256");
-        assert_eq!(detect_algo("sha3_384", Some(384)).unwrap().0, "SHA3_384");
-        assert_eq!(detect_algo("sha3_512", Some(512)).unwrap().0, "SHA3_512");
+        assert_eq!(detect_algo("sha3_224", Some(224)).unwrap().name, "SHA3_224");
+        assert_eq!(detect_algo("sha3_256", Some(256)).unwrap().name, "SHA3_256");
+        assert_eq!(detect_algo("sha3_384", Some(384)).unwrap().name, "SHA3_384");
+        assert_eq!(detect_algo("sha3_512", Some(512)).unwrap().name, "SHA3_512");
 
         assert!(detect_algo("sha3_512", None).is_err());
     }
