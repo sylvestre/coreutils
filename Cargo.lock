@@ -3357,6 +3357,7 @@ name = "uu_unexpand"
 version = "0.0.27"
 dependencies = [
  "clap",
+ "quick-error",
  "unicode-width",
  "uucore",
 ]
