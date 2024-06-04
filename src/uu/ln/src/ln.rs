@@ -6,6 +6,7 @@
 // spell-checker:ignore (ToDO) srcpath targetpath EEXIST
 
 use clap::{crate_version, Arg, ArgAction, Command};
+use quick_error::quick_error;
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UError, UResult};
 use uucore::fs::{make_path_relative_to, paths_refer_to_same_file};
@@ -13,9 +14,7 @@ use uucore::{format_usage, help_about, help_section, help_usage, prompt_yes, sho
 
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::error::Error;
 use std::ffi::OsString;
-use std::fmt::Display;
 use std::fs;
 
 #[cfg(any(unix, target_os = "redox"))]
@@ -46,37 +45,26 @@ pub enum OverwriteMode {
     Force,
 }
 
-#[derive(Debug)]
-enum LnError {
-    TargetIsDirectory(PathBuf),
-    SomeLinksFailed,
-    SameFile(PathBuf, PathBuf),
-    MissingDestination(PathBuf),
-    ExtraOperand(OsString),
-}
-
-impl Display for LnError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::TargetIsDirectory(s) => write!(f, "target {} is not a directory", s.quote()),
-            Self::SameFile(s, d) => {
-                write!(f, "{} and {} are the same file", s.quote(), d.quote())
-            }
-            Self::SomeLinksFailed => Ok(()),
-            Self::MissingDestination(s) => {
-                write!(f, "missing destination file operand after {}", s.quote())
-            }
-            Self::ExtraOperand(s) => write!(
-                f,
-                "extra operand {}\nTry '{} --help' for more information.",
-                s.quote(),
-                uucore::execution_phrase()
-            ),
+quick_error! {
+    #[derive(Debug)]
+    pub enum LnError {
+        TargetIsDirectory(s: PathBuf) {
+            display("target {} is not a directory", s.quote())
+        }
+        SameFile(s: PathBuf, d: PathBuf) {
+            display("{} and {} are the same file", s.quote(), d.quote())
+        }
+        SomeLinksFailed {
+            display("some links failed")
+        }
+        MissingDestination(s: PathBuf) {
+            display("missing destination file operand after {}", s.quote())
+        }
+        ExtraOperand(s: OsString) {
+            display("extra operand {}\nTry '{} --help' for more information.", s.quote(), uucore::execution_phrase())
         }
     }
 }
-
-impl Error for LnError {}
 
 impl UError for LnError {
     fn code(&self) -> i32 {
