@@ -2754,6 +2754,7 @@ name = "uu_groups"
 version = "0.0.27"
 dependencies = [
  "clap",
+ "quick-error",
  "uucore",
 ]
 
