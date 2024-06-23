@@ -6,12 +6,12 @@
 // spell-checker:ignore (ToDO) nums aflag uflag scol prevtab amode ctype cwidth nbytes lastcol pctype Preprocess
 
 use clap::{crate_version, Arg, ArgAction, Command};
-use quick_error::quick_error;
 use std::fs::File;
 use std::io::{stdin, stdout, BufRead, BufReader, BufWriter, Read, Stdout, Write};
 use std::num::IntErrorKind;
 use std::path::Path;
 use std::str::from_utf8;
+use thiserror::Error;
 use unicode_width::UnicodeWidthChar;
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UError, UResult, USimpleError};
@@ -22,25 +22,28 @@ const ABOUT: &str = help_about!("unexpand.md");
 
 const DEFAULT_TABSTOP: usize = 8;
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum ParseError {
-        InvalidCharacter(s: String) {
-            display("tab size contains invalid character(s): {}", s.quote())
-        }
-        TabSizeCannotBeZero {
-            display("tab size cannot be 0")
-        }
-        TabSizeTooLarge {
-            display("tab stop value is too large")
-        }
-        TabSizesMustBeAscending {
-            display("tab sizes must be ascending")
-        }
-    }
+#[derive(Debug, Error)]
+pub enum ParseError {
+    #[error("tab size contains invalid character(s): {0}")]
+    InvalidCharacter(String),
+
+    #[error("tab size cannot be 0")]
+    TabSizeCannotBeZero,
+
+    #[error("tab stop value is too large")]
+    TabSizeTooLarge,
+
+    #[error("tab sizes must be ascending")]
+    TabSizesMustBeAscending,
 }
 
 impl UError for ParseError {}
+
+impl ParseError {
+    pub fn invalid_character(s: &str) -> Self {
+        Self::InvalidCharacter(s.quote().to_string())
+    }
+}
 
 fn tabstops_parse(s: &str) -> Result<Vec<usize>, ParseError> {
     let words = s.split(',');
@@ -53,8 +56,8 @@ fn tabstops_parse(s: &str) -> Result<Vec<usize>, ParseError> {
             Err(e) => match e.kind() {
                 IntErrorKind::PosOverflow => return Err(ParseError::TabSizeTooLarge),
                 _ => {
-                    return Err(ParseError::InvalidCharacter(
-                        word.trim_start_matches(char::is_numeric).to_string(),
+                    return Err(ParseError::invalid_character(
+                        word.trim_start_matches(char::is_numeric),
                     ))
                 }
             },

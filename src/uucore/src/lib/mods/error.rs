@@ -155,7 +155,7 @@ pub type UResult<T> = Result<T, Box<dyn UError>>;
 /// The call to `into()` is required to convert the `LsError` to
 /// [`Box<dyn UError>`]. The implementation for `From` is provided automatically.
 ///
-/// A crate like [`quick_error`](https://crates.io/crates/quick-error) might
+/// A crate like [`thiserror`](https://crates.io/crates/thiserror-error) might
 /// also be used, but will still require an `impl` for the `code` method.
 pub trait UError: Error + Send {
     /// Error code of a custom error.

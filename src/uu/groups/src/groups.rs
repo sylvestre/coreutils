@@ -12,7 +12,7 @@
 
 // spell-checker:ignore (ToDO) passwd
 
-use quick_error::quick_error;
+use thiserror::Error;
 use uucore::{
     display::Quotable,
     entries::{get_groups_gnu, gid2grp, Locate, Passwd},
@@ -28,18 +28,21 @@ mod options {
 const ABOUT: &str = help_about!("groups.md");
 const USAGE: &str = help_usage!("groups.md");
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum GroupsError {
-        GetGroupsFailed {
-            display("failed to fetch groups")
-        }
-        GroupNotFound(gid: u32) {
-            display("cannot find name for group ID {gid}")
-        }
-        UserNotFound(user: String) {
-            display("{}: no such user", user.quote())
-        }
+#[derive(Debug, Error)]
+pub enum GroupsError {
+    #[error("failed to fetch groups")]
+    GetGroupsFailed,
+
+    #[error("cannot find name for group ID {0}")]
+    GroupNotFound(u32),
+
+    #[error("{0}: no such user")]
+    UserNotFound(String),
+}
+
+impl GroupsError {
+    pub fn user_not_found(user: &str) -> Self {
+        Self::UserNotFound(user.quote().to_string())
     }
 }
 
@@ -83,7 +86,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             }
             Err(_) => {
                 // The `show!()` macro sets the global exit code for the program.
-                show!(GroupsError::UserNotFound(user));
+                show!(GroupsError::user_not_found(&user));
             }
         }
     }

@@ -50,6 +50,11 @@ multiple-versions = "deny"
 wildcards = "allow"
 highlight = "all"
 
+# we use thiserror for this
+deny = [
+    "quick-error",
+]
+
 # For each duplicate dependency, indicate the name of the dependency which
 # introduces it.
 # spell-checker: disable

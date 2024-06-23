@@ -26,7 +26,7 @@ use uucore::uio_error;
 use walkdir::{DirEntry, WalkDir};
 
 use crate::{
-    aligned_ancestors, context_for, copy_attributes, copy_file, copy_link, CopyResult, Error,
+    aligned_ancestors, context_for, copy_attributes, copy_file, copy_link, CopyResult, CpError,
     Options,
 };
 
@@ -297,7 +297,7 @@ fn copy_direntry(
                 false,
             ) {
                 Ok(_) => {}
-                Err(Error::IoErrContext(e, _))
+                Err(CpError::IoErrContext(e, _))
                     if e.kind() == std::io::ErrorKind::PermissionDenied =>
                 {
                     show!(uio_error!(
@@ -347,17 +347,19 @@ pub(crate) fn copy_directory(
     }
 
     if !options.recursive {
-        return Err(format!("-r not specified; omitting directory {}", root.quote()).into());
+        return Err(CpError::GeneralError(format!(
+            "-r not specified; omitting directory {}",
+            root.quote()
+        )));
     }
 
     // check if root is a prefix of target
     if path_has_prefix(target, root)? {
-        return Err(format!(
+        return Err(CpError::GeneralError(format!(
             "cannot copy a directory, {}, into itself, {}",
             root.quote(),
             target.join(root.file_name().unwrap()).quote()
-        )
-        .into());
+        )));
     }
 
     // If in `--parents` mode, create all the necessary ancestor directories.
@@ -400,7 +402,11 @@ pub(crate) fn copy_directory(
     // the target directory.
     let context = match Context::new(root, target) {
         Ok(c) => c,
-        Err(e) => return Err(format!("failed to get current directory {e}").into()),
+        Err(e) => {
+            return Err(CpError::GeneralError(
+                format!("failed to get current directory {e}").into(),
+            ))
+        }
     };
 
     // Traverse the contents of the directory, copying each one.

@@ -9,14 +9,14 @@
 use chrono::{DateTime, Local};
 use clap::{crate_version, Arg, ArgAction, ArgMatches, Command};
 use itertools::Itertools;
-use quick_error::ResultExt;
 use regex::Regex;
 use std::fs::{metadata, File};
+use std::io;
 use std::io::{stdin, stdout, BufRead, BufReader, Lines, Read, Write};
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt;
 
-use quick_error::quick_error;
+use thiserror::Error;
 use uucore::display::Quotable;
 use uucore::error::UResult;
 use uucore::{format_usage, help_about, help_section, help_usage};
@@ -128,40 +128,39 @@ impl Default for FileLine {
     }
 }
 
-impl From<std::io::Error> for PrError {
-    fn from(err: std::io::Error) -> Self {
+#[derive(Debug, Error)]
+enum PrError {
+    #[error("pr: {0}: unknown filetype")]
+    UnknownFiletype(String),
+
+    #[error("pr: {0}")]
+    EncounteredErrors(String),
+
+    #[error("pr: {0}: Is a directory")]
+    IsDirectory(String),
+
+    #[error("pr: cannot open {0}, Operation not supported on socket")]
+    IsSocket(String),
+
+    #[error("pr: cannot open {0}, No such file or directory")]
+    NotExists(String),
+
+    #[error("{0}")]
+    ContextError(String),
+}
+
+impl From<io::Error> for PrError {
+    fn from(err: io::Error) -> Self {
         Self::EncounteredErrors(err.to_string())
     }
 }
 
-quick_error! {
-    #[derive(Debug)]
-    enum PrError {
-        Input(err: std::io::Error, path: String) {
-            context(path: &'a str, err: std::io::Error) -> (err, path.to_owned())
-            display("pr: Reading from input {0} gave error", path)
-            source(err)
-        }
-
-        UnknownFiletype(path: String) {
-            display("pr: {0}: unknown filetype", path)
-        }
-
-        EncounteredErrors(msg: String) {
-            display("pr: {0}", msg)
-        }
-
-        IsDirectory(path: String) {
-            display("pr: {0}: Is a directory", path)
-        }
-
-        IsSocket(path: String) {
-            display("pr: cannot open {}, Operation not supported on socket", path)
-        }
-
-        NotExists(path: String) {
-            display("pr: cannot open {}, No such file or directory", path)
-        }
+impl PrError {
+    fn with_context<T>(self, context: T) -> Self
+    where
+        T: Into<String>,
+    {
+        PrError::ContextError(format!("{}: {}", context.into(), self))
     }
 }
 
@@ -797,7 +796,9 @@ fn open(path: &str) -> Result<Box<dyn Read>, PrError> {
                 ft if ft.is_socket() => Err(PrError::IsSocket(path_string)),
                 ft if ft.is_dir() => Err(PrError::IsDirectory(path_string)),
                 ft if ft.is_file() || ft.is_symlink() => {
-                    Ok(Box::new(File::open(path).context(path)?) as Box<dyn Read>)
+                    Ok(Box::new(File::open(path).map_err(|err| {
+                        PrError::from(err).with_context(format!("Failed to open file: {}", path))
+                    })?) as Box<dyn Read>)
                 }
                 _ => Err(PrError::UnknownFiletype(path_string)),
             }

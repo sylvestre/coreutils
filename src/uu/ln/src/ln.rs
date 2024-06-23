@@ -6,7 +6,7 @@
 // spell-checker:ignore (ToDO) srcpath targetpath EEXIST
 
 use clap::{crate_version, Arg, ArgAction, Command};
-use quick_error::quick_error;
+use thiserror::Error;
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UError, UResult};
 use uucore::fs::{make_path_relative_to, paths_refer_to_same_file};
@@ -45,25 +45,25 @@ pub enum OverwriteMode {
     Force,
 }
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum LnError {
-        TargetIsDirectory(s: PathBuf) {
-            display("target {} is not a directory", s.quote())
-        }
-        SameFile(s: PathBuf, d: PathBuf) {
-            display("{} and {} are the same file", s.quote(), d.quote())
-        }
-        SomeLinksFailed {
-            display("some links failed")
-        }
-        MissingDestination(s: PathBuf) {
-            display("missing destination file operand after {}", s.quote())
-        }
-        ExtraOperand(s: OsString) {
-            display("extra operand {}\nTry '{} --help' for more information.", s.quote(), uucore::execution_phrase())
-        }
-    }
+#[derive(Debug, Error)]
+pub enum LnError {
+    #[error("target {0:?} is not a directory")]
+    TargetIsDirectory(PathBuf),
+
+    #[error("{0:?} and {1:?} are the same file")]
+    SameFile(PathBuf, PathBuf),
+
+    #[error("some links failed")]
+    SomeLinksFailed,
+
+    #[error("missing destination file operand after {0:?}")]
+    MissingDestination(PathBuf),
+
+    #[error(
+        "extra operand {0:?}\nTry '{} --help' for more information.",
+        uucore::execution_phrase()
+    )]
+    ExtraOperand(OsString),
 }
 
 impl UError for LnError {

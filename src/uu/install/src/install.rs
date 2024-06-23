@@ -10,7 +10,6 @@ mod mode;
 use clap::{crate_version, Arg, ArgAction, ArgMatches, Command};
 use file_diff::diff;
 use filetime::{set_file_times, FileTime};
-use quick_error::quick_error;
 use std::fs;
 use std::fs::File;
 use std::io;
@@ -19,6 +18,7 @@ use std::os::unix::fs::MetadataExt;
 use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf, MAIN_SEPARATOR};
 use std::process;
+use thiserror::Error;
 use uucore::backup_control::{self, BackupMode};
 use uucore::display::Quotable;
 use uucore::entries::{grp2gid, usr2uid};
@@ -49,55 +49,52 @@ pub struct Behavior {
     target_dir: Option<String>,
 }
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum InstallError {
-        Unimplemented(opt: String) {
-            display("Unimplemented feature: {}", opt)
-        }
-        DirNeedsArg {
-            display("{} with -d requires at least one argument.", uucore::util_name())
-        }
-        CreateDirFailed(dir: PathBuf, err: io::Error) {
-            display("failed to create {}: {}", dir.quote(), err)
-        }
-        ChmodFailed(file: PathBuf) {
-            display("failed to chmod {}", file.quote())
-        }
-        ChownFailed(file: PathBuf, msg: String) {
-            display("failed to chown {}: {}", file.quote(), msg)
-        }
-        InvalidTarget(target: PathBuf) {
-            display("invalid target {}: No such file or directory", target.quote())
-        }
-        TargetDirIsntDir(target: PathBuf) {
-            display("target {} is not a directory", target.quote())
-        }
-        BackupFailed(from: PathBuf, to: PathBuf, err: io::Error) {
-            display("cannot backup {} to {}: {}", from.quote(), to.quote(), err)
-        }
-        InstallFailed(from: PathBuf, to: PathBuf, err: io::Error) {
-            display("cannot install {} to {}: {}", from.quote(), to.quote(), err)
-        }
-        StripProgramFailed(msg: String) {
-            display("strip program failed: {}", msg)
-        }
-        MetadataFailed(err: io::Error) {
-            display("{}", err)
-        }
-        InvalidUser(user: String) {
-            display("invalid user: {}", user.quote())
-        }
-        InvalidGroup(group: String) {
-            display("invalid group: {}", group.quote())
-        }
-        OmittingDirectory(dir: PathBuf) {
-            display("omitting directory {}", dir.quote())
-        }
-        NotADirectory(dir: PathBuf) {
-            display("failed to access {}: Not a directory", dir.quote())
-        }
-    }
+#[derive(Debug, Error)]
+pub enum InstallError {
+    #[error("Unimplemented feature: {0}")]
+    Unimplemented(String),
+
+    #[error("{} with -d requires at least one argument.", uucore::util_name())]
+    DirNeedsArg,
+
+    #[error("failed to create {0:?}: {1}")]
+    CreateDirFailed(PathBuf, #[source] io::Error),
+
+    #[error("failed to chmod {0:?}")]
+    ChmodFailed(PathBuf),
+
+    #[error("failed to chown {0:?}: {1}")]
+    ChownFailed(PathBuf, String),
+
+    #[error("invalid target {0:?}: No such file or directory")]
+    InvalidTarget(PathBuf),
+
+    #[error("target {0:?} is not a directory")]
+    TargetDirIsntDir(PathBuf),
+
+    #[error("cannot backup {0:?} to {1:?}: {2}")]
+    BackupFailed(PathBuf, PathBuf, #[source] io::Error),
+
+    #[error("cannot install {0:?} to {1:?}: {2}")]
+    InstallFailed(PathBuf, PathBuf, #[source] io::Error),
+
+    #[error("strip program failed: {0}")]
+    StripProgramFailed(String),
+
+    #[error("{0}")]
+    MetadataFailed(#[from] io::Error),
+
+    #[error("invalid user: {0:?}")]
+    InvalidUser(String),
+
+    #[error("invalid group: {0:?}")]
+    InvalidGroup(String),
+
+    #[error("omitting directory {0:?}")]
+    OmittingDirectory(PathBuf),
+
+    #[error("failed to access {0}: Not a directory")]
+    NotADirectory(PathBuf),
 }
 
 impl UError for InstallError {
@@ -110,6 +107,40 @@ impl UError for InstallError {
 
     fn usage(&self) -> bool {
         false
+    }
+}
+
+// Helper functions to ensure quoting
+impl InstallError {
+    pub fn create_dir_failed(dir: PathBuf, err: io::Error) -> Self {
+        InstallError::CreateDirFailed(dir.quote().to_string().into(), err)
+    }
+
+    pub fn chmod_failed(file: PathBuf) -> Self {
+        InstallError::ChmodFailed(file.quote().to_string().into())
+    }
+
+    pub fn chown_failed(file: PathBuf, msg: String) -> Self {
+        InstallError::ChownFailed(file.quote().to_string().into(), msg)
+    }
+
+    pub fn invalid_target(target: PathBuf) -> Self {
+        InstallError::InvalidTarget(target.quote().to_string().into())
+    }
+
+    pub fn backup_failed(from: PathBuf, to: PathBuf, err: io::Error) -> Self {
+        InstallError::BackupFailed(from, to, err)
+    }
+
+    pub fn invalid_group(group: String) -> Self {
+        InstallError::InvalidGroup(group.quote().to_string())
+    }
+
+    pub fn omitting_directory(dir: PathBuf) -> Self {
+        InstallError::OmittingDirectory(dir.quote().to_string().into())
+    }
+    pub fn not_a_directory(dir: PathBuf) -> Self {
+        InstallError::NotADirectory(dir.quote().to_string().into())
     }
 }
 #[derive(Clone, Eq, PartialEq)]
@@ -403,7 +434,7 @@ fn behavior(matches: &ArgMatches) -> UResult<Behavior> {
     } else {
         match grp2gid(&group) {
             Ok(g) => Some(g),
-            Err(_) => return Err(InstallError::InvalidGroup(group.clone()).into()),
+            Err(_) => return Err(InstallError::invalid_group(group.clone()).into()),
         }
     };
 
@@ -574,7 +605,7 @@ fn standard(mut paths: Vec<String>, b: &Behavior) -> UResult<()> {
                 }
 
                 if let Err(e) = fs::create_dir_all(to_create) {
-                    return Err(InstallError::CreateDirFailed(to_create.to_path_buf(), e).into());
+                    return Err(InstallError::create_dir_failed(to_create.to_path_buf(), e).into());
                 }
             }
         }
@@ -582,7 +613,7 @@ fn standard(mut paths: Vec<String>, b: &Behavior) -> UResult<()> {
             let p = to_create.unwrap();
 
             if !p.exists() || !p.is_dir() {
-                return Err(InstallError::NotADirectory(p.to_path_buf()).into());
+                return Err(InstallError::not_a_directory(p.to_path_buf()).into());
             }
         }
     }
@@ -593,13 +624,13 @@ fn standard(mut paths: Vec<String>, b: &Behavior) -> UResult<()> {
         let source = sources.first().unwrap();
 
         if source.is_dir() {
-            return Err(InstallError::OmittingDirectory(source.clone()).into());
+            return Err(InstallError::omitting_directory(source.clone()).into());
         }
 
         if target.is_file() || is_new_file_path(&target) {
             copy(source, &target, b)
         } else {
-            Err(InstallError::InvalidTarget(target).into())
+            Err(InstallError::invalid_target(target).into())
         }
     }
 }
@@ -628,7 +659,7 @@ fn copy_files_into_dir(files: &[PathBuf], target_dir: &Path, b: &Behavior) -> UR
         }
 
         if sourcepath.is_dir() {
-            let err = InstallError::OmittingDirectory(sourcepath.clone());
+            let err = InstallError::omitting_directory(sourcepath.clone());
             show!(err);
             continue;
         }
@@ -684,7 +715,7 @@ fn chown_optional_user_group(path: &Path, b: &Behavior) -> UResult<()> {
     match wrap_chown(path, &meta, owner_id, group_id, false, verbosity) {
         Ok(msg) if b.verbose && !msg.is_empty() => println!("chown: {msg}"),
         Ok(_) => {}
-        Err(e) => return Err(InstallError::ChownFailed(path.to_path_buf(), e).into()),
+        Err(e) => return Err(InstallError::chown_failed(path.to_path_buf(), e).into()),
     }
 
     Ok(())
@@ -710,9 +741,12 @@ fn perform_backup(to: &Path, b: &Behavior) -> UResult<Option<PathBuf>> {
         if let Some(ref backup_path) = backup_path {
             // TODO!!
             if let Err(err) = fs::rename(to, backup_path) {
-                return Err(
-                    InstallError::BackupFailed(to.to_path_buf(), backup_path.clone(), err).into(),
-                );
+                return Err(InstallError::backup_failed(
+                    to.to_path_buf(),
+                    backup_path.clone(),
+                    err,
+                )
+                .into());
             }
         }
         Ok(backup_path)
@@ -817,7 +851,7 @@ fn set_ownership_and_permissions(to: &Path, b: &Behavior) -> UResult<()> {
     // Silent the warning as we want to the error message
     #[allow(clippy::question_mark)]
     if mode::chmod(to, b.mode()).is_err() {
-        return Err(InstallError::ChmodFailed(to.to_path_buf()).into());
+        return Err(InstallError::chmod_failed(to.to_path_buf()).into());
     }
 
     chown_optional_user_group(to, b)?;

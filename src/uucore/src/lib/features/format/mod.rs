@@ -38,13 +38,13 @@ pub mod num_parser;
 mod spec;
 
 pub use argument::*;
-use quick_error::quick_error;
 use spec::Spec;
 use std::{
     io,
     io::{stdout, Write},
     ops::ControlFlow,
 };
+use thiserror::Error;
 
 use crate::error::UError;
 
@@ -53,32 +53,28 @@ use self::{
     num_format::Formatter,
 };
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum FormatError {
-        SpecError(s: Vec<u8>) {
-            display("%{}: invalid conversion specification", String::from_utf8_lossy(s))
-        }
-        IoError(err: io::Error) {
-            from()
-            display("io error: {}", err)
-        }
-        NoMoreArguments {
-            display("no more arguments")
-        }
-        InvalidArgument(arg: FormatArgument) {
-            display("invalid argument: {:?}", arg)
-        }
-        TooManySpecs(s: Vec<u8>) {
-            display("format '{}' has too many % directives", String::from_utf8_lossy(s))
-        }
-        NeedAtLeastOneSpec(s: Vec<u8>) {
-            display("format '{}' has no % directive", String::from_utf8_lossy(s))
-        }
-        WrongSpecType {
-            display("wrong % directive type was given")
-        }
-    }
+#[derive(Debug, Error)]
+pub enum FormatError {
+    #[error("%{}: invalid conversion specification", String::from_utf8_lossy(.0))]
+    SpecError(Vec<u8>),
+
+    #[error("io error: {0}")]
+    IoError(#[from] io::Error),
+
+    #[error("no more arguments")]
+    NoMoreArguments,
+
+    #[error("invalid argument: {0:?}")]
+    InvalidArgument(FormatArgument),
+
+    #[error("format '{}' has too many % directives", String::from_utf8_lossy(.0))]
+    TooManySpecs(Vec<u8>),
+
+    #[error("format '{}' has no % directive", String::from_utf8_lossy(.0))]
+    NeedAtLeastOneSpec(Vec<u8>),
+
+    #[error("wrong % directive type was given")]
+    WrongSpecType,
 }
 
 impl UError for FormatError {}

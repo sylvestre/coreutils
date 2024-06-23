@@ -1795,12 +1795,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quick-error"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
-
-[[package]]
 name = "quickcheck"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2573,8 +2567,8 @@ dependencies = [
  "filetime",
  "indicatif",
  "libc",
- "quick-error",
  "selinux",
+ "thiserror",
  "uucore",
  "walkdir",
  "xattr",
@@ -2666,7 +2660,7 @@ dependencies = [
  "chrono",
  "clap",
  "glob",
- "quick-error",
+ "thiserror",
  "uucore",
  "windows-sys 0.48.0",
 ]
@@ -2754,7 +2748,7 @@ name = "uu_groups"
 version = "0.0.27"
 dependencies = [
  "clap",
- "quick-error",
+ "thiserror",
  "uucore",
 ]
 
@@ -2814,7 +2808,7 @@ dependencies = [
  "file_diff",
  "filetime",
  "libc",
- "quick-error",
+ "thiserror",
  "uucore",
 ]
 
@@ -2824,7 +2818,7 @@ version = "0.0.27"
 dependencies = [
  "clap",
  "memchr",
- "quick-error",
+ "thiserror",
  "uucore",
 ]
 
@@ -2850,7 +2844,7 @@ name = "uu_ln"
 version = "0.0.27"
 dependencies = [
  "clap",
- "quick-error",
+ "thiserror",
  "uucore",
 ]
 
@@ -3026,8 +3020,8 @@ dependencies = [
  "chrono",
  "clap",
  "itertools 0.13.0",
- "quick-error",
  "regex",
+ "thiserror",
  "uucore",
 ]
 
@@ -3360,7 +3354,7 @@ name = "uu_unexpand"
 version = "0.0.27"
 dependencies = [
  "clap",
- "quick-error",
+ "thiserror",
  "unicode-width",
  "uucore",
 ]
@@ -3471,7 +3465,6 @@ dependencies = [
  "number_prefix",
  "once_cell",
  "os_display",
- "quick-error",
  "regex",
  "sha1",
  "sha2",

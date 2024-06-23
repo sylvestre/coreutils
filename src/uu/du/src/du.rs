@@ -6,7 +6,6 @@
 use chrono::{DateTime, Local};
 use clap::{builder::PossibleValue, crate_version, Arg, ArgAction, ArgMatches, Command};
 use glob::Pattern;
-use quick_error::quick_error;
 use std::collections::HashSet;
 use std::env;
 #[cfg(not(windows))]
@@ -24,6 +23,7 @@ use std::str::FromStr;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, UNIX_EPOCH};
+use thiserror::Error;
 use uucore::display::{print_verbatim, Quotable};
 use uucore::error::{set_exit_code, FromIo, UError, UResult, USimpleError};
 use uucore::line_ending::LineEnding;
@@ -394,26 +394,22 @@ fn du(
     Ok(my_stat)
 }
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum DuError {
-        InvalidMaxDepthArg(s: String) {
-            display("invalid maximum depth {}", s.quote())
-        }
-        SummarizeDepthConflict(s: String) {
-            display("summarizing conflicts with --max-depth={}", s.maybe_quote())
-        }
-        InvalidTimeStyleArg(s: String) {
-            display("invalid argument {} for 'time style'\nValid arguments are:\n- 'full-iso'\n- 'long-iso'\n- 'iso'\nTry '{} --help' for more information.",
-                    s.quote(), uucore::execution_phrase())
-        }
-        InvalidTimeArg {
-            display("'birth' and 'creation' arguments for --time are not supported on this platform.")
-        }
-        InvalidGlob(s: String) {
-            display("Invalid exclude syntax: {}", s)
-        }
-    }
+#[derive(Debug, Error)]
+pub enum DuError {
+    #[error("invalid maximum depth {0}")]
+    InvalidMaxDepthArg(String),
+
+    #[error("summarizing conflicts with --max-depth={0}")]
+    SummarizeDepthConflict(String),
+
+    #[error("invalid argument {0} for 'time style'\nValid arguments are:\n- 'full-iso'\n- 'long-iso'\n- 'iso'\nTry '{} --help' for more information.", uucore::execution_phrase())]
+    InvalidTimeStyleArg(String),
+
+    #[error("'birth' and 'creation' arguments for --time are not supported on this platform.")]
+    InvalidTimeArg,
+
+    #[error("Invalid exclude syntax: {0}")]
+    InvalidGlob(String),
 }
 
 impl UError for DuError {
