@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-// spell-checker:ignore (ToDO) somegroup nlink tabsize dired subdired dtype colorterm stringly
+// spell-checker:ignore (ToDO) somegroup nlink tabsize dired subdired dtype colorterm stringly clocale
 
 use clap::{
     builder::{NonEmptyStringValueParser, PossibleValue, ValueParser},
@@ -122,6 +122,7 @@ pub mod options {
         pub static ESCAPE: &str = "escape";
         pub static LITERAL: &str = "literal";
         pub static C: &str = "quote-name";
+        pub static LOCALE: &str = "locale";
     }
 
     pub mod indicator_style {
@@ -654,6 +655,12 @@ fn match_quoting_style_name(style: &str, show_control: bool) -> Option<QuotingSt
         }),
         "escape" => Some(QuotingStyle::C {
             quotes: quoting_style::Quotes::None,
+        }),
+        "locale" => Some(QuotingStyle::Locale {
+            quotes: quoting_style::Quotes::Single,
+        }),
+        "clocale" => Some(QuotingStyle::CLocale {
+            quotes: quoting_style::Quotes::Double,
         }),
         _ => None,
     }
@@ -1371,6 +1378,8 @@ pub fn uu_app() -> Command {
                     PossibleValue::new("shell-escape-always"),
                     PossibleValue::new("c").alias("c-maybe"),
                     PossibleValue::new("escape"),
+                    PossibleValue::new("locale"),
+                    PossibleValue::new("clocale"),
                 ]))
                 .overrides_with_all([
                     options::QUOTING_STYLE,

@@ -4,6 +4,7 @@
 // file that was distributed with this source code.
 
 //! Set of functions for escaping names according to different quoting styles.
+// spell-checker:ignore (ToDO) clocale
 
 use std::char::from_digit;
 use std::ffi::{OsStr, OsString};
@@ -44,6 +45,20 @@ pub enum QuotingStyle {
     Literal {
         /// Whether to show control and non-unicode characters, or replace them with `?`.
         show_control: bool,
+    },
+
+    /// TODO
+    /// Used in, e.g., `ls --quoting-style=locale`.
+    Locale {
+        /// The type of quotes to use.
+        quotes: Quotes,
+    },
+
+    /// TODO
+    /// Used in, e.g., `ls --quoting-style=locale`.
+    CLocale {
+        /// The type of quotes to use.
+        quotes: Quotes,
     },
 }
 
@@ -372,6 +387,29 @@ fn shell_escaped_char_set(is_dirname: bool) -> &'static [u8] {
     &ESCAPED_CHARS[start_index..]
 }
 
+/// Escape characters for quoting styles that involve valid and invalid UTF-8 handling.
+fn escape_chars(name: &[u8], quotes: Quotes, dirname: bool) -> String {
+    name.utf8_chunks()
+        .flat_map(|s| {
+            let valid = s
+                .valid()
+                .chars()
+                .flat_map(|c| EscapedChar::new_c(c, quotes, dirname));
+            let invalid = s.invalid().iter().flat_map(|b| EscapedChar::new_octal(*b));
+            valid.chain(invalid)
+        })
+        .collect()
+}
+
+/// Apply quotes around an escaped string based on the `Quotes` style.
+fn apply_quotes(escaped_str: String, quotes: Quotes) -> String {
+    match quotes {
+        Quotes::Single => format!("'{escaped_str}'"),
+        Quotes::Double => format!("\"{escaped_str}\""),
+        Quotes::None => escaped_str,
+    }
+}
+
 /// Escape a name according to the given quoting style.
 ///
 /// This inner function provides an additional flag `dirname` which
@@ -396,25 +434,11 @@ fn escape_name_inner(name: &[u8], style: &QuotingStyle, dirname: bool) -> Vec<u8
                     .into()
             }
         }
-        QuotingStyle::C { quotes } => {
-            let escaped_str: String = name
-                .utf8_chunks()
-                .flat_map(|s| {
-                    let valid = s
-                        .valid()
-                        .chars()
-                        .flat_map(|c| EscapedChar::new_c(c, *quotes, dirname));
-                    let invalid = s.invalid().iter().flat_map(|b| EscapedChar::new_octal(*b));
-                    valid.chain(invalid)
-                })
-                .collect::<String>();
-
-            match quotes {
-                Quotes::Single => format!("'{escaped_str}'"),
-                Quotes::Double => format!("\"{escaped_str}\""),
-                Quotes::None => escaped_str,
-            }
-            .into()
+        QuotingStyle::Locale { quotes }
+        | QuotingStyle::CLocale { quotes }
+        | QuotingStyle::C { quotes } => {
+            let escaped_str = escape_chars(name, *quotes, dirname);
+            apply_quotes(escaped_str, *quotes).into()
         }
         QuotingStyle::Shell {
             escape,
@@ -496,6 +520,8 @@ impl fmt::Display for QuotingStyle {
             }
             Self::C { .. } => f.write_str("C"),
             Self::Literal { .. } => f.write_str("literal"),
+            Self::Locale { .. } => f.write_str("locale"),
+            Self::CLocale { .. } => f.write_str("clocale"),
         }
     }
 }
@@ -558,6 +584,12 @@ mod tests {
                 always_quote: true,
                 show_control: false,
             },
+            "locale" => QuotingStyle::Locale {
+                quotes: Quotes::Single,
+            },
+            "clocale" => QuotingStyle::CLocale {
+                quotes: Quotes::Double,
+            },
             _ => panic!("Invalid name!"),
         }
     }
@@ -599,6 +631,8 @@ mod tests {
                 ("one_two", "literal-show"),
                 ("one_two", "escape"),
                 ("\"one_two\"", "c"),
+                ("'one_two'", "locale"),
+                ("\"one_two\"", "clocale"),
                 ("one_two", "shell"),
                 ("one_two", "shell-show"),
                 ("'one_two'", "shell-always"),
@@ -1230,6 +1264,16 @@ mod tests {
             quotes: Quotes::Double,
         };
         assert_eq!(format!("{style}"), "C");
+
+        let style = QuotingStyle::Locale {
+            quotes: Quotes::Single,
+        };
+        assert_eq!(format!("{style}"), "locale");
+
+        let style = QuotingStyle::CLocale {
+            quotes: Quotes::Double,
+        };
+        assert_eq!(format!("{style}"), "clocale");
 
         let style = QuotingStyle::Literal {
             show_control: false,
