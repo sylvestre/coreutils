@@ -5631,3 +5631,23 @@ fn test_ls_capabilities() {
         .stdout_contains("\x1b[30;41mcap_pos") // spell-checker:disable-line
         .stdout_does_not_contain("0;41mtest/dir/cap_neg"); // spell-checker:disable-line
 }
+
+#[test]
+fn test_ls_dangling_colors() {
+    let scene = TestScenario::new(util_name!());
+    let at: &crate::common::util::AtPath = &scene.fixtures;
+    let path_regexp = r".*\x1b\[0m\x1b\[40ml\x1b\[0m -> \x1b\[34m.*nowhere\x1b\[0m.*";
+    let re = Regex::new(path_regexp).unwrap();
+
+    at.symlink_file("./nowhere", "l");
+
+    let result = scene
+        .ucmd()
+        .env("LS_COLORS", "ln=target:or=40:mi=34:")
+        .arg("-o")
+        .arg("--time-style=+:TIME:")
+        .arg("--color=always")
+        .arg("l")
+        .succeeds();
+    assert!(re.is_match(result.stdout_str().trim()));
+}

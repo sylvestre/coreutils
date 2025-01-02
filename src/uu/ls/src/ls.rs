@@ -3293,6 +3293,7 @@ fn display_item_name(
     {
         match path.p_buf.read_link() {
             Ok(target) => {
+                // Print the arrow of the symlink
                 name.push_str(" -> ");
 
                 // We might as well color the symlink output after the arrow.
@@ -3308,27 +3309,34 @@ fn display_item_name(
                         }
                     }
 
-                    let target_data = PathData::new(absolute_target, None, None, config, false);
+                    // Check if the target actually exists on disk
+                    if !absolute_target.exists() {
+                        // Force "missing" coloring for a broken symlink target
+                        // Grab the `mi=...` style from the style_manager
+                        // See tests/ls/ls-misc.pl
+                        let missing_style = style_manager
+                            .colors
+                            .style_for_indicator(lscolors::Indicator::MissingFile);
 
-                    // If we have a symlink to a valid file, we use the metadata of said file.
-                    // Because we use an absolute path, we can assume this is guaranteed to exist.
-                    // Otherwise, we use path.md(), which will guarantee we color to the same
-                    // color of non-existent symlinks according to style_for_path_with_metadata.
-                    if path.get_metadata(out).is_none()
-                        && get_metadata_with_deref_opt(
-                            target_data.p_buf.as_path(),
-                            target_data.must_dereference,
-                        )
-                        .is_err()
-                    {
-                        name.push_str(&path.p_buf.read_link().unwrap().to_string_lossy());
+                        // Convert the symlink target to a string (with quoting)
+                        let target_str = escape_name(target.as_os_str(), &config.quoting_style);
+
+                        // Manually apply that style (instead of calling color_name(...))
+                        let forced_colored = style_manager.apply_style(
+                            missing_style,
+                            &target_str,
+                            is_wrap(name.len()),
+                        );
+                        name.push_str(&forced_colored);
                     } else {
+                        // The target exists, color it normally with color_name
+                        let path = PathData::new(absolute_target, None, None, config, false);
                         name.push_str(&color_name(
                             &escape_name(target.as_os_str(), &config.quoting_style),
-                            path,
+                            &path,
                             style_manager,
                             out,
-                            Some(&target_data),
+                            Some(&path),
                             is_wrap(name.len()),
                         ));
                     }
