@@ -4,7 +4,6 @@
 // file that was distributed with this source code.
 // spell-checker:ignore (words) helloworld nodir objdump n'source
 
-use crate::common::util::{is_ci, run_ucmd_as_root, TestScenario};
 #[cfg(not(target_os = "openbsd"))]
 use filetime::FileTime;
 use std::fs;
@@ -13,6 +12,10 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::process::Command;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 use std::thread::sleep;
+use uu_tests_common::at_and_ucmd;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::util::{is_ci, run_ucmd_as_root, TestScenario};
+use uu_tests_common::util_name;
 use uucore::process::{getegid, geteuid};
 
 #[test]

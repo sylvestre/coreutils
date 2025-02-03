@@ -7,9 +7,13 @@
 #[cfg(not(windows))]
 use regex::Regex;
 
+use uu_tests_common::at_and_ucmd;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::unwrap_or_return;
 #[cfg(not(target_os = "windows"))]
-use crate::common::util::expected_result;
-use crate::common::util::TestScenario;
+use uu_tests_common::util::expected_result;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 #[cfg(not(target_os = "openbsd"))]
 const SUB_DIR: &str = "subdir/deeper";

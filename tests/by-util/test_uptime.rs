@@ -6,7 +6,10 @@
 // spell-checker:ignore bincode serde utmp runlevel testusr testx
 #![allow(clippy::cast_possible_wrap, clippy::unreadable_literal)]
 
-use crate::common::util::TestScenario;
+use uu_tests_common::at_and_ucmd;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 #[cfg(not(any(target_os = "macos", target_os = "openbsd")))]
 use bincode::serialize;

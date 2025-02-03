@@ -4,7 +4,10 @@
 // file that was distributed with this source code.
 // spell-checker:ignore (words) gpghome
 
-use crate::common::util::TestScenario;
+use uu_tests_common::at_and_ucmd;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 use uucore::display::Quotable;
 

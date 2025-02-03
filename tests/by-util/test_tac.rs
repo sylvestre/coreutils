@@ -3,7 +3,9 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 // spell-checker:ignore axxbxx bxxaxx axxx axxxx xxaxx xxax xxxxa axyz zyax zyxa
-use crate::common::util::TestScenario;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 #[test]
 fn test_invalid_arg() {

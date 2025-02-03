@@ -3,11 +3,14 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-#[cfg(target_os = "openbsd")]
-use crate::common::util::TestScenario;
-#[cfg(not(target_os = "openbsd"))]
-use crate::common::util::{expected_result, TestScenario};
 use pinky::Capitalize;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::unwrap_or_return;
+#[cfg(target_os = "openbsd")]
+use uu_tests_common::util::TestScenario;
+#[cfg(not(target_os = "openbsd"))]
+use uu_tests_common::util::{expected_result, TestScenario};
+use uu_tests_common::util_name;
 #[cfg(not(target_os = "openbsd"))]
 use uucore::entries::{Locate, Passwd};
 

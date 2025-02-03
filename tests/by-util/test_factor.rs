@@ -10,7 +10,9 @@
     clippy::cast_sign_loss
 )]
 
-use crate::common::util::TestScenario;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 use std::time::{Duration, SystemTime};
 
@@ -44,11 +46,11 @@ fn test_repeated_exponents() {
 #[cfg(feature = "sort")]
 #[cfg(not(target_os = "android"))]
 fn test_parallel() {
-    use crate::common::util::AtPath;
     use hex_literal::hex;
     use sha1::{Digest, Sha1};
     use std::{fs::OpenOptions, time::Duration};
     use tempfile::TempDir;
+    use uu_tests_common::util::AtPath;
     // factor should only flush the buffer at line breaks
     let n_integers = 100_000;
     let mut input_string = String::new();

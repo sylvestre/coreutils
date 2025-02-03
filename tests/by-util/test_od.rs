@@ -5,8 +5,11 @@
 
 // spell-checker:ignore abcdefghijklmnopqrstuvwxyz Anone
 
-use crate::common::util::TestScenario;
 use unindent::unindent;
+use uu_tests_common::at_and_ucmd;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 // octal dump of 'abcdefghijklmnopqrstuvwxyz\n'
 static ALPHA_OUT: &str = "

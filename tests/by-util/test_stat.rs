@@ -3,7 +3,11 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-use crate::common::util::{expected_result, TestScenario};
+use uu_tests_common::at_and_ucmd;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::unwrap_or_return;
+use uu_tests_common::util::{expected_result, TestScenario};
+use uu_tests_common::util_name;
 
 #[test]
 fn test_invalid_arg() {

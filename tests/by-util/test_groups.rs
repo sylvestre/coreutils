@@ -5,7 +5,10 @@
 
 //spell-checker: ignore coreutil
 
-use crate::common::util::{check_coreutil_version, expected_result, whoami, TestScenario};
+use uu_tests_common::new_ucmd;
+use uu_tests_common::unwrap_or_return;
+use uu_tests_common::util::{check_coreutil_version, expected_result, whoami, TestScenario};
+use uu_tests_common::util_name;
 
 const VERSION_MIN_MULTIPLE_USERS: &str = "8.31"; // this feature was introduced in GNU's coreutils 8.31
 

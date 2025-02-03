@@ -10,7 +10,7 @@ use std::ffi::CString;
 use std::path::Path;
 use std::{io, iter, str};
 
-use crate::common::util::*;
+use uu_tests_common::util::*;
 
 #[test]
 fn version() {

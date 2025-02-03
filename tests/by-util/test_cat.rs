@@ -4,14 +4,17 @@
 // file that was distributed with this source code.
 // spell-checker:ignore NOFILE nonewline cmdline
 
-#[cfg(not(windows))]
-use crate::common::util::vec_of_size;
-use crate::common::util::TestScenario;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 use rlimit::Resource;
 use std::fs::OpenOptions;
 #[cfg(not(windows))]
 use std::process::Stdio;
+use uu_tests_common::at_and_ucmd;
+use uu_tests_common::new_ucmd;
+#[cfg(not(windows))]
+use uu_tests_common::util::vec_of_size;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 #[test]
 fn test_output_simple() {

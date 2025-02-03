@@ -10,9 +10,6 @@
     clippy::cast_possible_truncation
 )]
 
-#[cfg(any(unix, feature = "feat_selinux"))]
-use crate::common::util::expected_result;
-use crate::common::util::TestScenario;
 #[cfg(all(unix, feature = "chmod"))]
 use nix::unistd::{close, dup};
 use regex::Regex;
@@ -29,6 +26,12 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::Duration;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::unwrap_or_return;
+#[cfg(any(unix, feature = "feat_selinux"))]
+use uu_tests_common::util::expected_result;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::{at_and_ucmd, util_name};
 
 const LONG_ARGS: &[&str] = &[
     "-l",
@@ -2237,6 +2240,7 @@ fn test_ls_recursive_1() {
 #[cfg(unix)]
 mod quoting {
     use super::TestScenario;
+    use uu_tests_common::util_name;
 
     /// Create a directory with "dirname", then for each check, assert that the
     /// output is correct.

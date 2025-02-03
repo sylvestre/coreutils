@@ -5,8 +5,11 @@
 
 // spell-checker:ignore (words) egid euid pseudofloat
 
-use crate::common::util::TestScenario;
 use std::thread::sleep;
+use uu_tests_common::at_and_ucmd;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 #[test]
 fn test_empty_test_equivalent_to_false() {

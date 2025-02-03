@@ -5,7 +5,10 @@
 
 // spell-checker:ignore wipesync
 
-use crate::common::util::TestScenario;
+use uu_tests_common::at_and_ucmd;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 #[test]
 fn test_invalid_arg() {

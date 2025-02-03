@@ -4,7 +4,9 @@
 // file that was distributed with this source code.
 //
 
-use crate::common::util::TestScenario;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 #[test]
 fn test_encode() {

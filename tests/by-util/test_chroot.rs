@@ -4,9 +4,12 @@
 // file that was distributed with this source code.
 // spell-checker:ignore (words) araba newroot userspec chdir pwd's isroot
 
+use uu_tests_common::at_and_ucmd;
+use uu_tests_common::new_ucmd;
 #[cfg(not(target_os = "android"))]
-use crate::common::util::is_ci;
-use crate::common::util::{run_ucmd_as_root, TestScenario};
+use uu_tests_common::util::is_ci;
+use uu_tests_common::util::{run_ucmd_as_root, TestScenario};
+use uu_tests_common::util_name;
 
 #[test]
 fn test_invalid_arg() {

@@ -5,7 +5,9 @@
 use rstest::rstest;
 
 // spell-checker:ignore dont SIGBUS SIGSEGV sigsegv sigbus
-use crate::common::util::TestScenario;
+use uu_tests_common::new_ucmd;
+use uu_tests_common::util::TestScenario;
+use uu_tests_common::util_name;
 
 #[cfg(unix)]
 use nix::sys::signal::Signal::{SIGBUS, SIGSEGV};
