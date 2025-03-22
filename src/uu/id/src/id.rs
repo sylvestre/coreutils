@@ -55,9 +55,6 @@ const ABOUT: &str = help_about!("id.md");
 const USAGE: &str = help_usage!("id.md");
 const AFTER_HELP: &str = help_section!("after help", "id.md");
 
-#[cfg(not(feature = "selinux"))]
-static CONTEXT_HELP_TEXT: &str = "print only the security context of the process (not enabled)";
-#[cfg(feature = "selinux")]
 static CONTEXT_HELP_TEXT: &str = "print only the security context of the process";
 
 mod options {
@@ -127,16 +124,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         zflag: matches.get_flag(options::OPT_ZERO),
         cflag: matches.get_flag(options::OPT_CONTEXT),
 
-        selinux_supported: {
-            #[cfg(feature = "selinux")]
-            {
-                selinux::kernel_support() != selinux::KernelSupport::Unsupported
-            }
-            #[cfg(not(feature = "selinux"))]
-            {
-                false
-            }
-        },
+        selinux_supported: { selinux::kernel_support() != selinux::KernelSupport::Unsupported },
         user_specified: !users.is_empty(),
         ids: None,
     };
@@ -178,7 +166,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     if state.cflag {
         if state.selinux_supported {
             // print SElinux context and exit
-            #[cfg(all(any(target_os = "linux", target_os = "android"), feature = "selinux"))]
+            #[cfg(any(target_os = "linux", target_os = "android"))]
             if let Ok(context) = selinux::SecurityContext::current(false) {
                 let bytes = context.as_bytes();
                 print!("{}{}", String::from_utf8_lossy(bytes), line_ending);
@@ -613,7 +601,7 @@ fn id_print(state: &State, groups: &[u32]) {
             .join(",")
     );
 
-    #[cfg(all(any(target_os = "linux", target_os = "android"), feature = "selinux"))]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     if state.selinux_supported
         && !state.user_specified
         && std::env::var_os("POSIXLY_CORRECT").is_none()

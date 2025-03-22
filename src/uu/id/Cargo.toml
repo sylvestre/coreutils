@@ -19,11 +19,8 @@ path = "src/id.rs"
 [dependencies]
 clap = { workspace = true }
 uucore = { workspace = true, features = ["entries", "process"] }
-selinux = { workspace = true, optional = true }
+selinux = { workspace = true }
 
 [[bin]]
 name = "id"
 path = "src/main.rs"
-
-[features]
-feat_selinux = ["selinux"]

@@ -50,7 +50,6 @@ feat_acl = ["cp/feat_acl"]
 # * Running a uutils compiled with `feat_selinux` requires an SELinux enabled Kernel at run time.
 feat_selinux = [
   "cp/selinux",
-  "id/selinux",
   "ls/selinux",
   "selinux",
   "feat_require_selinux",
@@ -87,6 +86,7 @@ feat_common_core = [
   "fold",
   "hashsum",
   "head",
+  "id",
   "join",
   "link",
   "ln",

@@ -106,6 +106,9 @@ pub use crate::features::fsext;
 #[cfg(all(unix, feature = "fsxattr"))]
 pub use crate::features::fsxattr;
 
+#[cfg(all(target_os = "linux", feature = "selinux_support"))]
+pub use crate::features::selinux_support;
+
 //## core functions
 
 #[cfg(unix)]

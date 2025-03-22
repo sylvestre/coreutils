@@ -60,6 +60,8 @@ pub mod tty;
 
 #[cfg(all(unix, feature = "fsxattr"))]
 pub mod fsxattr;
+#[cfg(all(target_os = "linux", feature = "selinux_support"))]
+pub mod selinux_support;
 #[cfg(all(unix, not(target_os = "fuchsia"), feature = "signals"))]
 pub mod signals;
 #[cfg(all(
