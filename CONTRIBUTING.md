@@ -36,6 +36,8 @@ parts for getting started:
 - [`src/bin/coreutils.rs`](https://github.com/uutils/coreutils/tree/main/src/bin/coreutils.rs): Code for the multicall
   binary.
 - [`docs`](https://github.com/uutils/coreutils/tree/main/docs/src): the documentation for the website
+- [`tests/uutests/`](./tests/uutests/): Crate implementing
+  the various functions to test uutils commands.
 
 Each utility is defined as a separate crate. The structure of each of these
 crates is as follows:
@@ -62,6 +64,8 @@ We have the following goals with our development:
 - **Reliable**: The utilities should never unexpectedly fail.
 - **Performant**: Our utilities should be written in fast idiomatic Rust. We aim
   to match or exceed the performance of the GNU utilities.
+  [hyperfine](https://github.com/sharkdp/hyperfine) is the recommended tool for
+  this task.
 - **Well-tested**: We should have a lot of tests to be able to guarantee
   reliability and compatibility.
 

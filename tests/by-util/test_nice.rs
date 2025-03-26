@@ -2,8 +2,10 @@
 //
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
-// spell-checker:ignore libc's setpriority
-use crate::common::util::TestScenario;
+// spell-checker:ignore libc's
+use uutests::new_ucmd;
+use uutests::util::TestScenario;
+use uutests::util_name;
 
 #[test]
 #[cfg(not(target_os = "android"))]
