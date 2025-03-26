@@ -12,6 +12,7 @@ use uutests::at_and_ucmd;
 use uutests::new_ucmd;
 use uutests::util::{AtPath, TestScenario};
 use uutests::util_name;
+use filetime::FileTime;
 
 fn get_file_times(at: &AtPath, path: &str) -> (FileTime, FileTime) {
     let m = at.metadata(path);

@@ -9,7 +9,7 @@
 use uutests::new_ucmd;
 use uutests::util::TestScenario;
 use uutests::util_name;
-
+use std::io::Read;
 static INPUT: &str = "lorem_ipsum.txt";
 
 #[test]

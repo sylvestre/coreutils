@@ -60,10 +60,12 @@ static MULTIPLE_STDIN_MEANINGLESS: &str = "Ucommand is designed around a typical
 static NO_STDIN_MEANINGLESS: &str = "Setting this flag has no effect if there is no stdin";
 static END_OF_TRANSMISSION_SEQUENCE: &[u8] = b"\n\x04";
 
-pub fn get_tests_binary() -> String {
-    //env::current_exe().unwrap().into_os_string().into_string().unwrap()
-    env!("CARGO_BIN_EXE_coreutils").to_string()
-}
+macro_rules! get_tests_binary {
+    () => {
+          env!("CARGO_BIN_EXE_coreutils").to_string()
+    }
+  }
+  
 // we can't use
 // pub const TESTS_BINARY: &str = env!("CARGO_BIN_EXE_coreutils");
 // as we are in a library, not a binary
@@ -1321,9 +1323,9 @@ impl TestScenario {
         T: AsRef<str>,
     {
         let tmpd = Rc::new(TempDir::new().unwrap());
-        println!("bin: {:?}", get_tests_binary());
+        println!("bin: {:?}", get_tests_binary!());
         let ts = Self {
-            bin_path: PathBuf::from(get_tests_binary()),
+            bin_path: PathBuf::from(get_tests_binary!()),
             util_name: util_name.as_ref().into(),
             fixtures: AtPath::new(tmpd.as_ref().path()),
             tmpd,
@@ -1487,7 +1489,7 @@ impl UCommand {
     {
         let mut ucmd = Self::new();
         ucmd.util_name = Some(util_name.as_ref().into());
-        ucmd.bin_path(&*get_tests_binary()).temp_dir(tmpd);
+        ucmd.bin_path(&*get_tests_binary!()).temp_dir(tmpd);
         ucmd
     }
 
@@ -1749,7 +1751,7 @@ impl UCommand {
                 self.args.push_front(util_name.into());
             }
         } else if let Some(util_name) = &self.util_name {
-            self.bin_path = Some(PathBuf::from(&*get_tests_binary()));
+            self.bin_path = Some(PathBuf::from(&*get_tests_binary!()));
             self.args.push_front(util_name.into());
         // neither `bin_path` nor `util_name` was set so we apply the default to run the arguments
         // in a platform specific shell

@@ -7,6 +7,7 @@ use std::fs::OpenOptions;
 use uutests::new_ucmd;
 use uutests::util::TestScenario;
 use uutests::util_name;
+use regex::Regex;
 
 #[test]
 fn test_no_args() {
