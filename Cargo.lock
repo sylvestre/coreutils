@@ -290,7 +290,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -482,7 +482,7 @@ dependencies = [
  "clap_mangen",
  "filetime",
  "glob",
- "hex-literal",
+ "hex-literal 1.0.0",
  "libc",
  "nix",
  "num-prime",
@@ -1119,6 +1119,12 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "hex-literal"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 
 [[package]]
 name = "hex-literal"
@@ -2102,6 +2108,9 @@ name = "semver"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56e6fa9c48d24d85fb3de5ad847117517440f6beceb7798af16b4a87d616b8d0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "serde"
@@ -3584,14 +3593,14 @@ checksum = "e0f540e3240398cce6128b64ba83fdbdd86129c16a3aa1a3a252efd66eb3d587"
 
 [[package]]
 name = "uutests"
-version = "0.0.29"
+version = "0.0.30"
 dependencies = [
  "bincode",
  "cargo_metadata",
  "chrono",
  "filetime",
  "glob",
- "hex-literal",
+ "hex-literal 0.4.1",
  "lazy_static",
  "libc",
  "nix",
