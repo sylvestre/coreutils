@@ -3,6 +3,22 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+// Then override the macro with your constant
+use std::env;
+use std::fs;
+
+pub const TESTS_BINARY: &str = env!("CARGO_BIN_EXE_coreutils");
+
+// Set the environment variable for any tests
+
+// Use the ctor attribute to run this function before any tests
+#[ctor::ctor]
+fn init() {
+    unsafe {
+        std::env::set_var("UUTESTS_BINARY_PATH", TESTS_BINARY);
+    }
+}
+
 #[cfg(feature = "arch")]
 #[path = "by-util/test_arch.rs"]
 mod test_arch;

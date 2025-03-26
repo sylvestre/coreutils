@@ -29,9 +29,9 @@ use std::time::Duration;
 use uutests::new_ucmd;
 #[cfg(unix)]
 use uutests::unwrap_or_return;
+use uutests::util::TestScenario;
 #[cfg(any(unix, feature = "feat_selinux"))]
 use uutests::util::expected_result;
-use uutests::util::TestScenario;
 use uutests::{at_and_ucmd, util_name};
 
 const LONG_ARGS: &[&str] = &[

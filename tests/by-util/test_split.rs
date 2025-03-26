@@ -4,7 +4,7 @@
 // file that was distributed with this source code.
 // spell-checker:ignore xzaaa sixhundredfiftyonebytes ninetyonebytes threebytes asciilowercase ghijkl mnopq rstuv wxyz fivelines twohundredfortyonebytes onehundredlines nbbbb dxen ncccc rlimit NOFILE
 
-use rand::{rng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rng};
 use regex::Regex;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 use rlimit::Resource;

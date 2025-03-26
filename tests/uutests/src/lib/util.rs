@@ -49,6 +49,8 @@ use std::time::{Duration, Instant};
 use std::{env, hint, mem, thread};
 use tempfile::{Builder, TempDir};
 
+use std::sync::OnceLock;
+
 static TESTS_DIR: &str = "tests";
 static FIXTURES_DIR: &str = "fixtures";
 
@@ -60,13 +62,33 @@ static MULTIPLE_STDIN_MEANINGLESS: &str = "Ucommand is designed around a typical
 static NO_STDIN_MEANINGLESS: &str = "Setting this flag has no effect if there is no stdin";
 static END_OF_TRANSMISSION_SEQUENCE: &[u8] = b"\n\x04";
 
+static TESTS_BINARY_PATH: OnceLock<PathBuf> = OnceLock::new();
+
+pub fn get_tests_binary() -> &'static str {
+    TESTS_BINARY_PATH.get_or_init(|| {
+        if let Ok(path) = env::var("UUTESTS_BINARY_PATH") {
+            return PathBuf::from(path);
+        }
+        panic!("Could not determine coreutils binary path. Please set UUTESTS_BINARY_PATH environment variable");
+    })
+    .to_str()
+    .unwrap()
+}
+
 #[macro_export]
+macro_rules! get_tests_binary {
+    () => {
+        $crate::util::get_tests_binary()
+    };
+}
+
+/*#[macro_export]
 macro_rules! get_tests_binary {
     () => {
         env!("CARGO_BIN_EXE_coreutils").to_string()
     }
 }
-
+*/
 
 // we can't use
 // pub const TESTS_BINARY: &str = env!("CARGO_BIN_EXE_coreutils");

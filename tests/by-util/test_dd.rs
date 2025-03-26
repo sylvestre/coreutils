@@ -6,11 +6,11 @@
 
 use uutests::at_and_ucmd;
 use uutests::new_ucmd;
-#[cfg(unix)]
-use uutests::util::run_ucmd_as_root_with_stdin_stdout;
 use uutests::util::TestScenario;
 #[cfg(all(not(windows), feature = "printf"))]
-use uutests::util::{UCommand};
+use uutests::util::UCommand;
+#[cfg(unix)]
+use uutests::util::run_ucmd_as_root_with_stdin_stdout;
 use uutests::util_name;
 
 use regex::Regex;

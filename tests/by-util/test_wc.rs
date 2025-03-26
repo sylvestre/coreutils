@@ -6,7 +6,7 @@
 #[cfg(target_os = "linux")]
 use uutests::at_and_ucmd;
 use uutests::new_ucmd;
-use uutests::util::{vec_of_size, TestScenario};
+use uutests::util::{TestScenario, vec_of_size};
 use uutests::util_name;
 
 // spell-checker:ignore (flags) lwmcL clmwL ; (path) bogusfile emptyfile manyemptylines moby notrailingnewline onelongemptyline onelongword weirdchars

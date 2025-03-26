@@ -4,7 +4,7 @@
 // file that was distributed with this source code.
 use std::env;
 use uutests::new_ucmd;
-use uutests::util::{is_ci, TestScenario};
+use uutests::util::{TestScenario, is_ci};
 use uutests::util_name;
 
 #[test]

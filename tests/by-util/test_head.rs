@@ -6,10 +6,10 @@
 // spell-checker:ignore (words) bogusfile emptyfile abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstu
 // spell-checker:ignore (words) seekable
 
+use std::io::Read;
 use uutests::new_ucmd;
 use uutests::util::TestScenario;
 use uutests::util_name;
-use std::io::Read;
 static INPUT: &str = "lorem_ipsum.txt";
 
 #[test]

@@ -12,9 +12,9 @@ use std::fs::OpenOptions;
 use std::process::Stdio;
 use uutests::at_and_ucmd;
 use uutests::new_ucmd;
+use uutests::util::TestScenario;
 #[cfg(not(windows))]
 use uutests::util::vec_of_size;
-use uutests::util::TestScenario;
 use uutests::util_name;
 
 #[test]

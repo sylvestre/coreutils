@@ -8,7 +8,7 @@ use uutests::at_and_ucmd;
 use uutests::new_ucmd;
 #[cfg(not(target_os = "android"))]
 use uutests::util::is_ci;
-use uutests::util::{run_ucmd_as_root, TestScenario};
+use uutests::util::{TestScenario, run_ucmd_as_root};
 use uutests::util_name;
 
 #[test]

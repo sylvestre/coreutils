@@ -7,7 +7,7 @@
 
 use uutests::new_ucmd;
 use uutests::unwrap_or_return;
-use uutests::util::{expected_result, TestScenario};
+use uutests::util::{TestScenario, expected_result};
 use uutests::util_name;
 #[test]
 fn test_invalid_arg() {

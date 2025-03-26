@@ -8,7 +8,7 @@ use uutests::new_ucmd;
 use uutests::unwrap_or_return;
 #[cfg(unix)]
 use uutests::util::expected_result;
-use uutests::util::{is_ci, whoami, TestScenario};
+use uutests::util::{TestScenario, is_ci, whoami};
 use uutests::util_name;
 
 #[test]

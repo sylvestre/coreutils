@@ -6,7 +6,7 @@
 use uutests::at_and_ucmd;
 use uutests::new_ucmd;
 use uutests::unwrap_or_return;
-use uutests::util::{expected_result, TestScenario};
+use uutests::util::{TestScenario, expected_result};
 use uutests::util_name;
 
 #[test]

@@ -44,12 +44,12 @@ use uutests::new_ucmd;
 use uutests::random::{AlphanumericNewline, RandomizedString};
 #[cfg(unix)]
 use uutests::unwrap_or_return;
+use uutests::util::TestScenario;
 #[cfg(unix)]
 use uutests::util::expected_result;
 #[cfg(unix)]
 #[cfg(not(windows))]
 use uutests::util::is_ci;
-use uutests::util::TestScenario;
 use uutests::util_name;
 
 const FOOBAR_TXT: &str = "foobar.txt";

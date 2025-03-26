@@ -11,7 +11,7 @@ use uutests::unwrap_or_return;
 #[cfg(target_os = "openbsd")]
 use uutests::util::TestScenario;
 #[cfg(not(target_os = "openbsd"))]
-use uutests::util::{expected_result, TestScenario};
+use uutests::util::{TestScenario, expected_result};
 use uutests::util_name;
 
 #[test]
