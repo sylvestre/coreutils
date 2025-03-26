@@ -60,12 +60,14 @@ static MULTIPLE_STDIN_MEANINGLESS: &str = "Ucommand is designed around a typical
 static NO_STDIN_MEANINGLESS: &str = "Setting this flag has no effect if there is no stdin";
 static END_OF_TRANSMISSION_SEQUENCE: &[u8] = b"\n\x04";
 
+#[macro_export]
 macro_rules! get_tests_binary {
     () => {
-          env!("CARGO_BIN_EXE_coreutils").to_string()
+        env!("CARGO_BIN_EXE_coreutils").to_string()
     }
-  }
-  
+}
+
+
 // we can't use
 // pub const TESTS_BINARY: &str = env!("CARGO_BIN_EXE_coreutils");
 // as we are in a library, not a binary
