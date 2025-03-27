@@ -3183,6 +3183,13 @@ mod tests {
     // spell-checker:ignore (tests) asdfsadfa
     use super::*;
 
+    // Create a init for the test with a fake value (not needed)
+    #[cfg(test)]
+    #[ctor::ctor]
+    fn init() {
+        std::env::set_var("UUTESTS_BINARY_PATH", "");
+    }
+
     pub fn run_cmd<T: AsRef<OsStr>>(cmd: T) -> CmdResult {
         UCommand::new().arg(cmd).run()
     }

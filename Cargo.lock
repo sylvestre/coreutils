@@ -3630,6 +3630,7 @@ dependencies = [
  "bincode",
  "cargo_metadata",
  "chrono",
+ "ctor",
  "filetime",
  "glob",
  "hex-literal 0.4.1",
