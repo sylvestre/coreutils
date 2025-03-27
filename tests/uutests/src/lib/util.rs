@@ -1969,52 +1969,12 @@ impl UCommand {
     /// Spawns the command, feeds the stdin if any, and returns the
     /// child process immediately.
 
-    /// Spawns the command, feeds the stdin if any, and returns the
-    /// child process immediately.
-
-    fn list_directory_contents(path: &Path, prefix: &str) {
-        if let Ok(entries) = fs::read_dir(path) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    // Recursively list contents if it's a directory
-                    if entry.path().is_dir() {
-                        Self::list_directory_contents(&entry.path(), &format!("{}  ", prefix));
-                    } else {
-                        let path_str = entry.path().to_string_lossy().to_string();
-                        log_info(&format!("{}File:", prefix), &path_str);
-                    }
-                }
-            }
-        }
-    }
-
     pub fn run_no_wait(&mut self) -> UChild {
         assert!(!self.has_run, "{}", ALREADY_RUN);
         self.has_run = true;
 
-        // Check and list files in /project/target/ if it exists
-
-        #[cfg(all(unix, not(target_os = "macos")))]
-        let path = "/project/target";
-        #[cfg(windows)]
-        let path = "D:\\a\\coreutils\\";
-        #[cfg(target_os = "macos")]
-        let path = "/Users/runner/work/coreutils/coreutils/";
-
-        let target_path = Path::new(path);
-        if target_path.exists() && target_path.is_dir() {
-            match fs::read_dir(target_path) {
-                Ok(_) => {
-                    log_info("Files in /project/target/", "");
-                    Self::list_directory_contents(target_path, "  ");
-                }
-                Err(e) => log_info("Error reading /project/target/", &e.to_string()),
-            }
-        }
-
         let (mut command, captured_stdout, captured_stderr, stdin_pty) = self.build();
         log_info("run", self.to_string());
-        log_info("Command", &format!("{:?}", command));
         let child = command.spawn().unwrap();
 
         let mut child = UChild::from(self, child, captured_stdout, captured_stderr, stdin_pty);

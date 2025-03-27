@@ -5,11 +5,8 @@
 
 // Then override the macro with your constant
 use std::env;
-use std::fs;
 
 pub const TESTS_BINARY: &str = env!("CARGO_BIN_EXE_coreutils");
-
-// Set the environment variable for any tests
 
 // Use the ctor attribute to run this function before any tests
 #[ctor::ctor]

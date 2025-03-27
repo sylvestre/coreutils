@@ -9,6 +9,7 @@ use uutests::new_ucmd;
 use uutests::util::TestScenario;
 #[cfg(all(not(windows), feature = "printf"))]
 use uutests::util::UCommand;
+use uutests::util::get_tests_binary;
 #[cfg(unix)]
 use uutests::util::run_ucmd_as_root_with_stdin_stdout;
 use uutests::util_name;
@@ -1504,18 +1505,18 @@ fn test_skip_input_fifo() {
 }
 
 /// Test for reading part of stdin from each of two child processes.
-/*#[cfg(all(not(windows), feature = "printf"))]
+#[cfg(all(not(windows), feature = "printf"))]
 #[test]
 fn test_multiple_processes_reading_stdin() {
     // TODO Investigate if this is possible on Windows.
-    let printf = format!("{} printf 'abcdef\n'", get_tests_binary().as_str());
-    let dd_skip = format!("{} dd bs=1 skip=3 count=0", get_tests_binary().as_str());
-    let dd = format!("{} dd", get_tests_binary().as_str());
+    let printf = format!("{} printf 'abcdef\n'", get_tests_binary());
+    let dd_skip = format!("{} dd bs=1 skip=3 count=0", get_tests_binary());
+    let dd = format!("{} dd", get_tests_binary());
     UCommand::new()
         .arg(format!("{printf} | ( {dd_skip} && {dd} ) 2> /dev/null"))
         .succeeds()
         .stdout_only("def\n");
-}*/
+}
 
 /// Test that discarding system file cache fails for stdin.
 #[test]
@@ -1595,7 +1596,7 @@ fn test_seek_past_dev() {
         print!("Test skipped; requires root user");
     }
 }
-/*
+
 #[test]
 #[cfg(all(
     unix,
@@ -1612,7 +1613,7 @@ fn test_reading_partial_blocks_from_fifo() {
 
     // Start a `dd` process that reads from the fifo (so it will wait
     // until the writer process starts).
-    let mut reader_command = Command::new(get_tests_binary().as_str());
+    let mut reader_command = Command::new(get_tests_binary());
     let child = reader_command
         .args(["dd", "ibs=3", "obs=3", &format!("if={fifoname}")])
         .stdout(Stdio::piped())
@@ -1636,8 +1637,8 @@ fn test_reading_partial_blocks_from_fifo() {
     assert_eq!(output.stdout, b"abcd");
     let expected = b"0+2 records in\n1+1 records out\n4 bytes copied";
     assert!(output.stderr.starts_with(expected));
-}*/
-/*
+}
+
 #[test]
 #[cfg(all(
     unix,
@@ -1656,7 +1657,7 @@ fn test_reading_partial_blocks_from_fifo_unbuffered() {
     // until the writer process starts).
     //
     // `bs=N` takes precedence over `ibs=N` and `obs=N`.
-    let mut reader_command = Command::new(get_tests_binary().as_str());
+    let mut reader_command = Command::new(get_tests_binary());
     let child = reader_command
         .args(["dd", "bs=3", "ibs=1", "obs=1", &format!("if={fifoname}")])
         .stdout(Stdio::piped())
@@ -1680,7 +1681,7 @@ fn test_reading_partial_blocks_from_fifo_unbuffered() {
     assert_eq!(output.stdout, b"abcd");
     let expected = b"0+2 records in\n0+2 records out\n4 bytes copied";
     assert!(output.stderr.starts_with(expected));
-}*/
+}
 
 #[test]
 #[cfg(any(target_os = "linux", target_os = "android"))]

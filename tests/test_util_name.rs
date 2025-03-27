@@ -8,7 +8,6 @@ use uutests::util::TestScenario;
 use std::os::unix::fs::symlink as symlink_file;
 
 use std::env;
-use std::fs;
 pub const TESTS_BINARY: &str = env!("CARGO_BIN_EXE_coreutils");
 
 // Set the environment variable for any tests

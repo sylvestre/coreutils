@@ -519,12 +519,12 @@ fn test_split_string_into_args_debug_output_whitespace_handling() {
 // thread 'test_env::test_gnu_e20' panicked at 'assertion failed: `(left == right)`
 // left: `"A=B C=D\n__CF_USER_TEXT_ENCODING=0x1F5:0x0:0x0\n"`,
 // right: `"A=B C=D\n"`', tests/by-util/test_env.rs:369:5
-/*#[cfg(not(target_os = "macos"))]
+#[cfg(not(target_os = "macos"))]
 #[test]
 fn test_gnu_e20() {
     let scene = TestScenario::new(util_name!());
 
-    let env_bin = String::from(uutests::util::get_tests_binary!().as_str()) + " " + util_name!();
+    let env_bin = String::from(uutests::util::get_tests_binary()) + " " + util_name!();
 
     let (input, output) = (
         [
@@ -536,7 +536,7 @@ fn test_gnu_e20() {
 
     let out = scene.ucmd().args(&input).succeeds();
     assert_eq!(out.stdout_str(), output);
-}*/
+}
 
 #[test]
 #[allow(clippy::cognitive_complexity)] // Ignore clippy lint of too long function sign
