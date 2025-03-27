@@ -26,12 +26,12 @@ use std::collections::VecDeque;
 #[cfg(not(windows))]
 use std::ffi::CString;
 use std::ffi::{OsStr, OsString};
-use std::fs::{self, File, OpenOptions, hard_link, remove_file};
+use std::fs::{self, hard_link, remove_file, File, OpenOptions};
 use std::io::{self, BufWriter, Read, Result, Write};
 #[cfg(unix)]
 use std::os::fd::OwnedFd;
 #[cfg(unix)]
-use std::os::unix::fs::{PermissionsExt, symlink as symlink_dir, symlink as symlink_file};
+use std::os::unix::fs::{symlink as symlink_dir, symlink as symlink_file, PermissionsExt};
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 #[cfg(unix)]
@@ -44,7 +44,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::rc::Rc;
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::thread::{JoinHandle, sleep};
+use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
 use std::{env, hint, mem, thread};
 use tempfile::{Builder, TempDir};
@@ -951,7 +951,11 @@ pub fn recursive_copy(src: &Path, dest: &Path) -> Result<()> {
 }
 
 pub fn get_root_path() -> &'static str {
-    if cfg!(windows) { "C:\\" } else { "/" }
+    if cfg!(windows) {
+        "C:\\"
+    } else {
+        "/"
+    }
 }
 
 /// Compares the extended attributes (xattrs) of two files or directories.
@@ -2083,11 +2087,10 @@ impl UCommand {
 
 impl std::fmt::Display for UCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut comm_string: Vec<String> = vec![
-            self.bin_path
-                .as_ref()
-                .map_or(String::new(), |p| p.display().to_string()),
-        ];
+        let mut comm_string: Vec<String> = vec![self
+            .bin_path
+            .as_ref()
+            .map_or(String::new(), |p| p.display().to_string())];
         comm_string.extend(self.args.iter().map(|s| s.to_string_lossy().to_string()));
         f.write_str(&comm_string.join(" "))
     }
@@ -3564,7 +3567,11 @@ mod tests {
         // make sure we are not testing against the same umask
         let c_umask = if p_umask == 0o002 { 0o007 } else { 0o002 };
         let expected = if cfg!(target_os = "android") {
-            if p_umask == 0o002 { "007\n" } else { "002\n" }
+            if p_umask == 0o002 {
+                "007\n"
+            } else {
+                "002\n"
+            }
         } else if p_umask == 0o002 {
             "0007\n"
         } else {

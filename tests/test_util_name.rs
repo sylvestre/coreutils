@@ -30,7 +30,6 @@ fn execution_phrase_double() {
     use std::process::Command;
 
     let scenario = TestScenario::new("ls");
-    println!("scenario.bin_path: {:?}", scenario.bin_path);
     if !scenario.bin_path.exists() {
         println!("Skipping test: Binary not found at {:?}", scenario.bin_path);
         return;
@@ -56,7 +55,6 @@ fn util_name_double() {
     };
 
     let scenario = TestScenario::new("sort");
-    println!("scenario.bin_path: {:?}", scenario.bin_path);
     if !scenario.bin_path.exists() {
         println!("Skipping test: Binary not found at {:?}", scenario.bin_path);
         return;
@@ -70,7 +68,6 @@ fn util_name_double() {
     // input invalid utf8 to cause an error
     child.stdin.take().unwrap().write_all(&[255]).unwrap();
     let output = child.wait_with_output().unwrap();
-    println!("output.stderr = {:?}", output.stderr);
     assert!(String::from_utf8(output.stderr).unwrap().contains("sort: "));
 }
 
@@ -206,7 +203,6 @@ fn util_completion() {
     use std::process::{Command, Stdio};
 
     let scenario = TestScenario::new("completion");
-    println!("scenario.bin_path: {:?}", scenario.bin_path);
     if !scenario.bin_path.exists() {
         println!("Skipping test: Binary not found at {:?}", scenario.bin_path);
         return;
@@ -237,7 +233,6 @@ fn util_manpage() {
     use std::process::{Command, Stdio};
 
     let scenario = TestScenario::new("completion");
-    println!("scenario.bin_path: {:?}", scenario.bin_path);
     if !scenario.bin_path.exists() {
         println!("Skipping test: Binary not found at {:?}", scenario.bin_path);
         return;
