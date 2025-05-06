@@ -6661,3 +6661,38 @@ fn test_cp_preserve_context_root() {
         print!("Test skipped; requires root user");
     }
 }
+
+#[test]
+#[cfg(feature = "feat_selinux")]
+fn test_cp_selinux_and_archive() {
+    let scene = TestScenario::new(util_name!());
+    let at = &scene.fixtures;
+    at.mkdir("src");
+    at.touch("src/b");
+
+    // just -Z won't copy a directory, it still needs -r
+    new_ucmd!()
+        .arg("-Z")
+        .arg(at.plus("src"))
+        .arg("dest")
+        .fails()
+        .stderr_contains("cp: -r not specified; omitting directory");
+
+    // but -Z --archive will do it (even if -Z overrides some part of --archive)
+    new_ucmd!()
+        .arg("-aZ")
+        .arg(at.plus("src"))
+        .arg("b")
+        .succeeds()
+        .no_output();
+
+    // -aZ == -Za - tests with because clap can be tricky with ordering
+    new_ucmd!()
+        .arg("-Za")
+        .arg(at.plus("src"))
+        .arg("c")
+        .succeeds()
+        .no_output();
+
+    // TODO verify the attribute. I think we need to preserve things differently
+}

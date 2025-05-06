@@ -1002,7 +1002,9 @@ impl Options {
             }
         }
 
-        let recursive = matches.get_flag(options::RECURSIVE) || matches.get_flag(options::ARCHIVE);
+        let recursive = matches.get_flag(options::RECURSIVE)
+            || matches.get_flag(options::ARCHIVE)
+            || (matches.get_flag(options::ARCHIVE) && matches.get_flag(options::SELINUX));
 
         let backup_mode = match backup_control::determine_backup_mode(matches) {
             Err(e) => return Err(Error::Backup(format!("{e}"))),
@@ -1097,7 +1099,12 @@ impl Options {
         for (_, option, val) in overriding_order {
             match option {
                 options::ARCHIVE => {
-                    attributes = Attributes::ALL;
+                    if matches.get_flag(options::SELINUX) {
+                        // if --archive and -Z are passed together, -Z wins (and -r is set)
+                        attributes = Attributes::NONE;
+                    } else {
+                        attributes = Attributes::ALL;
+                    }
                 }
                 options::PRESERVE_DEFAULT_ATTRIBUTES => {
                     attributes = attributes.union(&Attributes::DEFAULT);
