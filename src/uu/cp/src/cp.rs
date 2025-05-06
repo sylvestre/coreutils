@@ -1710,8 +1710,19 @@ pub(crate) fn copy_attributes(
             if let Some(context) = context {
                 if let Err(e) = context.set_for_path(dest, false, false) {
                     return Err(Error::Error(format!(
-                        "failed to set the security context of {}: {e}",
-                        dest.display()
+                        "failed to set the security context of '{}' to {}: {}",
+                        dest.display(),
+                        context
+                            .to_c_string()
+                            .map_or_else(
+                                |_| String::from("unknown"),
+                                |opt_cow| opt_cow.map_or_else(
+                                    || String::from("none"),
+                                    |cow| cow.to_string_lossy().into_owned()
+                                )
+                            )
+                            .quote(),
+                        uucore::selinux::selinux_error_description(&e)
                     )));
                 }
             }

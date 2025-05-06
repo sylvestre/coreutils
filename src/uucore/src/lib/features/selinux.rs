@@ -47,7 +47,7 @@ pub fn is_selinux_enabled() -> bool {
 }
 
 /// Returns a string describing the error and its causes.
-fn selinux_error_description(mut error: &dyn Error) -> String {
+pub fn selinux_error_description(mut error: &dyn Error) -> String {
     let mut description = String::new();
     while let Some(source) = error.source() {
         let error_text = source.to_string();
