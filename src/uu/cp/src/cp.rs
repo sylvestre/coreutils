@@ -1745,7 +1745,7 @@ pub(crate) fn copy_attributes(
     handle_preserve(&attributes.xattr, || -> CopyResult<()> {
         #[cfg(all(unix, not(target_os = "android")))]
         {
-            copy_extended_attrs(source, dest)?;
+            let _ = copy_extended_attrs(source, dest);
         }
         #[cfg(not(all(unix, not(target_os = "android"))))]
         {
