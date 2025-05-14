@@ -165,18 +165,28 @@ pub fn get_uptime(_boot_time: Option<time_t>) -> UResult<i64> {
 ///
 /// Returns a UResult with the uptime in a human-readable format(e.g. "1 day, 3:45") if successful, otherwise an UptimeError.
 #[inline]
-pub fn get_formatted_uptime(boot_time: Option<time_t>) -> UResult<String> {
+pub fn get_formatted_uptime(
+    boot_time: Option<time_t>,
+    day_singular: &str,
+    day_plural: &str,
+) -> UResult<String> {
     let up_secs = get_uptime(boot_time)?;
 
     if up_secs < 0 {
         Err(UptimeError::SystemUptime)?;
     }
+
     let up_days = up_secs / 86400;
     let up_hours = (up_secs - (up_days * 86400)) / 3600;
     let up_mins = (up_secs - (up_days * 86400) - (up_hours * 3600)) / 60;
+
     match up_days.cmp(&1) {
-        std::cmp::Ordering::Equal => Ok(format!("{up_days:1} day, {up_hours:2}:{up_mins:02}")),
-        std::cmp::Ordering::Greater => Ok(format!("{up_days:1} days {up_hours:2}:{up_mins:02}")),
+        std::cmp::Ordering::Equal => Ok(format!(
+            "{up_days:1} {day_singular}, {up_hours:2}:{up_mins:02}"
+        )),
+        std::cmp::Ordering::Greater => Ok(format!(
+            "{up_days:1} {day_plural} {up_hours:2}:{up_mins:02}"
+        )),
         _ => Ok(format!("{up_hours:2}:{up_mins:02}")),
     }
 }
@@ -304,11 +314,11 @@ pub fn get_nusers() -> usize {
 ///
 /// e.g. "0 user", "1 user", "2 users"
 #[inline]
-pub fn format_nusers(nusers: usize) -> String {
+pub fn format_nusers(nusers: usize, user_singular: &str, user_plural: &str) -> String {
     match nusers {
-        0 => "0 user".to_string(),
-        1 => "1 user".to_string(),
-        _ => format!("{nusers} users"),
+        0 => format!("0 {}", user_singular),
+        1 => format!("1 {}", user_singular),
+        _ => format!("{} {}", nusers, user_plural),
     }
 }
 
@@ -317,13 +327,14 @@ pub fn format_nusers(nusers: usize) -> String {
 /// # Returns
 ///
 /// e.g. "0 user", "1 user", "2 users"
+// 2. Modified get_formatted_nusers function
 #[inline]
-pub fn get_formatted_nusers() -> String {
+pub fn get_formatted_nusers(user_singular: &str, user_plural: &str) -> String {
     #[cfg(not(target_os = "openbsd"))]
-    return format_nusers(get_nusers());
+    return format_nusers(get_nusers(), user_singular, user_plural);
 
     #[cfg(target_os = "openbsd")]
-    format_nusers(get_nusers("/var/run/utmp"))
+    format_nusers(get_nusers("/var/run/utmp"), user_singular, user_plural)
 }
 
 /// Get the system load average
@@ -366,10 +377,10 @@ pub fn get_loadavg() -> UResult<(f64, f64, f64)> {
 /// Returns a UResult with the load average in a human-readable format if successful, otherwise an UptimeError.
 /// e.g. "load average: 0.00, 0.00, 0.00"
 #[inline]
-pub fn get_formatted_loadavg() -> UResult<String> {
+pub fn get_formatted_loadavg(prefix: &str) -> UResult<String> {
     let loadavg = get_loadavg()?;
     Ok(format!(
-        "load average: {:.2}, {:.2}, {:.2}",
-        loadavg.0, loadavg.1, loadavg.2
+        "{}: {:.2}, {:.2}, {:.2}",
+        prefix, loadavg.0, loadavg.1, loadavg.2
     ))
 }
