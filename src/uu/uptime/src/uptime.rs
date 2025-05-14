@@ -6,10 +6,7 @@
 use chrono::{Local, TimeZone, Utc};
 use clap::ArgMatches;
 use clap::{Arg, ArgAction, Command, ValueHint, builder::ValueParser};
-use fluent::{FluentBundle, FluentResource};
-use std::fs;
 use std::io;
-use std::path::Path;
 use std::str::FromStr;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
@@ -17,14 +14,14 @@ use uucore::error::{UError, UResult};
 use uucore::libc::time_t;
 use uucore::uptime::*;
 use uucore::{format_usage, help_about, help_usage};
-
+// Import the locale module
+use crate::locale::{init_localization, get_localized_message, get_localized_message_with_args};
+mod locale;
+use crate::locale::create_bundle;
+use crate::locale::DEFAULT_LOCALE;
 #[cfg(unix)]
 #[cfg(not(target_os = "openbsd"))]
 use uucore::utmpx::*;
-
-// Define constants for localization
-const LOCALES_DIR: &str = "/home/sylvestre/dev/debian/coreutils/src/uu/uptime/src/locales/";
-const DEFAULT_LOCALE: &str = "en-US";
 
 #[cfg(target_env = "musl")]
 const ABOUT: &str = concat!(
@@ -63,51 +60,6 @@ impl UError for UptimeError {
     }
 }
 
-/// Create a FluentBundle with resources for the given locale
-fn create_bundle(locale: &LanguageIdentifier) -> Result<FluentBundle<FluentResource>, UptimeError> {
-    let mut bundle = FluentBundle::new(vec![locale.clone()]);
-
-    // Try to load the locale-specific FTL file
-    let locale_path = Path::new(LOCALES_DIR).join(format!("{}.ftl", locale));
-    let ftl_string = match fs::read_to_string(&locale_path) {
-        Ok(s) => s,
-        Err(_) => {
-            // Fallback to default locale if specific locale file not found
-            let default_path = Path::new(LOCALES_DIR).join(format!("{}.ftl", DEFAULT_LOCALE));
-            fs::read_to_string(&default_path).map_err(|_| {
-                UptimeError::LocalizationError(format!(
-                    "Failed to load localization files {}",
-                    default_path.display()
-                ))
-            })?
-        }
-    };
-
-    // Parse the FTL resource
-    let resource = FluentResource::try_new(ftl_string).map_err(|_| {
-        UptimeError::LocalizationError("Failed to parse localization resource".to_string())
-    })?;
-
-    // Add the resource to the bundle
-    bundle.add_resource(resource).map_err(|_| {
-        UptimeError::LocalizationError("Failed to add localization resource to bundle".to_string())
-    })?;
-
-    Ok(bundle)
-}
-
-/// Get localized message from the bundle
-fn get_message(bundle: &FluentBundle<FluentResource>, id: &str, default: &str) -> String {
-    if let Some(msg) = bundle.get_message(id) {
-        if let Some(value) = msg.value() {
-            let mut errors = Vec::new();
-            let formatted = bundle.format_pattern(value, None, &mut errors);
-            return formatted.to_string();
-        }
-    }
-    default.to_string()
-}
-
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // Get locale from environment or use default
@@ -123,12 +75,15 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         .unwrap_or_else(|_| LanguageIdentifier::from_str(DEFAULT_LOCALE).unwrap());
 
     // Initialize Fluent bundle with the appropriate locale
-    let bundle = create_bundle(&locale)?;
+    let bundle = create_bundle(&locale).map_err(|e| UptimeError::LocalizationError(e))?;
+
+    // Initialize the localization context once at the start of the program
+    init_localization(bundle);
 
     let matches = uu_app().try_get_matches_from(args)?;
 
     #[cfg(windows)]
-    return default_uptime(&matches, &bundle);
+    return default_uptime(&matches);
 
     #[cfg(unix)]
     {
@@ -140,7 +95,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         // Switches to default uptime behaviour if there is no argument
         if argument.is_none() {
-            return default_uptime(&matches, &bundle);
+            return default_uptime(&matches);
         }
 
         let mut arg_iter = argument.unwrap();
@@ -149,8 +104,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         if let Some(path) = arg_iter.next() {
             // Uptime doesn't attempt to calculate boot time if there is extra arguments.
             // It's a fatal error
-            let extra_operand_msg = get_message(
-                &bundle,
+            let extra_operand_msg = get_localized_message(
                 "extra-operand-error",
                 &format!("extra operand '{}'", path.to_owned().into_string().unwrap()),
             );
@@ -160,7 +114,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             return Ok(());
         }
 
-        uptime_with_file(file_path, &bundle)
+        uptime_with_file(file_path)
     }
 }
 
@@ -187,10 +141,7 @@ pub fn uu_app() -> Command {
 }
 
 #[cfg(unix)]
-fn uptime_with_file(
-    file_path: &std::ffi::OsString,
-    bundle: &FluentBundle<FluentResource>,
-) -> UResult<()> {
+fn uptime_with_file(file_path: &std::ffi::OsString) -> UResult<()> {
     use std::fs;
     use std::os::unix::fs::FileTypeExt;
     use uucore::error::set_exit_code;
@@ -205,8 +156,7 @@ fn uptime_with_file(
 
     if let Ok(md) = md_res {
         if md.is_dir() {
-            let target_is_dir_msg = get_message(
-                bundle,
+            let target_is_dir_msg = get_localized_message(
                 "target-is-dir",
                 "couldn't get boot time: Is a directory",
             );
@@ -215,8 +165,7 @@ fn uptime_with_file(
             set_exit_code(1);
         }
         if md.file_type().is_fifo() {
-            let target_is_fifo_msg = get_message(
-                bundle,
+            let target_is_fifo_msg = get_localized_message(
                 "target-is-fifo",
                 "couldn't get boot time: Illegal seek",
             );
@@ -227,8 +176,7 @@ fn uptime_with_file(
     } else if let Err(e) = md_res {
         non_fatal_error = true;
         set_exit_code(1);
-        let io_err_msg = get_message(
-            bundle,
+        let io_err_msg = get_localized_message(
             "io-error",
             &format!("couldn't get boot time: {}", e),
         );
@@ -243,15 +191,15 @@ fn uptime_with_file(
         let bytes = file_path.as_os_str().as_bytes();
         if bytes[bytes.len() - 1] != b'x' {
             let boot_time_error_msg =
-                get_message(bundle, "boot-time-error", "couldn't get boot time");
+                get_localized_message("boot-time-error", "couldn't get boot time");
             show_error!("{}", boot_time_error_msg);
             print_time();
 
-            let unknown_uptime_msg = get_message(bundle, "unknown-uptime", "up ???? days ??:??,");
+            let unknown_uptime_msg = get_localized_message("unknown-uptime", "up ???? days ??:??,");
             print!("{}", unknown_uptime_msg);
 
-            print_nusers(Some(0), bundle);
-            print_loadavg(bundle);
+            print_nusers(Some(0));
+            print_loadavg();
             set_exit_code(1);
             return Ok(());
         }
@@ -260,11 +208,11 @@ fn uptime_with_file(
     if non_fatal_error {
         print_time();
 
-        let unknown_uptime_msg = get_message(bundle, "unknown-uptime", "up ???? days ??:??,");
+        let unknown_uptime_msg = get_localized_message("unknown-uptime", "up ???? days ??:??,");
         print!("{}", unknown_uptime_msg);
 
-        print_nusers(Some(0), bundle);
-        print_loadavg(bundle);
+        print_nusers(Some(0));
+        print_loadavg();
         return Ok(());
     }
 
@@ -275,14 +223,14 @@ fn uptime_with_file(
     {
         let (boot_time, count) = process_utmpx(Some(file_path));
         if let Some(time) = boot_time {
-            print_uptime(Some(time), bundle)?;
+            print_uptime(Some(time))?;
         } else {
             let boot_time_error_msg =
-                get_message(bundle, "boot-time-error", "couldn't get boot time");
+                get_localized_message("boot-time-error", "couldn't get boot time");
             show_error!("{}", boot_time_error_msg);
             set_exit_code(1);
 
-            let unknown_uptime_msg = get_message(bundle, "unknown-uptime", "up ???? days ??:??,");
+            let unknown_uptime_msg = get_localized_message("unknown-uptime", "up ???? days ??:??,");
             print!("{}", unknown_uptime_msg);
         }
         user_count = count;
@@ -292,26 +240,26 @@ fn uptime_with_file(
     {
         let upsecs = get_uptime(None);
         if upsecs >= 0 {
-            print_uptime(Some(upsecs), bundle)?;
+            print_uptime(Some(upsecs))?;
         } else {
             let boot_time_error_msg =
-                get_message(bundle, "boot-time-error", "couldn't get boot time");
+                get_localized_message("boot-time-error", "couldn't get boot time");
             show_error!("{}", boot_time_error_msg);
             set_exit_code(1);
 
-            let unknown_uptime_msg = get_message(bundle, "unknown-uptime", "up ???? days ??:??,");
+            let unknown_uptime_msg = get_localized_message("unknown-uptime", "up ???? days ??:??,");
             print!("{}", unknown_uptime_msg);
         }
         user_count = get_nusers(file_path.to_str().expect("invalid utmp path file"));
     }
 
-    print_nusers(Some(user_count), bundle);
-    print_loadavg(bundle);
+    print_nusers(Some(user_count));
+    print_loadavg();
     Ok(())
 }
 
 /// Default uptime behaviour i.e. when no file argument is given.
-fn default_uptime(matches: &ArgMatches, bundle: &FluentBundle<FluentResource>) -> UResult<()> {
+fn default_uptime(matches: &ArgMatches) -> UResult<()> {
     if matches.get_flag(options::SINCE) {
         #[cfg(unix)]
         #[cfg(not(target_os = "openbsd"))]
@@ -336,15 +284,15 @@ fn default_uptime(matches: &ArgMatches, bundle: &FluentBundle<FluentResource>) -
     }
 
     print_time();
-    print_uptime(None, bundle)?;
-    print_nusers(None, bundle);
-    print_loadavg(bundle);
+    print_uptime(None)?;
+    print_nusers(None);
+    print_loadavg();
     Ok(())
 }
 
 #[inline]
-fn print_loadavg(bundle: &FluentBundle<FluentResource>) {
-    let load_average_prefix = get_message(bundle, "load_average_prefix", "load average");
+fn print_loadavg() {
+    let load_average_prefix = get_localized_message("load_average_prefix", "load average");
 
     match get_formatted_loadavg(&load_average_prefix) {
         Err(_) => {}
@@ -380,11 +328,10 @@ fn process_utmpx(file: Option<&std::ffi::OsString>) -> (Option<time_t>, usize) {
 }
 
 // Simplified print_nusers function
-
-fn print_nusers(nusers: Option<usize>, bundle: &FluentBundle<FluentResource>) {
+fn print_nusers(nusers: Option<usize>) {
     // Get localized strings for user/users
-    let user_singular = get_message(bundle, "user_singular", "user");
-    let user_plural = get_message(bundle, "user_plural", "users");
+    let user_singular = get_localized_message("user_singular", "user");
+    let user_plural = get_localized_message("user_plural", "users");
 
     match nusers {
         None => {
@@ -399,28 +346,16 @@ fn print_nusers(nusers: Option<usize>, bundle: &FluentBundle<FluentResource>) {
             } else {
                 "user-plural"
             };
-            println!("ici");
 
-            // Get the message with the appropriate ID
-            let users_text = if let Some(msg) = bundle.get_message(msg_id) {
-                if let Some(pattern) = msg.value() {
-                    println!("ici");
+            // Get the message with the appropriate ID and format with args
+            let mut args = fluent::FluentArgs::new();
+            args.set("count", nusers);
 
-                    // Format with the count parameter
-                    let mut args = fluent::FluentArgs::new();
-                    args.set("count", nusers);
-                    let mut errors = Vec::new();
-                    bundle
-                        .format_pattern(pattern, Some(&args), &mut errors)
-                        .to_string()
-                } else {
-                    // Fallback if pattern is empty
-                    format!("{} {}", nusers, if nusers == 1 { "user2" } else { "users" })
-                }
-            } else {
-                // Fallback if message is not found
-                format!("{} {}", nusers, if nusers == 1 { "user" } else { "users" })
-            };
+            let users_text = get_localized_message_with_args(
+                msg_id,
+                args,
+                &format!("{} {}", nusers, if nusers == 1 { "user" } else { "users" })
+            );
 
             print!("{},  ", users_text);
         }
@@ -431,10 +366,10 @@ fn print_time() {
     print!(" {}  ", get_formatted_time());
 }
 
-fn print_uptime(boot_time: Option<time_t>, bundle: &FluentBundle<FluentResource>) -> UResult<()> {
+fn print_uptime(boot_time: Option<time_t>) -> UResult<()> {
     // Get localized singular and plural forms for "day"
-    let day_singular = get_message(bundle, "day_singular", "day");
-    let day_plural = get_message(bundle, "day_plural", "days");
+    let day_singular = get_localized_message("day_singular", "day");
+    let day_plural = get_localized_message("day_plural", "days");
 
     // Call the function with all three required parameters
     let uptime_text = match get_formatted_uptime(boot_time, &day_singular, &day_plural) {
@@ -443,7 +378,7 @@ fn print_uptime(boot_time: Option<time_t>, bundle: &FluentBundle<FluentResource>
     };
 
     // Add localized "up" prefix
-    let up_prefix = get_message(bundle, "up-prefix", "up");
+    let up_prefix = get_localized_message("up-prefix", "up");
     print!("{}  {},  ", up_prefix, uptime_text);
     Ok(())
 }
