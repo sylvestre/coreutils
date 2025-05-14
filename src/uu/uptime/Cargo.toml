@@ -23,6 +23,11 @@ clap = { workspace = true }
 thiserror = { workspace = true }
 uucore = { workspace = true, features = ["libc", "utmpx", "uptime"] }
 
+# Fluent dependencies
+fluent-bundle = "0.15.3"
+fluent = "0.15.0"
+unic-langid = "0.9.1"
+
 [target.'cfg(target_os = "openbsd")'.dependencies]
 utmp-classic = { workspace = true }
 
