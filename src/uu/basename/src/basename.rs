@@ -11,6 +11,7 @@ use uucore::display::Quotable;
 use uucore::error::{UResult, UUsageError};
 use uucore::line_ending::LineEnding;
 use uucore::{format_usage, help_about, help_usage};
+use uucore::locale::{self, LocalizationError, get_message};
 
 static ABOUT: &str = help_about!("basename.md");
 
@@ -25,6 +26,7 @@ pub mod options {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
+    locale::setup_localization("src/uu/basename/src/locales/").map_err(LocalizationError::from)?;
     let args = args.collect_lossy();
 
     //
@@ -39,7 +41,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         .unwrap_or_default()
         .collect::<Vec<_>>();
     if name_args.is_empty() {
-        return Err(UUsageError::new(1, "missing operand".to_string()));
+        let missing_operand_msg = get_message(
+            "missing-operand",
+            "missing operand"
+        );
+        return Err(UUsageError::new(1, missing_operand_msg));
     }
     let multiple_paths =
         matches.get_one::<String>(options::SUFFIX).is_some() || matches.get_flag(options::MULTIPLE);
@@ -50,17 +56,21 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             .unwrap_or_default()
     } else {
         // "simple format"
-        match name_args.len() {
-            0 => panic!("already checked"),
-            1 => String::default(),
-            2 => name_args.pop().unwrap().clone(),
-            _ => {
-                return Err(UUsageError::new(
-                    1,
-                    format!("extra operand {}", name_args[2].quote()),
-                ));
-            }
-        }
+
+match name_args.len() {
+    0 => panic!("already checked"),
+    1 => String::default(),
+    2 => name_args.pop().unwrap().clone(),
+    _ => {
+        let extra_operand_msg = locale::format_error_with_operand(
+            "extra-operand-error",
+            name_args[2].quote(),
+            &format!("extra operand {}", name_args[2].quote())
+        );
+
+        return Err(UUsageError::new(1, extra_operand_msg));
+    }
+}
     };
 
     //
@@ -84,7 +94,12 @@ pub fn uu_app() -> Command {
             Arg::new(options::MULTIPLE)
                 .short('a')
                 .long(options::MULTIPLE)
-                .help("support multiple arguments and treat each as a NAME")
+                .help(
+                    &get_message(
+                        "help-multiple",
+                        "support multiple arguments and treat each as a NAME"
+                    )
+                )
                 .action(ArgAction::SetTrue)
                 .overrides_with(options::MULTIPLE),
         )
@@ -100,14 +115,24 @@ pub fn uu_app() -> Command {
                 .short('s')
                 .long(options::SUFFIX)
                 .value_name("SUFFIX")
-                .help("remove a trailing SUFFIX; implies -a")
+                .help(
+                    &get_message(
+                        "help-suffix",
+                        "remove a trailing SUFFIX; implies -a"
+                    )
+                )
                 .overrides_with(options::SUFFIX),
         )
         .arg(
             Arg::new(options::ZERO)
                 .short('z')
                 .long(options::ZERO)
-                .help("end each output line with NUL, not newline")
+                .help(
+                    &get_message(
+                        "help-zero",
+                        "end each output line with NUL, not newline"
+                    )
+                )
                 .action(ArgAction::SetTrue)
                 .overrides_with(options::ZERO),
         )

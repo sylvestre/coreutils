@@ -12,9 +12,7 @@ use uucore::error::{UError, UResult};
 use uucore::libc::time_t;
 use uucore::uptime::*;
 use uucore::{format_usage, help_about, help_usage};
-// Import the new locale module
-mod locale;
-use crate::locale::{LocalizationError, get_message, get_message_with_args};
+use uucore::locale::{self, LocalizationError, get_message, get_message_with_args};
 #[cfg(unix)]
 #[cfg(not(target_os = "openbsd"))]
 use uucore::utmpx::*;
@@ -58,7 +56,7 @@ impl UError for UptimeError {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    locale::setup_localization().map_err(UptimeError::from)?;
+    locale::setup_localization("src/uu/uptime/src/locales/").map_err(UptimeError::from)?;
     let matches = uu_app().try_get_matches_from(args)?;
 
     #[cfg(windows)]

@@ -60,6 +60,11 @@ bigdecimal = { workspace = true, optional = true }
 num-traits = { workspace = true, optional = true }
 selinux = { workspace = true, optional = true }
 
+# Fluent dependencies
+fluent-bundle = "0.15.3"
+fluent = "0.15.0"
+unic-langid = "0.9.1"
+
 [target.'cfg(unix)'.dependencies]
 walkdir = { workspace = true, optional = true }
 nix = { workspace = true, features = ["fs", "uio", "zerocopy", "signal"] }

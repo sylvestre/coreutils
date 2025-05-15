@@ -30,6 +30,7 @@ pub use crate::mods::line_ending;
 pub use crate::mods::os;
 pub use crate::mods::panic;
 pub use crate::mods::posix;
+pub use crate::mods::locale;
 
 // * feature-gated modules
 #[cfg(feature = "backup-control")]

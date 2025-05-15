@@ -2,6 +2,7 @@
 //
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
+// spell-checker:ignore unic_langid
 
 use fluent::{FluentBundle, FluentResource};
 use std::cell::RefCell;
@@ -11,20 +12,37 @@ use std::str::FromStr;
 use std::thread_local;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
+use crate::error::UError;
 
 #[derive(Error, Debug)]
 pub enum LocalizationError {
-    #[error("I/O error: {0}")]
-    IoError(#[from] std::io::Error),
-
+    #[error("I/O error loading '{path}': {source}")]
+    IoError {
+        source: std::io::Error,
+        path: PathBuf,
+    },
     #[error("Parse error: {0}")]
     ParseError(String),
-
     #[error("Bundle error: {0}")]
     BundleError(String),
 }
 
-// Default locale
+impl From<std::io::Error> for LocalizationError {
+    fn from(error: std::io::Error) -> Self {
+        LocalizationError::IoError {
+            source: error,
+            path: PathBuf::from("<unknown>")
+        }
+    }
+}
+
+// Add a generic way to convert LocalizationError to UError
+impl UError for LocalizationError {
+    fn code(&self) -> i32 {
+        1
+    }
+}
+
 pub const DEFAULT_LOCALE: &str = "en-US";
 
 // A struct to handle localization
@@ -136,10 +154,12 @@ pub fn create_bundle(
 
     // Try each locale in the chain
     let mut loaded = false;
-    let mut last_error = None;
+    let mut tried_paths = Vec::new();
 
     for try_locale in locales_to_try {
+
         let locale_path = config.get_locale_path(&try_locale);
+        tried_paths.push(locale_path.clone());
 
         match fs::read_to_string(&locale_path) {
             Ok(ftl_string) => {
@@ -163,15 +183,25 @@ pub fn create_bundle(
                 break;
             }
             Err(e) => {
-                last_error = Some(e);
+                // Just continue to the next locale
             }
         }
     }
 
     if !loaded {
-        return Err(LocalizationError::IoError(last_error.unwrap_or_else(
-            || std::io::Error::new(std::io::ErrorKind::NotFound, "No localization files found"),
-        )));
+        // Create a descriptive error message with all paths we tried
+        let paths_str = tried_paths.iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        return Err(LocalizationError::IoError {
+            source: std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "No localization files found"
+            ),
+            path: PathBuf::from(paths_str),
+        });
     }
 
     Ok(bundle)
@@ -209,12 +239,9 @@ pub fn detect_system_locale() -> Result<LanguageIdentifier, LocalizationError> {
     })
 }
 
-// Add this function to your locale.rs file
-// It centralizes the localization setup that would otherwise be duplicated across binaries
-
 /// Sets up localization using the system locale (or default) and project paths.
 /// This is a convenience function to reduce boilerplate in each binary.
-pub fn setup_localization() -> Result<(), LocalizationError> {
+pub fn setup_localization(p: &str) -> Result<(), LocalizationError> {
     // Get system locale or use default
     let locale = match detect_system_locale() {
         Ok(locale) => locale,
@@ -222,13 +249,8 @@ pub fn setup_localization() -> Result<(), LocalizationError> {
             .expect("Default locale should always be valid"),
     };
 
-    // Get project root
-    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let locales_dir =  PathBuf::from(p);
 
-    // Path to locales
-    let locales_dir = project_root.join("locales");
-
-    // Setup fallback chain
     let fallback_locales = vec![
         LanguageIdentifier::from_str(DEFAULT_LOCALE)
             .expect("Default locale should always be valid"),
@@ -236,8 +258,25 @@ pub fn setup_localization() -> Result<(), LocalizationError> {
 
     let config = LocalizationConfig::new(locales_dir).with_fallbacks(fallback_locales);
 
-    // Initialize localization
     init_localization(&locale, &config)?;
 
     Ok(())
+}
+/// Create a FluentArgs with a single key-value pair
+pub fn create_args<'a, T: ToString>(key: &'a str, value: T) -> fluent::FluentArgs<'a> {
+    let mut args = fluent::FluentArgs::new();
+    args.set(key, value.to_string());
+    args
+}
+
+/// Helper function to get a message with a single argument
+pub fn get_message_with_arg<T: ToString>(id: &str, arg_key: &str, arg_value: T, default: &str) -> String {
+    let mut args = fluent::FluentArgs::new();
+    args.set(arg_key, arg_value.to_string());
+    get_message_with_args(id, args, default)
+}
+
+/// Helper function to create an error message with an operand
+pub fn format_error_with_operand<T: ToString>(id: &str, operand: T, default: &str) -> String {
+    get_message_with_arg(id, "operand", operand, default)
 }
