@@ -3,15 +3,14 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-
 use fluent::{FluentBundle, FluentResource};
 use std::cell::RefCell;
-use std::thread_local;
 use std::fs;
 use std::path::{Path, PathBuf};
-use unic_langid::LanguageIdentifier;
 use std::str::FromStr;
+use std::thread_local;
 use thiserror::Error;
+use unic_langid::LanguageIdentifier;
 
 #[derive(Error, Debug)]
 pub enum LocalizationError {
@@ -52,7 +51,12 @@ impl Localizer {
     }
 
     // Get a message with args
-    pub fn get_message_with_args(&self, id: &str, args: fluent::FluentArgs, default: &str) -> String {
+    pub fn get_message_with_args(
+        &self,
+        id: &str,
+        args: fluent::FluentArgs,
+        default: &str,
+    ) -> String {
         if let Some(msg) = self.bundle.get_message(id) {
             if let Some(value) = msg.value() {
                 let mut errors = Vec::new();
@@ -100,7 +104,7 @@ thread_local! {
 // Initialize localization with a specific locale and config
 pub fn init_localization(
     locale: &LanguageIdentifier,
-    config: &LocalizationConfig
+    config: &LocalizationConfig,
 ) -> Result<(), LocalizationError> {
     let bundle = create_bundle(locale, config)?;
     LOCALIZER.with(|cell| {
@@ -122,7 +126,8 @@ pub fn create_bundle(
     locales_to_try.extend_from_slice(&config.fallback_locales);
 
     // Always ensure DEFAULT_LOCALE is in the fallback chain
-    let default_locale: LanguageIdentifier = DEFAULT_LOCALE.parse()
+    let default_locale: LanguageIdentifier = DEFAULT_LOCALE
+        .parse()
         .map_err(|_| LocalizationError::ParseError("Failed to parse default locale".into()))?;
 
     if !locales_to_try.contains(&default_locale) {
@@ -139,16 +144,20 @@ pub fn create_bundle(
         match fs::read_to_string(&locale_path) {
             Ok(ftl_string) => {
                 // Parse the FTL resource
-                let resource = FluentResource::try_new(ftl_string)
-                    .map_err(|_| LocalizationError::ParseError(
-                        format!("Failed to parse localization resource for {}", try_locale)
-                    ))?;
+                let resource = FluentResource::try_new(ftl_string).map_err(|_| {
+                    LocalizationError::ParseError(format!(
+                        "Failed to parse localization resource for {}",
+                        try_locale
+                    ))
+                })?;
 
                 // Add the resource to the bundle
-                bundle.add_resource(resource)
-                    .map_err(|_| LocalizationError::BundleError(
-                        format!("Failed to add resource to bundle for {}", try_locale)
-                    ))?;
+                bundle.add_resource(resource).map_err(|_| {
+                    LocalizationError::BundleError(format!(
+                        "Failed to add resource to bundle for {}",
+                        try_locale
+                    ))
+                })?;
 
                 loaded = true;
                 break;
@@ -160,11 +169,9 @@ pub fn create_bundle(
     }
 
     if !loaded {
-        return Err(LocalizationError::IoError(
-            last_error.unwrap_or_else(||
-                std::io::Error::new(std::io::ErrorKind::NotFound, "No localization files found")
-            )
-        ));
+        return Err(LocalizationError::IoError(last_error.unwrap_or_else(
+            || std::io::Error::new(std::io::ErrorKind::NotFound, "No localization files found"),
+        )));
     }
 
     Ok(bundle)
@@ -172,21 +179,17 @@ pub fn create_bundle(
 
 // Helper function to get a message
 pub fn get_message(id: &str, default: &str) -> String {
-    LOCALIZER.with(|cell| {
-        match &*cell.borrow() {
-            Some(localizer) => localizer.get_message(id, default),
-            None => default.to_string(),
-        }
+    LOCALIZER.with(|cell| match &*cell.borrow() {
+        Some(localizer) => localizer.get_message(id, default),
+        None => default.to_string(),
     })
 }
 
 // Helper function for messages with args
 pub fn get_message_with_args(id: &str, args: fluent::FluentArgs, default: &str) -> String {
-    LOCALIZER.with(|cell| {
-        match &*cell.borrow() {
-            Some(localizer) => localizer.get_message_with_args(id, args, default),
-            None => default.to_string(),
-        }
+    LOCALIZER.with(|cell| match &*cell.borrow() {
+        Some(localizer) => localizer.get_message_with_args(id, args, default),
+        None => default.to_string(),
     })
 }
 
@@ -201,6 +204,40 @@ pub fn detect_system_locale() -> Result<LanguageIdentifier, LocalizationError> {
         .to_string();
 
     // Try to parse the locale, fallback to default if invalid
-    LanguageIdentifier::from_str(&locale_str)
-        .map_err(|_| LocalizationError::ParseError(format!("Failed to parse locale: {}", locale_str)))
+    LanguageIdentifier::from_str(&locale_str).map_err(|_| {
+        LocalizationError::ParseError(format!("Failed to parse locale: {}", locale_str))
+    })
+}
+
+// Add this function to your locale.rs file
+// It centralizes the localization setup that would otherwise be duplicated across binaries
+
+/// Sets up localization using the system locale (or default) and project paths.
+/// This is a convenience function to reduce boilerplate in each binary.
+pub fn setup_localization() -> Result<(), LocalizationError> {
+    // Get system locale or use default
+    let locale = match detect_system_locale() {
+        Ok(locale) => locale,
+        Err(_) => LanguageIdentifier::from_str(DEFAULT_LOCALE)
+            .expect("Default locale should always be valid"),
+    };
+
+    // Get project root
+    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    // Path to locales
+    let locales_dir = project_root.join("locales");
+
+    // Setup fallback chain
+    let fallback_locales = vec![
+        LanguageIdentifier::from_str(DEFAULT_LOCALE)
+            .expect("Default locale should always be valid"),
+    ];
+
+    let config = LocalizationConfig::new(locales_dir).with_fallbacks(fallback_locales);
+
+    // Initialize localization
+    init_localization(&locale, &config)?;
+
+    Ok(())
 }

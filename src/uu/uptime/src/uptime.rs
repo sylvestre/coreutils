@@ -7,20 +7,14 @@ use chrono::{Local, TimeZone, Utc};
 use clap::ArgMatches;
 use clap::{Arg, ArgAction, Command, ValueHint, builder::ValueParser};
 use std::io;
-use std::path::PathBuf;
-use std::str::FromStr;
 use thiserror::Error;
-use unic_langid::LanguageIdentifier;
 use uucore::error::{UError, UResult};
 use uucore::libc::time_t;
 use uucore::uptime::*;
 use uucore::{format_usage, help_about, help_usage};
 // Import the new locale module
 mod locale;
-use crate::locale::{
-    DEFAULT_LOCALE, LocalizationConfig, LocalizationError,
-    init_localization, get_message, get_message_with_args, detect_system_locale
-};
+use crate::locale::{LocalizationError, get_message, get_message_with_args};
 #[cfg(unix)]
 #[cfg(not(target_os = "openbsd"))]
 use uucore::utmpx::*;
@@ -64,42 +58,7 @@ impl UError for UptimeError {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    // Get system locale or use default
-    let locale = match detect_system_locale() {
-        Ok(locale) => locale,
-        Err(_) => LanguageIdentifier::from_str(DEFAULT_LOCALE)
-            .expect("Default locale should always be valid"),
-    };
-
-    // Create a proper localization configuration
-    let locales_dir = match std::env::var("LOCALES_DIR") {
-        Ok(dir) => PathBuf::from(dir),
-        Err(_) => {
-            // Default path: look for locales relative to the executable
-            if let Ok(exe_path) = std::env::current_exe() {
-                if let Some(exe_dir) = exe_path.parent() {
-                    exe_dir.join("locales")
-                } else {
-                    PathBuf::from("./locales") // Fallback if can't get parent
-                }
-            } else {
-                PathBuf::from("./locales") // Fallback if can't get executable path
-            }
-        }
-    };
-
-    // Setup fallback chain
-    let fallback_locales = vec![
-        LanguageIdentifier::from_str(DEFAULT_LOCALE)
-            .expect("Default locale should always be valid"),
-    ];
-
-    let config = LocalizationConfig::new(locales_dir)
-        .with_fallbacks(fallback_locales);
-
-    // Initialize localization with proper error handling
-    init_localization(&locale, &config).map_err(UptimeError::from)?;
-
+    locale::setup_localization().map_err(UptimeError::from)?;
     let matches = uu_app().try_get_matches_from(args)?;
 
     #[cfg(windows)]
@@ -175,19 +134,15 @@ fn uptime_with_file(file_path: &std::ffi::OsString) -> UResult<()> {
     let md_res = fs::metadata(file_path);
     if let Ok(md) = md_res {
         if md.is_dir() {
-            let target_is_dir_msg = get_message(
-                "target-is-dir",
-                "couldn't get boot time: Is a directory",
-            );
+            let target_is_dir_msg =
+                get_message("target-is-dir", "couldn't get boot time: Is a directory");
             show_error!("{}", target_is_dir_msg);
             non_fatal_error = true;
             set_exit_code(1);
         }
         if md.file_type().is_fifo() {
-            let target_is_fifo_msg = get_message(
-                "target-is-fifo",
-                "couldn't get boot time: Illegal seek",
-            );
+            let target_is_fifo_msg =
+                get_message("target-is-fifo", "couldn't get boot time: Illegal seek");
             show_error!("{}", target_is_fifo_msg);
             non_fatal_error = true;
             set_exit_code(1);
@@ -199,11 +154,8 @@ fn uptime_with_file(file_path: &std::ffi::OsString) -> UResult<()> {
         let mut args = fluent::FluentArgs::new();
         args.set("error", e.to_string());
 
-        let io_err_msg = get_message_with_args(
-            "io-error",
-            args,
-            &format!("couldn't get boot time: {}", e),
-        );
+        let io_err_msg =
+            get_message_with_args("io-error", args, &format!("couldn't get boot time: {}", e));
         show_error!("{}", io_err_msg);
     }
 
@@ -214,8 +166,7 @@ fn uptime_with_file(file_path: &std::ffi::OsString) -> UResult<()> {
         use std::os::unix::ffi::OsStrExt;
         let bytes = file_path.as_os_str().as_bytes();
         if bytes[bytes.len() - 1] != b'x' {
-            let boot_time_error_msg =
-                get_message("boot-time-error", "couldn't get boot time");
+            let boot_time_error_msg = get_message("boot-time-error", "couldn't get boot time");
             show_error!("{}", boot_time_error_msg);
             print_time();
             let unknown_uptime_msg = get_message("unknown-uptime", "up ???? days ??:??,");
@@ -245,8 +196,7 @@ fn uptime_with_file(file_path: &std::ffi::OsString) -> UResult<()> {
         if let Some(time) = boot_time {
             print_uptime(Some(time))?;
         } else {
-            let boot_time_error_msg =
-                get_message("boot-time-error", "couldn't get boot time");
+            let boot_time_error_msg = get_message("boot-time-error", "couldn't get boot time");
             show_error!("{}", boot_time_error_msg);
             set_exit_code(1);
             let unknown_uptime_msg = get_message("unknown-uptime", "up ???? days ??:??,");
@@ -261,8 +211,7 @@ fn uptime_with_file(file_path: &std::ffi::OsString) -> UResult<()> {
         if upsecs >= 0 {
             print_uptime(Some(upsecs))?;
         } else {
-            let boot_time_error_msg =
-                get_message("boot-time-error", "couldn't get boot time");
+            let boot_time_error_msg = get_message("boot-time-error", "couldn't get boot time");
             show_error!("{}", boot_time_error_msg);
             set_exit_code(1);
             let unknown_uptime_msg = get_message("unknown-uptime", "up ???? days ??:??,");
@@ -357,13 +306,17 @@ fn print_nusers(nusers: Option<usize>) {
             let mut args = fluent::FluentArgs::new();
             args.set("count", nusers);
 
-            let msg_id = if nusers == 1 { "user-count-singular" } else { "user-count-plural" };
+            let msg_id = if nusers == 1 {
+                "user-count-singular"
+            } else {
+                "user-count-plural"
+            };
 
             // Get the message with arguments
             let users_text = get_message_with_args(
                 msg_id,
                 args,
-                &format!("{} {}", nusers, if nusers == 1 { "user" } else { "users" })
+                &format!("{} {}", nusers, if nusers == 1 { "user" } else { "users" }),
             );
             print!("{},  ", users_text);
         }
