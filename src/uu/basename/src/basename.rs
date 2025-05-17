@@ -6,6 +6,7 @@
 // spell-checker:ignore (ToDO) fullname
 
 use clap::{Arg, ArgAction, Command};
+use std::collections::HashMap;
 use std::path::{PathBuf, is_separator};
 use uucore::display::Quotable;
 use uucore::error::{UResult, UUsageError};
@@ -59,9 +60,12 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             1 => String::default(),
             2 => name_args.pop().unwrap().clone(),
             _ => {
-                let extra_operand_msg = locale::format_error_with_operand(
+                let mut args = HashMap::new();
+                args.insert("operand".to_string(), name_args[2].quote().to_string());
+
+                let extra_operand_msg = locale::get_message_with_args(
                     "extra-operand-error",
-                    name_args[2].quote(),
+                    args,
                     &format!("extra operand {}", name_args[2].quote()),
                 );
 

@@ -16,7 +16,7 @@ use std::{collections::hash_set::HashSet, ffi::OsString};
 use uucore::{
     error::{FromIo, UResult},
     format_usage, help_about, help_usage,
-    locale::{self, format_error_with_operand, get_message},
+    locale::{self, get_message},
 };
 
 const ABOUT: &str = help_about!("hostname.md");

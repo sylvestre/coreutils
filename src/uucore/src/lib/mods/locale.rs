@@ -6,6 +6,7 @@
 
 use crate::error::UError;
 use fluent::{FluentArgs, FluentBundle, FluentResource};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -166,7 +167,15 @@ pub fn get_message(id: &str, default: &str) -> String {
     get_message_internal(id, None, default)
 }
 
-pub fn get_message_with_args(id: &str, args: FluentArgs, default: &str) -> String {
+pub fn get_message_with_args(
+    id: &str,
+    rustc_args: HashMap<String, String>,
+    default: &str,
+) -> String {
+    let mut args = FluentArgs::new();
+    for (k, v) in rustc_args {
+        args.set(k, v);
+    }
     get_message_internal(id, Some(args), default)
 }
 
@@ -230,20 +239,4 @@ pub fn setup_localization(p: &str) -> Result<(), LocalizationError> {
 
     init_localization(&locale, &config)?;
     Ok(())
-}
-/// Helper function to get a message with a single argument
-pub fn get_message_with_arg<T: ToString>(
-    id: &str,
-    arg_key: &str,
-    arg_value: T,
-    default: &str,
-) -> String {
-    let mut args = FluentArgs::new();
-    args.set(arg_key, arg_value.to_string());
-    get_message_with_args(id, args, default)
-}
-
-/// Helper function to create an error message with an operand
-pub fn format_error_with_operand<T: ToString>(id: &str, operand: T, default: &str) -> String {
-    get_message_with_arg(id, "operand", operand, default)
 }

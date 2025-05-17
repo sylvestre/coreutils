@@ -79,9 +79,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         if let Some(path) = arg_iter.next() {
             // Uptime doesn't attempt to calculate boot time if there is extra arguments.
             // It's a fatal error
-            let mut args = fluent::FluentArgs::new();
-            args.set("path", path.to_string_lossy().to_string());
-
+            let mut args = std::collections::HashMap::new();
+            args.insert("path".to_string(), path.to_string_lossy().to_string());
             let extra_operand_msg = get_message_with_args(
                 "extra-operand-error",
                 args,
@@ -149,9 +148,8 @@ fn uptime_with_file(file_path: &std::ffi::OsString) -> UResult<()> {
         non_fatal_error = true;
         set_exit_code(1);
 
-        let mut args = fluent::FluentArgs::new();
-        args.set("error", e.to_string());
-
+        let mut args = std::collections::HashMap::new();
+        args.insert("error".to_string(), e.to_string());
         let io_err_msg =
             get_message_with_args("io-error", args, &format!("couldn't get boot time: {}", e));
         show_error!("{}", io_err_msg);
@@ -300,15 +298,13 @@ fn print_nusers(nusers: Option<usize>) {
             print!("{},  ", formatted);
         }
         Some(nusers) => {
-            // Use message with args for better localization
-            let mut args = fluent::FluentArgs::new();
-            args.set("count", nusers);
-
             let msg_id = if nusers == 1 {
                 "user-count-singular"
             } else {
                 "user-count-plural"
             };
+            let mut args = std::collections::HashMap::new();
+            args.insert("count".to_string(), nusers.to_string());
 
             // Get the message with arguments
             let users_text = get_message_with_args(
