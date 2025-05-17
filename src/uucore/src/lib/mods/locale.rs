@@ -4,16 +4,14 @@
 // file that was distributed with this source code.
 // spell-checker:ignore unic_langid
 
-use fluent::{FluentBundle, FluentResource};
-use std::cell::RefCell;
+use crate::error::UError;
+use fluent::{FluentArgs, FluentBundle, FluentResource};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::thread_local;
+use std::sync::OnceLock;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
-use crate::error::UError;
-use fluent::FluentArgs;
 
 #[derive(Error, Debug)]
 pub enum LocalizationError {
@@ -32,7 +30,7 @@ impl From<std::io::Error> for LocalizationError {
     fn from(error: std::io::Error) -> Self {
         LocalizationError::IoError {
             source: error,
-            path: PathBuf::from("<unknown>")
+            path: PathBuf::from("<unknown>"),
         }
     }
 }
@@ -60,7 +58,9 @@ impl Localizer {
         match self.bundle.get_message(id).and_then(|m| m.value()) {
             Some(value) => {
                 let mut errs = Vec::new();
-                self.bundle.format_pattern(value, args, &mut errs).to_string()
+                self.bundle
+                    .format_pattern(value, args, &mut errs)
+                    .to_string()
             }
             None => default.to_string(),
         }
@@ -70,12 +70,7 @@ impl Localizer {
         self.format(id, None, default)
     }
 
-    pub fn get_message_with_args(
-        &self,
-        id: &str,
-        args: FluentArgs,
-        default: &str,
-    ) -> String {
+    pub fn get_message_with_args(&self, id: &str, args: FluentArgs, default: &str) -> String {
         self.format(id, Some(&args), default)
     }
 }
@@ -108,9 +103,9 @@ impl LocalizationConfig {
     }
 }
 
-// Global localizer
+// Global localizer stored in thread-local OnceLock
 thread_local! {
-    static LOCALIZER: RefCell<Option<Localizer>> = RefCell::new(None);
+    static LOCALIZER: OnceLock<Localizer> = OnceLock::new();
 }
 
 // Initialize localization with a specific locale and config
@@ -119,9 +114,11 @@ pub fn init_localization(
     config: &LocalizationConfig,
 ) -> Result<(), LocalizationError> {
     let bundle = create_bundle(locale, config)?;
-    LOCALIZER.with(|cell| {
-        *cell.borrow_mut() = Some(Localizer { bundle } );
-    });
+    LOCALIZER.with(|lock| {
+        let loc = Localizer::new(bundle);
+        lock.set(loc)
+            .map_err(|_| LocalizationError::BundleError("Localizer already initialized".into()))
+    })?;
     Ok(())
 }
 
@@ -151,40 +148,32 @@ pub fn create_bundle(
     let mut tried_paths = Vec::new();
 
     for try_locale in locales_to_try {
-
         let locale_path = config.get_locale_path(&try_locale);
         tried_paths.push(locale_path.clone());
 
-        match fs::read_to_string(&locale_path) {
-            Ok(ftl_string) => {
-                // Parse the FTL resource
-                let resource = FluentResource::try_new(ftl_string).map_err(|_| {
-                    LocalizationError::ParseError(format!(
-                        "Failed to parse localization resource for {}",
-                        try_locale
-                    ))
-                })?;
+        if let Ok(ftl_string) = fs::read_to_string(&locale_path) {
+            let resource = FluentResource::try_new(ftl_string).map_err(|_| {
+                LocalizationError::ParseError(format!(
+                    "Failed to parse localization resource for {}",
+                    try_locale
+                ))
+            })?;
 
-                // Add the resource to the bundle
-                bundle.add_resource(resource).map_err(|_| {
-                    LocalizationError::BundleError(format!(
-                        "Failed to add resource to bundle for {}",
-                        try_locale
-                    ))
-                })?;
+            bundle.add_resource(resource).map_err(|_| {
+                LocalizationError::BundleError(format!(
+                    "Failed to add resource to bundle for {}",
+                    try_locale
+                ))
+            })?;
 
-                loaded = true;
-                break;
-            }
-            Err(e) => {
-                // Just continue to the next locale
-            }
+            loaded = true;
+            break;
         }
     }
 
     if !loaded {
-        // Create a descriptive error message with all paths we tried
-        let paths_str = tried_paths.iter()
+        let paths_str = tried_paths
+            .iter()
             .map(|p| p.to_string_lossy().to_string())
             .collect::<Vec<_>>()
             .join(", ");
@@ -192,7 +181,7 @@ pub fn create_bundle(
         return Err(LocalizationError::IoError {
             source: std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                "No localization files found"
+                "No localization files found",
             ),
             path: PathBuf::from(paths_str),
         });
@@ -201,25 +190,26 @@ pub fn create_bundle(
     Ok(bundle)
 }
 
-// Helper function to get a message
+/// Helper function to get a message
 pub fn get_message(id: &str, default: &str) -> String {
-    LOCALIZER.with(|cell| match &*cell.borrow() {
-        Some(localizer) => localizer.get_message(id, default),
-        None => default.to_string(),
+    LOCALIZER.with(|lock| {
+        lock.get()
+            .map(|loc| loc.get_message(id, default))
+            .unwrap_or_else(|| default.to_string())
     })
 }
 
-// Helper function for messages with args
-pub fn get_message_with_args(id: &str, args: fluent::FluentArgs, default: &str) -> String {
-    LOCALIZER.with(|cell| match &*cell.borrow() {
-        Some(localizer) => localizer.get_message_with_args(id, args, default),
-        None => default.to_string(),
+/// Helper function for messages with args
+pub fn get_message_with_args(id: &str, args: FluentArgs, default: &str) -> String {
+    LOCALIZER.with(|lock| {
+        lock.get()
+            .map(|loc| loc.get_message_with_args(id, args, default))
+            .unwrap_or_else(|| default.to_string())
     })
 }
 
 // Function to detect system locale from environment variables
 pub fn detect_system_locale() -> Result<LanguageIdentifier, LocalizationError> {
-    // Get locale from environment or use default
     let locale_str = std::env::var("LANG")
         .unwrap_or_else(|_| DEFAULT_LOCALE.to_string())
         .split('.')
@@ -227,7 +217,6 @@ pub fn detect_system_locale() -> Result<LanguageIdentifier, LocalizationError> {
         .unwrap_or(DEFAULT_LOCALE)
         .to_string();
 
-    // Try to parse the locale, fallback to default if invalid
     LanguageIdentifier::from_str(&locale_str).map_err(|_| {
         LocalizationError::ParseError(format!("Failed to parse locale: {}", locale_str))
     })
@@ -236,15 +225,13 @@ pub fn detect_system_locale() -> Result<LanguageIdentifier, LocalizationError> {
 /// Sets up localization using the system locale (or default) and project paths.
 /// This is a convenience function to reduce boilerplate in each binary.
 pub fn setup_localization(p: &str) -> Result<(), LocalizationError> {
-    // Get system locale or use default
     let locale = match detect_system_locale() {
-        Ok(locale) => locale,
+        Ok(loc) => loc,
         Err(_) => LanguageIdentifier::from_str(DEFAULT_LOCALE)
             .expect("Default locale should always be valid"),
     };
 
-    let locales_dir =  PathBuf::from(p);
-
+    let locales_dir = PathBuf::from(p);
     let fallback_locales = vec![
         LanguageIdentifier::from_str(DEFAULT_LOCALE)
             .expect("Default locale should always be valid"),
@@ -253,19 +240,24 @@ pub fn setup_localization(p: &str) -> Result<(), LocalizationError> {
     let config = LocalizationConfig::new(locales_dir).with_fallbacks(fallback_locales);
 
     init_localization(&locale, &config)?;
-
     Ok(())
 }
+
 /// Create a FluentArgs with a single key-value pair
-pub fn create_args<'a, T: ToString>(key: &'a str, value: T) -> fluent::FluentArgs<'a> {
-    let mut args = fluent::FluentArgs::new();
+pub fn create_args<'a, T: ToString>(key: &'a str, value: T) -> FluentArgs<'a> {
+    let mut args = FluentArgs::new();
     args.set(key, value.to_string());
     args
 }
 
 /// Helper function to get a message with a single argument
-pub fn get_message_with_arg<T: ToString>(id: &str, arg_key: &str, arg_value: T, default: &str) -> String {
-    let mut args = fluent::FluentArgs::new();
+pub fn get_message_with_arg<T: ToString>(
+    id: &str,
+    arg_key: &str,
+    arg_value: T,
+    default: &str,
+) -> String {
+    let mut args = FluentArgs::new();
     args.set(arg_key, arg_value.to_string());
     get_message_with_args(id, args, default)
 }
