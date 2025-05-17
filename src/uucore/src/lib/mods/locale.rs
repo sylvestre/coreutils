@@ -190,23 +190,22 @@ pub fn create_bundle(
     Ok(bundle)
 }
 
-/// Helper function to get a message
-pub fn get_message(id: &str, default: &str) -> String {
+fn get_message_internal(id: &str, args: Option<FluentArgs>, default: &str) -> String {
     LOCALIZER.with(|lock| {
         lock.get()
-            .map(|loc| loc.get_message(id, default))
+            .map(|loc| loc.format(id, args.as_ref(), default))
             .unwrap_or_else(|| default.to_string())
     })
 }
 
-/// Helper function for messages with args
-pub fn get_message_with_args(id: &str, args: FluentArgs, default: &str) -> String {
-    LOCALIZER.with(|lock| {
-        lock.get()
-            .map(|loc| loc.get_message_with_args(id, args, default))
-            .unwrap_or_else(|| default.to_string())
-    })
+pub fn get_message(id: &str, default: &str) -> String {
+    get_message_internal(id, None, default)
 }
+
+pub fn get_message_with_args(id: &str, args: FluentArgs, default: &str) -> String {
+    get_message_internal(id, Some(args), default)
+}
+
 
 // Function to detect system locale from environment variables
 pub fn detect_system_locale() -> Result<LanguageIdentifier, LocalizationError> {
