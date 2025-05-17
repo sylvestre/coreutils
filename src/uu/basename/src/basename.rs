@@ -11,7 +11,7 @@ use std::path::{PathBuf, is_separator};
 use uucore::display::Quotable;
 use uucore::error::{UResult, UUsageError};
 use uucore::line_ending::LineEnding;
-use uucore::locale::{self, LocalizationError, get_message};
+use uucore::locale::{self, get_message};
 use uucore::{format_usage, help_about, help_usage};
 
 static ABOUT: &str = help_about!("basename.md");
@@ -27,7 +27,7 @@ pub mod options {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    locale::setup_localization("src/uu/basename/src/locales/").map_err(LocalizationError::from)?;
+    locale::setup_localization("src/uu/basename/src/locales/")?;
     let args = args.collect_lossy();
 
     //
@@ -95,7 +95,7 @@ pub fn uu_app() -> Command {
             Arg::new(options::MULTIPLE)
                 .short('a')
                 .long(options::MULTIPLE)
-                .help(&get_message(
+                .help(get_message(
                     "help-multiple",
                     "support multiple arguments and treat each as a NAME",
                 ))
@@ -114,7 +114,7 @@ pub fn uu_app() -> Command {
                 .short('s')
                 .long(options::SUFFIX)
                 .value_name("SUFFIX")
-                .help(&get_message(
+                .help(get_message(
                     "help-suffix",
                     "remove a trailing SUFFIX; implies -a",
                 ))
@@ -124,7 +124,7 @@ pub fn uu_app() -> Command {
             Arg::new(options::ZERO)
                 .short('z')
                 .long(options::ZERO)
-                .help(&get_message(
+                .help(get_message(
                     "help-zero",
                     "end each output line with NUL, not newline",
                 ))

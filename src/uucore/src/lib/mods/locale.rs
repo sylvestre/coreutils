@@ -17,19 +17,19 @@ use unic_langid::LanguageIdentifier;
 #[derive(Error, Debug)]
 pub enum LocalizationError {
     #[error("I/O error loading '{path}': {source}")]
-    IoError {
+    Io {
         source: std::io::Error,
         path: PathBuf,
     },
     #[error("Parse error: {0}")]
-    ParseError(String),
+    Parse(String),
     #[error("Bundle error: {0}")]
-    BundleError(String),
+    Bundle(String),
 }
 
 impl From<std::io::Error> for LocalizationError {
     fn from(error: std::io::Error) -> Self {
-        LocalizationError::IoError {
+        LocalizationError::Io {
             source: error,
             path: PathBuf::from("<unknown>"),
         }
@@ -82,7 +82,7 @@ fn init_localization(
     LOCALIZER.with(|lock| {
         let loc = Localizer::new(bundle);
         lock.set(loc)
-            .map_err(|_| LocalizationError::BundleError("Localizer already initialized".into()))
+            .map_err(|_| LocalizationError::Bundle("Localizer already initialized".into()))
     })?;
     Ok(())
 }
@@ -102,7 +102,7 @@ fn create_bundle(
     // Always ensure DEFAULT_LOCALE is in the fallback chain
     let default_locale: LanguageIdentifier = DEFAULT_LOCALE
         .parse()
-        .map_err(|_| LocalizationError::ParseError("Failed to parse default locale".into()))?;
+        .map_err(|_| LocalizationError::Parse("Failed to parse default locale".into()))?;
 
     if !locales_to_try.contains(&default_locale) {
         locales_to_try.push(default_locale);
@@ -118,14 +118,14 @@ fn create_bundle(
 
         if let Ok(ftl_string) = fs::read_to_string(&locale_path) {
             let resource = FluentResource::try_new(ftl_string).map_err(|_| {
-                LocalizationError::ParseError(format!(
+                LocalizationError::Parse(format!(
                     "Failed to parse localization resource for {}",
                     try_locale
                 ))
             })?;
 
             bundle.add_resource(resource).map_err(|_| {
-                LocalizationError::BundleError(format!(
+                LocalizationError::Bundle(format!(
                     "Failed to add resource to bundle for {}",
                     try_locale
                 ))
@@ -143,7 +143,7 @@ fn create_bundle(
             .collect::<Vec<_>>()
             .join(", ");
 
-        return Err(LocalizationError::IoError {
+        return Err(LocalizationError::Io {
             source: std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 "No localization files found",
@@ -163,10 +163,67 @@ fn get_message_internal(id: &str, args: Option<FluentArgs>, default: &str) -> St
     })
 }
 
+/// Retrieves a localized message by its identifier.
+///
+/// Looks up a message with the given ID in the current locale bundle and returns
+/// the localized text. If the message ID is not found, returns the provided default text.
+///
+/// # Arguments
+///
+/// * `id` - The message identifier in the Fluent resources
+/// * `default` - Default text to use if the message ID isn't found
+///
+/// # Returns
+///
+/// A `String` containing either the localized message or the default text
+///
+/// # Examples
+///
+/// ```
+/// use uutils::localization::get_message;
+///
+/// // Get a localized greeting or fall back to English
+/// let greeting = get_message("greeting", "Hello, World!");
+/// println!("{}", greeting);
+/// ```
 pub fn get_message(id: &str, default: &str) -> String {
     get_message_internal(id, None, default)
 }
 
+/// Retrieves a localized message with variable substitution.
+///
+/// Looks up a message with the given ID in the current locale bundle,
+/// substitutes variables from the provided arguments map, and returns the
+/// localized text. If the message ID is not found, returns the provided default text.
+///
+/// # Arguments
+///
+/// * `id` - The message identifier in the Fluent resources
+/// * `rustc_args` - Key-value pairs for variable substitution in the message
+/// * `default` - Default text to use if the message ID isn't found
+///
+/// # Returns
+///
+/// A `String` containing either the localized message with variable substitution or the default text
+///
+/// # Examples
+///
+/// ```
+/// use uutils::localization::get_message_with_args;
+/// use std::collections::HashMap;
+///
+/// // For a Fluent message like: "Hello, { $name }! You have { $count } notifications."
+/// let mut args = HashMap::new();
+/// args.insert("name".to_string(), "Alice".to_string());
+/// args.insert("count".to_string(), "3".to_string());
+///
+/// let message = get_message_with_args(
+///     "notification",
+///     args,
+///     "Hello! You have notifications."
+/// );
+/// println!("{}", message);
+/// ```
 pub fn get_message_with_args(
     id: &str,
     rustc_args: HashMap<String, String>,
@@ -216,12 +273,43 @@ fn detect_system_locale() -> Result<LanguageIdentifier, LocalizationError> {
         .unwrap_or(DEFAULT_LOCALE)
         .to_string();
 
-    LanguageIdentifier::from_str(&locale_str).map_err(|_| {
-        LocalizationError::ParseError(format!("Failed to parse locale: {}", locale_str))
-    })
+    LanguageIdentifier::from_str(&locale_str)
+        .map_err(|_| LocalizationError::Parse(format!("Failed to parse locale: {}", locale_str)))
 }
 
 /// Sets up localization using the system locale (or default) and project paths.
+///
+/// This function initializes the localization system based on the system's locale
+/// preferences (via the LANG environment variable) or falls back to the default locale
+/// if the system locale cannot be determined or is invalid.
+///
+/// # Arguments
+///
+/// * `p` - Path to the directory containing localization (.ftl) files
+///
+/// # Returns
+///
+/// * `Ok(())` if initialization succeeds
+/// * `Err(LocalizationError)` if initialization fails
+///
+/// # Errors
+///
+/// Returns a `LocalizationError` if:
+/// * The localization files cannot be read
+/// * The files contain invalid syntax
+/// * The bundle cannot be initialized properly
+///
+/// # Examples
+///
+/// ```
+/// use uutils::localization::setup_localization;
+///
+/// // Initialize localization using files in the "locales" directory
+/// match setup_localization("./locales") {
+///     Ok(_) => println!("Localization initialized successfully"),
+///     Err(e) => eprintln!("Failed to initialize localization: {}", e),
+/// }
+/// ```
 pub fn setup_localization(p: &str) -> Result<(), LocalizationError> {
     let locale = match detect_system_locale() {
         Ok(loc) => loc,
