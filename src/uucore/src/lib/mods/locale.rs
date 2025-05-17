@@ -13,6 +13,7 @@ use std::thread_local;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
 use crate::error::UError;
+use fluent::FluentArgs;
 
 #[derive(Error, Debug)]
 pub enum LocalizationError {
@@ -51,38 +52,31 @@ pub struct Localizer {
 }
 
 impl Localizer {
-    // Create a new localizer from a bundle
     fn new(bundle: FluentBundle<FluentResource>) -> Self {
         Self { bundle }
     }
 
-    // Get a message by ID with a default fallback
-    pub fn get_message(&self, id: &str, default: &str) -> String {
-        if let Some(msg) = self.bundle.get_message(id) {
-            if let Some(value) = msg.value() {
-                let mut errors = Vec::new();
-                let formatted = self.bundle.format_pattern(value, None, &mut errors);
-                return formatted.to_string();
+    fn format(&self, id: &str, args: Option<&FluentArgs>, default: &str) -> String {
+        match self.bundle.get_message(id).and_then(|m| m.value()) {
+            Some(value) => {
+                let mut errs = Vec::new();
+                self.bundle.format_pattern(value, args, &mut errs).to_string()
             }
+            None => default.to_string(),
         }
-        default.to_string()
     }
 
-    // Get a message with args
+    pub fn get_message(&self, id: &str, default: &str) -> String {
+        self.format(id, None, default)
+    }
+
     pub fn get_message_with_args(
         &self,
         id: &str,
-        args: fluent::FluentArgs,
+        args: FluentArgs,
         default: &str,
     ) -> String {
-        if let Some(msg) = self.bundle.get_message(id) {
-            if let Some(value) = msg.value() {
-                let mut errors = Vec::new();
-                let formatted = self.bundle.format_pattern(value, Some(&args), &mut errors);
-                return formatted.to_string();
-            }
-        }
-        default.to_string()
+        self.format(id, Some(&args), default)
     }
 }
 
@@ -126,7 +120,7 @@ pub fn init_localization(
 ) -> Result<(), LocalizationError> {
     let bundle = create_bundle(locale, config)?;
     LOCALIZER.with(|cell| {
-        *cell.borrow_mut() = Some(Localizer::new(bundle));
+        *cell.borrow_mut() = Some(Localizer { bundle } );
     });
     Ok(())
 }
