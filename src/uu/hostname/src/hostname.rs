@@ -5,18 +5,18 @@
 
 // spell-checker:ignore hashset Addrs addrs
 
-#[cfg(not(any(target_os = "freebsd", target_os = "openbsd")))]
-use std::net::ToSocketAddrs;
-use std::str;
-use std::{collections::hash_set::HashSet, ffi::OsString};
 use clap::builder::ValueParser;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 #[cfg(any(target_os = "freebsd", target_os = "openbsd"))]
 use dns_lookup::lookup_host;
+#[cfg(not(any(target_os = "freebsd", target_os = "openbsd")))]
+use std::net::ToSocketAddrs;
+use std::str;
+use std::{collections::hash_set::HashSet, ffi::OsString};
 use uucore::{
     error::{FromIo, UResult},
     format_usage, help_about, help_usage,
-    locale::{self, get_message, format_error_with_operand},
+    locale::{self, format_error_with_operand, get_message},
 };
 
 const ABOUT: &str = help_about!("hostname.md");
@@ -60,20 +60,21 @@ mod wsa {
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     // Initialize localization
-    locale::setup_localization("src/uu/hostname/src/locales/").map_err(locale::LocalizationError::from)?;
+    locale::setup_localization("src/uu/hostname/src/locales/")
+        .map_err(locale::LocalizationError::from)?;
 
     let matches = uu_app().try_get_matches_from(args)?;
 
     #[cfg(windows)]
-    let _handle = wsa::start().map_err_context(||
+    let _handle = wsa::start().map_err_context(|| {
         get_message("winsock-start-error", "failed to start Winsock").to_owned()
-    )?;
+    })?;
 
     match matches.get_one::<OsString>(OPT_HOST) {
         None => display_hostname(&matches),
-        Some(host) => hostname::set(host).map_err_context(||
+        Some(host) => hostname::set(host).map_err_context(|| {
             get_message("set-hostname-error", "failed to set hostname").to_owned()
-        ),
+        }),
     }
 }
 
@@ -88,12 +89,10 @@ pub fn uu_app() -> Command {
                 .short('d')
                 .long("domain")
                 .overrides_with_all([OPT_DOMAIN, OPT_IP_ADDRESS, OPT_FQDN, OPT_SHORT])
-                .help(
-                    &get_message(
-                        "help-domain",
-                        "Display the name of the DNS domain if possible"
-                    )
-                )
+                .help(&get_message(
+                    "help-domain",
+                    "Display the name of the DNS domain if possible",
+                ))
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -101,12 +100,10 @@ pub fn uu_app() -> Command {
                 .short('i')
                 .long("ip-address")
                 .overrides_with_all([OPT_DOMAIN, OPT_IP_ADDRESS, OPT_FQDN, OPT_SHORT])
-                .help(
-                    &get_message(
-                        "help-ip-address",
-                        "Display the network address(es) of the host"
-                    )
-                )
+                .help(&get_message(
+                    "help-ip-address",
+                    "Display the network address(es) of the host",
+                ))
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -114,12 +111,10 @@ pub fn uu_app() -> Command {
                 .short('f')
                 .long("fqdn")
                 .overrides_with_all([OPT_DOMAIN, OPT_IP_ADDRESS, OPT_FQDN, OPT_SHORT])
-                .help(
-                    &get_message(
-                        "help-fqdn",
-                        "Display the FQDN (Fully Qualified Domain Name) (default)"
-                    )
-                )
+                .help(&get_message(
+                    "help-fqdn",
+                    "Display the FQDN (Fully Qualified Domain Name) (default)",
+                ))
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -127,12 +122,10 @@ pub fn uu_app() -> Command {
                 .short('s')
                 .long("short")
                 .overrides_with_all([OPT_DOMAIN, OPT_IP_ADDRESS, OPT_FQDN, OPT_SHORT])
-                .help(
-                    &get_message(
-                        "help-short",
-                        "Display the short hostname (the portion before the first dot) if possible"
-                    )
-                )
+                .help(&get_message(
+                    "help-short",
+                    "Display the short hostname (the portion before the first dot) if possible",
+                ))
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -144,9 +137,7 @@ pub fn uu_app() -> Command {
 
 fn display_hostname(matches: &ArgMatches) -> UResult<()> {
     let hostname = hostname::get()
-        .map_err_context(||
-            get_message("get-hostname-error", "failed to get hostname").to_owned()
-        )?
+        .map_err_context(|| get_message("get-hostname-error", "failed to get hostname").to_owned())?
         .to_string_lossy()
         .into_owned();
 
@@ -155,11 +146,9 @@ fn display_hostname(matches: &ArgMatches) -> UResult<()> {
         #[cfg(not(any(target_os = "freebsd", target_os = "openbsd")))]
         {
             let hostname = hostname + ":1";
-            let addrs = hostname
-                .to_socket_addrs()
-                .map_err_context(||
-                    get_message("resolve-socket-error", "failed to resolve socket addresses").to_owned()
-                )?;
+            let addrs = hostname.to_socket_addrs().map_err_context(|| {
+                get_message("resolve-socket-error", "failed to resolve socket addresses").to_owned()
+            })?;
             addresses = addrs;
         }
 
