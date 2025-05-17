@@ -45,7 +45,7 @@ impl UError for LocalizationError {
 pub const DEFAULT_LOCALE: &str = "en-US";
 
 // A struct to handle localization
-pub struct Localizer {
+struct Localizer {
     bundle: FluentBundle<FluentResource>,
 }
 
@@ -65,51 +65,15 @@ impl Localizer {
             None => default.to_string(),
         }
     }
-
-    pub fn get_message(&self, id: &str, default: &str) -> String {
-        self.format(id, None, default)
-    }
-
-    pub fn get_message_with_args(&self, id: &str, args: FluentArgs, default: &str) -> String {
-        self.format(id, Some(&args), default)
-    }
-}
-
-// Configuration for localization
-#[derive(Clone)]
-pub struct LocalizationConfig {
-    locales_dir: PathBuf,
-    fallback_locales: Vec<LanguageIdentifier>,
-}
-
-impl LocalizationConfig {
-    // Create a new config with a specific locales directory
-    pub fn new<P: AsRef<Path>>(locales_dir: P) -> Self {
-        Self {
-            locales_dir: locales_dir.as_ref().to_path_buf(),
-            fallback_locales: vec![],
-        }
-    }
-
-    // Set fallback locales
-    pub fn with_fallbacks(mut self, fallbacks: Vec<LanguageIdentifier>) -> Self {
-        self.fallback_locales = fallbacks;
-        self
-    }
-
-    // Get path for a specific locale
-    fn get_locale_path(&self, locale: &LanguageIdentifier) -> PathBuf {
-        self.locales_dir.join(format!("{}.ftl", locale))
-    }
 }
 
 // Global localizer stored in thread-local OnceLock
 thread_local! {
-    static LOCALIZER: OnceLock<Localizer> = OnceLock::new();
+    static LOCALIZER: OnceLock<Localizer> = const { OnceLock::new() };
 }
 
 // Initialize localization with a specific locale and config
-pub fn init_localization(
+fn init_localization(
     locale: &LanguageIdentifier,
     config: &LocalizationConfig,
 ) -> Result<(), LocalizationError> {
@@ -123,7 +87,7 @@ pub fn init_localization(
 }
 
 // Create a bundle for a locale with fallback chain
-pub fn create_bundle(
+fn create_bundle(
     locale: &LanguageIdentifier,
     config: &LocalizationConfig,
 ) -> Result<FluentBundle<FluentResource>, LocalizationError> {
@@ -206,9 +170,36 @@ pub fn get_message_with_args(id: &str, args: FluentArgs, default: &str) -> Strin
     get_message_internal(id, Some(args), default)
 }
 
+// Configuration for localization
+#[derive(Clone)]
+struct LocalizationConfig {
+    locales_dir: PathBuf,
+    fallback_locales: Vec<LanguageIdentifier>,
+}
+
+impl LocalizationConfig {
+    // Create a new config with a specific locales directory
+    fn new<P: AsRef<Path>>(locales_dir: P) -> Self {
+        Self {
+            locales_dir: locales_dir.as_ref().to_path_buf(),
+            fallback_locales: vec![],
+        }
+    }
+
+    // Set fallback locales
+    fn with_fallbacks(mut self, fallbacks: Vec<LanguageIdentifier>) -> Self {
+        self.fallback_locales = fallbacks;
+        self
+    }
+
+    // Get path for a specific locale
+    fn get_locale_path(&self, locale: &LanguageIdentifier) -> PathBuf {
+        self.locales_dir.join(format!("{}.ftl", locale))
+    }
+}
 
 // Function to detect system locale from environment variables
-pub fn detect_system_locale() -> Result<LanguageIdentifier, LocalizationError> {
+fn detect_system_locale() -> Result<LanguageIdentifier, LocalizationError> {
     let locale_str = std::env::var("LANG")
         .unwrap_or_else(|_| DEFAULT_LOCALE.to_string())
         .split('.')
@@ -222,7 +213,6 @@ pub fn detect_system_locale() -> Result<LanguageIdentifier, LocalizationError> {
 }
 
 /// Sets up localization using the system locale (or default) and project paths.
-/// This is a convenience function to reduce boilerplate in each binary.
 pub fn setup_localization(p: &str) -> Result<(), LocalizationError> {
     let locale = match detect_system_locale() {
         Ok(loc) => loc,
@@ -241,14 +231,6 @@ pub fn setup_localization(p: &str) -> Result<(), LocalizationError> {
     init_localization(&locale, &config)?;
     Ok(())
 }
-
-/// Create a FluentArgs with a single key-value pair
-pub fn create_args<'a, T: ToString>(key: &'a str, value: T) -> FluentArgs<'a> {
-    let mut args = FluentArgs::new();
-    args.set(key, value.to_string());
-    args
-}
-
 /// Helper function to get a message with a single argument
 pub fn get_message_with_arg<T: ToString>(
     id: &str,
