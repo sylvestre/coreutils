@@ -36,8 +36,9 @@ pub fn main() {
                 "nightly" | "test_unimplemented" | "expensive_tests" | "test_risky_names" => {
                     continue;
                 } // crate-local custom features
-                "uudoc" => continue, // is not a utility
+                "uudoc" => continue,   // is not a utility
                 "test" => continue, // over-ridden with 'uu_test' to avoid collision with rust core crate 'test'
+                "no_i18n" => continue, // is not a utility, just a feature flag
                 s if s.starts_with(FEATURE_PREFIX) => continue, // crate feature sets
                 _ => {}             // util feature name
             }
@@ -105,4 +106,90 @@ pub fn main() {
     mf.write_all(b"\n}\n").unwrap();
 
     mf.flush().unwrap();
+
+    // Generate embedded locale strings if no_i18n feature is enabled
+    if env::var("CARGO_FEATURE_NO_I18N").is_ok() {
+        generate_embedded_locale_strings(&out_dir, &crates).unwrap();
+    }
+}
+
+/// Generate embedded locale strings for all utilities.
+///
+/// # Errors
+///
+/// Returns an error if reading or writing locale files fails.
+fn generate_embedded_locale_strings(
+    out_dir: &str,
+    crates: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    use fluent_syntax::ast::{Entry, Pattern, PatternElement};
+    use fluent_syntax::parser::parse;
+    use std::collections::HashMap;
+    use std::fs;
+
+    let mut all_strings = HashMap::new();
+
+    // Collect all English strings from all utilities
+    for krate in crates {
+        let locale_path = format!("src/uu/{}/locales/en-US.ftl", krate);
+        if Path::new(&locale_path).exists() {
+            let content = fs::read_to_string(&locale_path)?;
+
+            // Parse the Fluent file using the fluent-syntax crate
+            let resource =
+                parse(content).map_err(|e| format!("Failed to parse {}: {:?}", locale_path, e))?;
+
+            for entry in resource.body {
+                if let Entry::Message(message) = entry {
+                    if let Some(Pattern { ref elements }) = message.value {
+                        // Extract text from the pattern elements
+                        let mut text = String::new();
+                        for element in elements {
+                            if let PatternElement::TextElement { value } = element {
+                                text.push_str(value);
+                            }
+                        }
+                        all_strings.insert(message.id.name.to_string(), text);
+                    }
+                }
+            }
+        }
+    }
+
+    // Generate Rust code with embedded strings as individual consts
+    let mut embedded_file = File::create(Path::new(out_dir).join("embedded_locale.rs"))?;
+
+    writeln!(embedded_file, "// Generated at compile time - do not edit")?;
+    writeln!(embedded_file)?;
+
+    // No individual const strings needed - they're embedded in the function
+
+    writeln!(embedded_file)?;
+
+    // Generate lookup function
+    writeln!(
+        embedded_file,
+        "pub fn get_embedded_string(id: &str) -> Option<&'static str> {{"
+    )?;
+    writeln!(embedded_file, "    match id {{")?;
+
+    for (key, value) in &all_strings {
+        // Escape the value for Rust string literal
+        let escaped_value = value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n");
+        writeln!(
+            embedded_file,
+            "        {:?} => Some({:?}),",
+            key, escaped_value
+        )?;
+    }
+
+    writeln!(embedded_file, "        _ => None,")?;
+    writeln!(embedded_file, "    }}")?;
+    writeln!(embedded_file, "}}")?;
+
+    embedded_file.flush()?;
+    Ok(())
 }

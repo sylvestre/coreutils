@@ -177,6 +177,7 @@ macro_rules! bin {
             locale::setup_localization(uucore::get_canonical_util_name(stringify!($util)))
                 .unwrap_or_else(|err| {
                     match err {
+                        #[cfg(all(feature = "i18n", not(feature = "no_i18n")))]
                         uucore::locale::LocalizationError::ParseResource {
                             error: err_msg,
                             snippet,

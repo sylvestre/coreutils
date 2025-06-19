@@ -61,6 +61,14 @@ feat_selinux = [
   "selinux",
   "feat_require_selinux",
 ]
+# "no_i18n" == disable translations and embed English strings directly into the binary (by using `--features no_i18n`)
+# NOTE:
+# * This reduces binary size and removes runtime dependency on .ftl files
+# * All utilities will use hardcoded English strings regardless of system locale
+# * Automatically disables uucore's default i18n feature
+no_i18n = ["uucore/no_i18n"]
+# i18n support (enabled by default via uucore)
+i18n = ["uucore/i18n"]
 ##
 ## feature sets
 ## (common/core and Tier1) feature sets
@@ -555,6 +563,7 @@ serde-big-array = "0.5.1"
 
 [build-dependencies]
 phf_codegen = { workspace = true }
+fluent-syntax = { workspace = true }
 
 [[bin]]
 name = "coreutils"

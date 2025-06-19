@@ -4,6 +4,7 @@
 name = "uucore"
 description = "uutils ~ 'core' uutils code library (cross-platform)"
 repository = "https://github.com/uutils/coreutils/tree/main/src/uucore"
+build = "build.rs"
 authors.workspace = true
 categories.workspace = true
 edition.workspace = true
@@ -56,11 +57,11 @@ bigdecimal = { workspace = true, optional = true }
 num-traits = { workspace = true, optional = true }
 selinux = { workspace = true, optional = true }
 
-# Fluent dependencies
-fluent-bundle = { workspace = true }
-fluent = { workspace = true }
-fluent-syntax = { workspace = true }
-unic-langid = { workspace = true }
+# Fluent dependencies (optional when no_i18n feature is enabled)
+fluent-bundle = { workspace = true, optional = true }
+fluent = { workspace = true, optional = true }
+fluent-syntax = { workspace = true, optional = true }
+unic-langid = { workspace = true, optional = true }
 thiserror = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 walkdir = { workspace = true, optional = true }
@@ -85,7 +86,11 @@ windows-sys = { workspace = true, optional = true, default-features = false, fea
 utmp-classic = { workspace = true, optional = true }
 
 [features]
-default = []
+default = ["i18n"]
+# i18n support (enabled by default, disabled when no_i18n is used)
+i18n = ["fluent-bundle", "fluent", "fluent-syntax", "unic-langid"]
+# no_i18n disables translations and embeds English strings directly
+no_i18n = []
 # * non-default features
 backup-control = []
 colors = []
@@ -138,3 +143,6 @@ version-cmp = []
 wide = []
 tty = []
 uptime = ["chrono", "libc", "windows-sys", "utmpx", "utmp-classic"]
+
+[build-dependencies]
+fluent-syntax = { workspace = true }
