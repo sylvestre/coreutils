@@ -1,4 +1,4 @@
-basename-about = Affiche NOM sans les composants de répertoire précédents
+basename-about = affiche NOM sans les composants de répertoire précédents
   Si spécifié, supprime également un SUFFIXE final
 basename-usage = basename [-z] NOM [SUFFIXE]
   basename OPTION... NOM...

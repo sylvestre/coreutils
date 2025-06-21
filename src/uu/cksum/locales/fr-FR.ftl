@@ -1,4 +1,4 @@
-cksum-about = Afficher le CRC et la taille de chaque fichier
+cksum-about = afficher le CRC et la taille de chaque fichier
 cksum-usage = cksum [OPTION]... [FICHIER]...
 cksum-after-help = DIGEST détermine l'algorithme de condensé et le format de sortie par défaut :
 
@@ -31,5 +31,5 @@ cksum-help-ignore-missing = ne pas échouer ou signaler le statut pour les fichi
 cksum-help-zero = terminer chaque ligne de sortie avec NUL, pas un saut de ligne, et désactiver l'échappement des noms de fichiers
 
 # Messages d'erreur
-cksum-error-is-directory = { $file } : Est un répertoire
+cksum-error-is-directory = { $file } : est un répertoire
 cksum-error-failed-to-read-input = échec de la lecture de l'entrée

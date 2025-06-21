@@ -1,4 +1,4 @@
-pwd-about = Afficher le nom de fichier complet du répertoire de travail actuel.
+pwd-about = afficher le nom de fichier complet du répertoire de travail actuel.
 pwd-usage = pwd [OPTION]...
 
 # Messages d'aide

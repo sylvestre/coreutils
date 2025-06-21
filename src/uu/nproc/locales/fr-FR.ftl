@@ -1,4 +1,4 @@
-nproc-about = Affiche le nombre de cœurs disponibles pour le processus actuel.
+nproc-about = affiche le nombre de cœurs disponibles pour le processus actuel.
   Si les variables d'environnement OMP_NUM_THREADS ou OMP_THREAD_LIMIT sont définies,
   elles détermineront respectivement la valeur minimale et maximale retournée.
 nproc-usage = nproc [OPTIONS]...

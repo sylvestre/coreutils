@@ -17,7 +17,7 @@ tr-error-missing-operand-deleting-squeezing = opérande manquant après { $set }
 tr-error-extra-operand-deleting-without-squeezing = opérande supplémentaire { $operand }
   Une seule chaîne peut être donnée lors de la suppression sans compression des répétitions.
 tr-error-extra-operand-simple = opérande supplémentaire { $operand }
-tr-error-read-directory = erreur de lecture : Est un répertoire
+tr-error-read-directory = erreur de lecture : est un répertoire
 tr-error-write-error = erreur d'écriture
 
 # Messages d'avertissement

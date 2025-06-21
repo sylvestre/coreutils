@@ -1,4 +1,4 @@
-whoami-about = Affiche le nom d'utilisateur actuel.
+whoami-about = affiche le nom d'utilisateur actuel.
 
 # Messages d'erreur
 whoami-error-failed-to-print = échec de l'affichage du nom d'utilisateur

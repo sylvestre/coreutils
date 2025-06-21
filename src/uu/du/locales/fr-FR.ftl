@@ -16,7 +16,7 @@ du-after-help = Les valeurs affichées sont en unités de la première TAILLE di
   {"{"}a,b{"}"} correspondra à a ou b
 
 # Messages d'aide
-du-help-print-help = Afficher les informations d'aide.
+du-help-print-help = afficher les informations d'aide.
 du-help-all = afficher les comptes pour tous les fichiers, pas seulement les répertoires
 du-help-apparent-size = afficher les tailles apparentes, plutôt que l'utilisation du disque bien que la taille apparente soit généralement plus petite, elle peut être plus grande en raison de trous dans les fichiers ('sparse'), la fragmentation interne, les blocs indirects, etc.
 du-help-block-size = mettre à l'échelle les tailles par TAILLE avant de les afficher. Par ex., '-BM' affiche les tailles en unités de 1 048 576 octets. Voir le format TAILLE ci-dessous.
@@ -41,24 +41,24 @@ du-help-verbose = mode verbeux (option non présente dans GNU/Coreutils)
 du-help-exclude = exclure les fichiers qui correspondent au MOTIF
 du-help-exclude-from = exclure les fichiers qui correspondent à n'importe quel motif dans FICHIER
 du-help-files0-from = résumer l'utilisation du périphérique des noms de fichiers terminés par NUL spécifiés dans le fichier F ; si F est -, alors lire les noms depuis l'entrée standard
-du-help-time = montrer l'heure de la dernière modification de n'importe quel fichier dans le répertoire, ou n'importe lequel de ses sous-répertoires. Si MOT est donné, montrer l'heure comme MOT au lieu de l'heure de modification : atime, access, use, ctime, status, birth ou creation
-du-help-time-style = montrer les heures en utilisant le style STYLE : full-iso, long-iso, iso, +FORMAT FORMAT est interprété comme 'date'
+du-help-time = afficher l'heure de la dernière modification de n'importe quel fichier dans le répertoire, ou n'importe lequel de ses sous-répertoires. Si MOT est donné, afficher l'heure comme MOT au lieu de l'heure de modification : atime, access, use, ctime, status, birth ou creation
+du-help-time-style = afficher les heures en utilisant le style STYLE : full-iso, long-iso, iso, +FORMAT FORMAT est interprété comme 'date'
 
 # Messages d'erreur
 du-error-invalid-max-depth = profondeur maximale invalide { $depth }
 du-error-summarize-depth-conflict = la synthèse entre en conflit avec --max-depth={ $depth }
 du-error-invalid-time-style = argument invalide { $style } pour 'style de temps'\nLes arguments valides sont :\n- 'full-iso'\n- 'long-iso'\n- 'iso'\nEssayez '{ $help }' pour plus d'informations.
-du-error-invalid-time-arg = les arguments 'birth' et 'creation' pour --time ne sont pas supportés sur cette plateforme.
+du-error-invalid-time-arg = les arguments 'birth' et 'creation' pour --time ne sont pas supportés sur cette plateforme
 du-error-invalid-glob = Syntaxe d'exclusion invalide : { $error }
 du-error-cannot-read-directory = impossible de lire le répertoire { $path }
 du-error-cannot-access = impossible d'accéder à { $path }
-du-error-read-error-is-directory = { $file } : erreur de lecture : C'est un répertoire
-du-error-cannot-open-for-reading = impossible d'ouvrir '{ $file }' en lecture : Aucun fichier ou répertoire de ce type
+du-error-read-error-is-directory = { $file } : erreur de lecture : est un répertoire
+du-error-cannot-open-for-reading = impossible d'ouvrir '{ $file }' en lecture : aucun fichier ou répertoire de ce type
 du-error-invalid-zero-length-file-name = { $file }:{ $line } : nom de fichier de longueur zéro invalide
 du-error-extra-operand-with-files0-from = opérande supplémentaire { $file }\nles opérandes de fichier ne peuvent pas être combinées avec --files0-from
 du-error-invalid-block-size-argument = argument --{ $option } invalide { $value }
-du-error-cannot-access-no-such-file = impossible d'accéder à { $path } : Aucun fichier ou répertoire de ce type
-du-error-printing-thread-panicked = Le thread d'affichage a paniqué.
+du-error-cannot-access-no-such-file = impossible d'accéder à { $path } : aucun fichier ou répertoire de ce type
+du-error-printing-thread-panicked = Le thread d'affichage a paniqué
 du-error-invalid-suffix = suffixe invalide dans l'argument --{ $option } { $value }
 du-error-invalid-argument = argument --{ $option } invalide { $value }
 du-error-argument-too-large = argument --{ $option } { $value } trop grand

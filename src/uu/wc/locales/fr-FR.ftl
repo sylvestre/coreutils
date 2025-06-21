@@ -1,4 +1,4 @@
-wc-about = Afficher le nombre de nouvelles lignes, de mots et d'octets pour chaque FICHIER, et une ligne totale si plus d'un FICHIER est spécifié.
+wc-about = afficher le nombre de nouvelles lignes, de mots et d'octets pour chaque FICHIER, et une ligne totale si plus d'un FICHIER est spécifié.
 wc-usage = wc [OPTION]... [FICHIER]...
 
 # Messages d'aide

@@ -1,4 +1,4 @@
-uname-about = Affiche certaines informations système.
+uname-about = affiche certaines informations système.
   Sans OPTION, identique à -s.
 uname-usage = uname [OPTION]...
 

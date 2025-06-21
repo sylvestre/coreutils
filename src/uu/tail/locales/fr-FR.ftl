@@ -1,4 +1,4 @@
-tail-about = Afficher les 10 dernières lignes de chaque FICHIER sur la sortie standard.
+tail-about = afficher les 10 dernières lignes de chaque FICHIER sur la sortie standard.
   Avec plus d'un FICHIER, précéder chacun d'un en-tête donnant le nom du fichier.
   Sans FICHIER, ou quand FICHIER est -, lire l'entrée standard.
   Les arguments obligatoires pour les drapeaux longs sont également obligatoires pour les drapeaux courts.
@@ -6,7 +6,7 @@ tail-usage = tail [DRAPEAU]... [FICHIER]...
 
 # Messages d'aide
 tail-help-bytes = Nombre d'octets à afficher
-tail-help-follow = Afficher le fichier au fur et à mesure de sa croissance
+tail-help-follow = afficher le fichier au fur et à mesure de sa croissance
 tail-help-lines = Nombre de lignes à afficher
 tail-help-pid = Avec -f, terminer après que l'ID de processus, PID meure
 tail-help-quiet = Ne jamais afficher d'en-têtes donnant les noms de fichiers
@@ -33,10 +33,10 @@ tail-error-invalid-number-of-seconds = nombre de secondes invalide : '{ $source 
 tail-error-invalid-max-unchanged-stats = nombre maximum invalide de statistiques inchangées entre les ouvertures : { $value }
 tail-error-invalid-pid = PID invalide : { $pid }
 tail-error-invalid-pid-with-error = PID invalide : { $pid } : { $error }
-tail-error-invalid-number-out-of-range = nombre invalide : { $arg } : Résultat numérique hors limites
+tail-error-invalid-number-out-of-range = nombre invalide : { $arg } : résultat numérique hors limites
 tail-error-invalid-number-overflow = nombre invalide : { $arg }
 tail-error-option-used-in-invalid-context = option utilisée dans un contexte invalide -- { $option }
-tail-error-bad-argument-encoding = encodage d'argument incorrect : '{ $arg }'
+tail-error-bad-argument-encoding = encodage d'argument invalide : '{ $arg }'
 tail-error-cannot-watch-parent-directory = impossible de surveiller le répertoire parent de { $path }
 tail-error-backend-cannot-be-used-too-many-files = { $backend } ne peut pas être utilisé, retour au sondage : Trop de fichiers ouverts
 tail-error-backend-resources-exhausted = ressources { $backend } épuisées
@@ -63,9 +63,9 @@ tail-status-backend-cannot-be-used-reverting-to-polling = { $backend } ne peut p
 tail-status-file-no-such-file = { $file } : { $no_such_file }
 
 # Constantes de texte
-tail-bad-fd = Descripteur de fichier incorrect
-tail-no-such-file-or-directory = Aucun fichier ou répertoire de ce type
-tail-is-a-directory = Est un répertoire
+tail-bad-fd = Descripteur de fichier invalide
+tail-no-such-file-or-directory = aucun fichier ou répertoire de ce type
+tail-is-a-directory = est un répertoire
 tail-giving-up-on-this-name = ; abandon de ce nom
 tail-stdin-header = entrée standard
 tail-no-files-remaining = aucun fichier restant

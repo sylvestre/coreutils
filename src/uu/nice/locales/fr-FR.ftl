@@ -4,7 +4,7 @@ nice-about = Exécute COMMANDE avec une priorité ajustée, ce qui affecte l'ord
 nice-usage = nice [OPTION] [COMMANDE [ARG]...]
 
 # Messages d'erreur
-nice-error-command-required-with-adjustment = Une commande doit être fournie avec un ajustement.
+nice-error-command-required-with-adjustment = Une commande doit être fournie avec un ajustement
 nice-error-invalid-number = "{ $value }" n'est pas un nombre valide : { $error }
 nice-warning-setpriority = { $util_name } : avertissement : setpriority : { $error }
 

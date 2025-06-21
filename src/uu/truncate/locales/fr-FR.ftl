@@ -25,9 +25,9 @@ truncate-help-size = définir ou ajuster la taille de chaque fichier selon TAILL
 
 # Messages d'erreur
 truncate-error-missing-file-operand = opérande de fichier manquant
-truncate-error-cannot-open-no-device = impossible d'ouvrir { $filename } en écriture : Aucun périphérique ou adresse de ce type
+truncate-error-cannot-open-no-device = impossible d'ouvrir { $filename } en écriture : aucun périphérique ou adresse de ce type
 truncate-error-cannot-open-for-writing = impossible d'ouvrir { $filename } en écriture
 truncate-error-invalid-number = Nombre invalide : { $error }
 truncate-error-must-specify-relative-size = vous devez spécifier une '--size' relative avec '--reference'
 truncate-error-division-by-zero = division par zéro
-truncate-error-cannot-stat-no-such-file = impossible d'obtenir les informations de { $filename } : Aucun fichier ou répertoire de ce type
+truncate-error-cannot-stat-no-such-file = impossible d'obtenir les informations de { $filename } : aucun fichier ou répertoire de ce type

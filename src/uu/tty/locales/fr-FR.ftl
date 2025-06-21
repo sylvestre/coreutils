@@ -1,4 +1,4 @@
-tty-about = Afficher le nom de fichier du terminal connecté à l'entrée standard.
+tty-about = afficher le nom de fichier du terminal connecté à l'entrée standard.
 tty-usage = tty [OPTION]...
 
 # Messages d'aide

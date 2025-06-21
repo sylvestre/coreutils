@@ -1,4 +1,4 @@
-dircolors-about = Afficher les commandes pour définir la variable d'environnement LS_COLORS.
+dircolors-about = afficher les commandes pour définir la variable d'environnement LS_COLORS.
 dircolors-usage = dircolors [OPTION]... [FICHIER]
 dircolors-after-help = Si FICHIER est spécifié, le lire pour déterminer quelles couleurs utiliser pour quels
   types de fichiers et extensions. Sinon, une base de données précompilée est utilisée.

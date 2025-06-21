@@ -26,8 +26,8 @@ mknod-help-selinux = définir le contexte de sécurité SELinux de chaque réper
 mknod-help-context = comme -Z, ou si CTX est spécifié, définir le contexte de sécurité SELinux ou SMACK à CTX
 
 # Messages d'erreur
-mknod-error-fifo-no-major-minor = Les fifos n'ont pas de numéros de périphérique majeur et mineur.
-mknod-error-special-require-major-minor = Les fichiers spéciaux nécessitent des numéros de périphérique majeur et mineur.
+mknod-error-fifo-no-major-minor = Les fifos n'ont pas de numéros de périphérique majeur et mineur
+mknod-error-special-require-major-minor = Les fichiers spéciaux nécessitent des numéros de périphérique majeur et mineur
 mknod-error-invalid-mode = mode invalide ({ $error })
 mknod-error-mode-permission-bits-only = le mode ne doit spécifier que les bits de permission de fichier
 mknod-error-missing-device-type = type de périphérique manquant

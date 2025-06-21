@@ -14,5 +14,5 @@ pathchk-error-posix-name-length-exceeded = limite { $limit } dépassée par la l
 pathchk-error-leading-hyphen = tiret en début dans le composant de nom de fichier { $component }
 pathchk-error-path-length-exceeded = limite { $limit } dépassée par la longueur { $length } du nom de fichier { $path }
 pathchk-error-name-length-exceeded = limite { $limit } dépassée par la longueur { $length } du composant de nom de fichier { $component }
-pathchk-error-empty-path-not-found = pathchk: '' : Aucun fichier ou répertoire de ce type
+pathchk-error-empty-path-not-found = pathchk: '' : aucun fichier ou répertoire de ce type
 pathchk-error-nonportable-character = caractère non portable '{ $character }' dans le composant de nom de fichier { $component }

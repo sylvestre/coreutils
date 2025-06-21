@@ -1,4 +1,4 @@
-readlink-about = Afficher la valeur d'un lien symbolique ou le nom de fichier canonique.
+readlink-about = afficher la valeur d'un lien symbolique ou le nom de fichier canonique.
 readlink-usage = readlink [OPTION]... [FICHIER]...
 
 # Messages d'aide

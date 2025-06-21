@@ -8,5 +8,5 @@ sum-help-bsd-compatible = utiliser l'algorithme de somme BSD, utiliser des blocs
 sum-help-sysv-compatible = utiliser l'algorithme de somme System V, utiliser des blocs de 512 octets
 
 # Messages d'erreur
-sum-error-is-directory = { $name } : Est un répertoire
-sum-error-no-such-file-or-directory = { $name } : Aucun fichier ou répertoire de ce type
+sum-error-is-directory = { $name } : est un répertoire
+sum-error-no-such-file-or-directory = { $name } : aucun fichier ou répertoire de ce type

@@ -1,4 +1,4 @@
-cut-about = Affiche les colonnes d'octets ou de champs spécifiées de chaque ligne de stdin ou des fichiers d'entrée
+cut-about = affiche les colonnes d'octets ou de champs spécifiées de chaque ligne de stdin ou des fichiers d'entrée
 cut-usage = cut OPTION... [FICHIER]...
 cut-after-help = Chaque appel doit spécifier un mode (quoi utiliser pour les colonnes),
   une séquence (quelles colonnes afficher), et fournir une source de données
@@ -103,12 +103,12 @@ cut-help-zero-terminated = au lieu de filtrer les colonnes basées sur la ligne,
 cut-help-output-delimiter = en mode champ, remplacer le délimiteur dans les lignes de sortie avec l'argument de cette option
 
 # Messages d'erreur
-cut-error-is-directory = Est un répertoire
+cut-error-is-directory = est un répertoire
 cut-error-write-error = erreur d'écriture
-cut-error-delimiter-and-whitespace-conflict = entrée invalide : Seulement une des options --delimiter (-d) ou -w peut être spécifiée
+cut-error-delimiter-and-whitespace-conflict = entrée invalide : seulement une des options --delimiter (-d) ou -w peut être spécifiée
 cut-error-delimiter-must-be-single-character = le délimiteur doit être un caractère unique
 cut-error-multiple-mode-args = usage invalide : attend au plus une des options --fields (-f), --chars (-c) ou --bytes (-b)
 cut-error-missing-mode-arg = usage invalide : attend une des options --fields (-f), --chars (-c) ou --bytes (-b)
-cut-error-delimiter-only-with-fields = entrée invalide : L'option '--delimiter' ('-d') n'est utilisable que si on affiche une séquence de champs
-cut-error-whitespace-only-with-fields = entrée invalide : L'option '-w' n'est utilisable que si on affiche une séquence de champs
-cut-error-only-delimited-only-with-fields = entrée invalide : L'option '--only-delimited' ('-s') n'est utilisable que si on affiche une séquence de champs
+cut-error-delimiter-only-with-fields = entrée invalide : l'option '--delimiter' ('-d') n'est utilisable que si on affiche une séquence de champs
+cut-error-whitespace-only-with-fields = entrée invalide : l'option '-w' n'est utilisable que si on affiche une séquence de champs
+cut-error-only-delimited-only-with-fields = entrée invalide : l'option '--only-delimited' ('-s') n'est utilisable que si on affiche une séquence de champs

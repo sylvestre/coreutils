@@ -1,4 +1,4 @@
-who-about = Affiche des informations sur les utilisateurs actuellement connectés.
+who-about = affiche des informations sur les utilisateurs actuellement connectés.
 who-usage = who [OPTION]... [ FICHIER | ARG1 ARG2 ]
 who-about-musl-warning = Note : Lors de la compilation avec musl libc, l'utilitaire `who` n'affichera aucune
     information sur les utilisateurs connectés. Ceci est dû à l'implémentation
