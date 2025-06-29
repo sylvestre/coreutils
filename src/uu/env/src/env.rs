@@ -62,6 +62,8 @@ pub enum EnvError {
     EnvParsingOfVariableUnexpectedNumber(usize, String),
     #[error("{}", get_message_with_args("env-error-expected-brace-or-colon", HashMap::from([("position".to_string(), .0.to_string()), ("char".to_string(), .1.clone())])))]
     EnvParsingOfVariableExceptedBraceOrColon(usize, String),
+    #[error("{}", get_message_with_args("env-error-unsupported-variable-expansion", HashMap::from([("expansion".to_string(), .1.clone())])))]
+    EnvUnsupportedVariableExpansion(usize, String),
     #[error("")]
     EnvReachedEnd,
     #[error("")]
@@ -386,6 +388,7 @@ pub fn parse_args_from_str(text: &NativeIntStr) -> UResult<Vec<NativeIntString>>
                 ]),
             ),
         ),
+        EnvError::EnvUnsupportedVariableExpansion(_, _) => USimpleError::new(125, e.to_string()),
         _ => USimpleError::new(
             125,
             get_message_with_args(
@@ -466,10 +469,12 @@ impl EnvAppData {
             options::UNSET,
         ];
         let short_flags_with_args = ['a', 'C', 'f', 'u'];
-        for (n, arg) in original_args.iter().enumerate() {
+        let mut i = 0;
+        while i < original_args.len() {
+            let arg = &original_args[i];
             let arg_str = arg.to_string_lossy();
             // Stop processing env flags once we reach the command or -- argument
-            if 0 < n
+            if 0 < i
                 && !expecting_arg
                 && (arg == "--" || !(arg_str.starts_with('-') || arg_str.contains('=')))
             {
@@ -477,9 +482,28 @@ impl EnvAppData {
             }
             if !process_flags {
                 all_args.push(arg.clone());
+                i += 1;
                 continue;
             }
             expecting_arg = false;
+
+            // Handle -S as a separate argument
+            if arg == "-S" && i + 1 < original_args.len() {
+                let next_arg = &original_args[i + 1];
+                if let Some(input_args) = None::<&Vec<OsString>> {
+                    debug_print_args(input_args);
+                }
+                let arg_strings = parse_args_from_str(&NCvt::convert(next_arg))?;
+                all_args.extend(
+                    arg_strings
+                        .into_iter()
+                        .map(from_native_int_representation_owned),
+                );
+                self.had_string_argument = true;
+                i += 2; // Skip both current and next argument
+                continue;
+            }
+
             match arg {
                 b if check_and_handle_string_args(b, "--split-string", &mut all_args, None)? => {
                     self.had_string_argument = true;
@@ -529,6 +553,7 @@ impl EnvAppData {
                     all_args.push(arg.clone());
                 }
             }
+            i += 1;
         }
 
         Ok(all_args)

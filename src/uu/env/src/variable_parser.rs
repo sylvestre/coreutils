@@ -3,9 +3,10 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
+use std::borrow::Cow;
 use std::ops::Range;
 
-use crate::EnvError;
+use crate::{EnvError, native_int_str};
 use crate::{native_int_str::NativeIntStr, string_parser::StringParser};
 
 pub struct VariableParser<'a, 'b> {
@@ -139,6 +140,7 @@ impl<'a> VariableParser<'a, '_> {
     pub fn parse_variable(
         &mut self,
     ) -> Result<(&'a NativeIntStr, Option<&'a NativeIntStr>), EnvError> {
+        let dollar_pos = self.parser.get_peek_position();
         self.skip_one()?;
 
         let (name, default) = match self.get_current_char() {
@@ -151,7 +153,17 @@ impl<'a> VariableParser<'a, '_> {
                 self.skip_one()?;
                 self.parse_braced_variable_name()?
             }
-            Some(_) => (self.parse_unbraced_variable_name()?, None),
+            Some(_) => {
+                // Reject bare $VAR syntax - only ${VAR} is supported
+                let var_name = self.parse_unbraced_variable_name()?;
+                let var_os_str =
+                    native_int_str::from_native_int_representation(Cow::Borrowed(var_name));
+                let var_str = var_os_str.to_string_lossy();
+                return Err(EnvError::EnvUnsupportedVariableExpansion(
+                    dollar_pos,
+                    format!("${}", var_str),
+                ));
+            }
         };
 
         Ok((name, default))

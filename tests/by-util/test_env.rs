@@ -1773,3 +1773,13 @@ fn test_simulation_of_terminal_pty_write_in_data_and_sends_eot_automatically() {
     );
     std::assert_eq!(String::from_utf8_lossy(out.stderr()), "");
 }
+
+#[test]
+fn test_expansion_error() {
+    new_ucmd!()
+        // Ensure -- is recognized
+        .args(&["-S", "A=$B"])
+        .fails()
+        .code_is(125)
+        .stderr_contains("env: only ${VARNAME} expansion is supported, error at: $B");
+}

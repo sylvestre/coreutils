@@ -23,6 +23,7 @@ env-error-missing-variable = Missing variable name at position { $position }
 env-error-missing-closing-brace-after-value = Missing closing brace after default value at position { $position }
 env-error-unexpected-number = Unexpected character: '{ $char }', expected variable name must not start with 0..9 at position { $position }
 env-error-expected-brace-or-colon = Unexpected character: '{ $char }', expected a closing brace ('{"}"}') or colon (':') at position { $position }
+env-error-unsupported-variable-expansion = only ${{VARNAME}} expansion is supported, error at: { $expansion }
 env-error-cannot-specify-null-with-command = cannot specify --null (-0) with command
 env-error-invalid-signal = { $signal }: invalid signal
 env-error-config-file = { $file }: { $error }

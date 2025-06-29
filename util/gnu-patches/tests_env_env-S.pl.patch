@@ -19,11 +19,9 @@ Index: gnu/tests/env/env-S.pl
 +      {ERR=>"$prog: no terminating quote in -S string at position 6 for quote '''\n"}],
       ['err5', q[-S'A=B\\q'], {EXIT=>125},
 -      {ERR=>"$prog: invalid sequence '\\q' in -S\n"}],
--     ['err6', q[-S'A=$B'], {EXIT=>125},
--      {ERR=>"$prog: only \${VARNAME} expansion is supported, error at: \$B\n"}],
 +      {ERR=>"$prog: invalid sequence '\\q' in -S at position 4\n"}],
-+     ['err6', q[-S'A=$B echo hello'], {EXIT=>0},
-+      {OUT=>"hello"}],
+      ['err6', q[-S'A=$B'], {EXIT=>125},
+       {ERR=>"$prog: only \${VARNAME} expansion is supported, error at: \$B\n"}],
       ['err7', q[-S'A=${B'], {EXIT=>125},
 -      {ERR=>"$prog: only \${VARNAME} expansion is supported, " .
 -           "error at: \${B\n"}],
