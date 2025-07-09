@@ -90,7 +90,7 @@ utmp-classic = { workspace = true, optional = true }
 [features]
 default = ["i18n"]
 # i18n support (enabled by default, disabled when embed_strings is used)
-i18n = ["fluent-bundle", "fluent", "fluent-syntax", "unic-langid"]
+i18n = ["fluent-bundle", "fluent", "fluent-syntax", "unic-langid", "icu_locale", "icu_collator"]
 # embed_strings disables translations and embeds English strings directly
 embed_strings = []
 # * non-default features

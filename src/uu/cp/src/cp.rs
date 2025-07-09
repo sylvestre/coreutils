@@ -794,7 +794,13 @@ pub fn uu_app() -> Command {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = match uu_app().try_get_matches_from(args) {
+        Ok(matches) => matches,
+        Err(err) => {
+            use uucore::clap_localization::handle_clap_error;
+            handle_clap_error(err, "cp");
+        }
+    };
 
     let options = Options::from_matches(&matches)?;
 
