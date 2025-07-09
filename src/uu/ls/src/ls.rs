@@ -1150,9 +1150,10 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         Err(e) if e.kind() == clap::error::ErrorKind::InvalidValue => {
             return Err(USimpleError::new(1, e.to_string()));
         }
-        // All other argument parsing errors cause exit code 2:
+        // All other argument parsing errors use centralized localized handling:
         Err(e) => {
-            return Err(USimpleError::new(2, e.to_string()));
+            use uucore::clap_localization::handle_clap_error;
+            handle_clap_error(e, "ls");
         }
     };
 

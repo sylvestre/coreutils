@@ -34,6 +34,7 @@ use uucore::{format_usage, show, show_error, show_if_err};
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 #[cfg(unix)]
 use std::os::unix::prelude::OsStrExt;
+use uucore::clap_localization::handle_clap_error;
 use uucore::locale::{get_message, get_message_with_args};
 
 const DEFAULT_MODE: u32 = 0o755;
@@ -166,7 +167,10 @@ static ARG_FILES: &str = "files";
 ///
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = match uu_app().try_get_matches_from(args) {
+        Ok(matches) => matches,
+        Err(err) => handle_clap_error(err, "install"),
+    };
 
     let paths: Vec<String> = matches
         .get_many::<String>(ARG_FILES)
