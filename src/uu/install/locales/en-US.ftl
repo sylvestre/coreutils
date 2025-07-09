@@ -20,24 +20,6 @@ install-help-preserve-context = preserve security context
 install-help-context = set security context of files and directories
 
 # Error messages
-install-error-unexpected-argument = error: unexpected argument '{ $arg }' found
-install-error-tip = tip
-install-error-similar-exists = a similar argument exists:
-install-error-similar-suggestion =
-
-  tip: a similar argument exists: '{ $valid_arg }'
-
-install-error-pass-as-value = tip: to pass '{ $arg }' as a value, use '-- { $arg }'
-install-error-usage = Usage:
-install-error-more-info = For more information
-install-error-try = try
-install-error-generic = error
-install-error-generic-with-details = error: { $details }
-install-error-help-suggestion = For more information, try '--help'.
-install-error-unknown-argument = { $error_word }: unexpected argument '{ $arg }' found
-install-error-unknown-argument-tip = { $tip_word }: to pass '{ $arg }' as a value, use '{ $tip_command }'
-install-error-unknown-argument-usage = Usage: install [OPTION]... [FILE]...
-install-error-unknown-argument-generic = error: unexpected argument
 install-error-dir-needs-arg = { $util_name } with -d requires at least one argument.
 install-error-create-dir-failed = failed to create { $path }
 install-error-chmod-failed = failed to chmod { $path }
