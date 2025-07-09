@@ -22,6 +22,7 @@ mod mods; // core cross-platform modules
 pub use uucore_procs::*;
 
 // * cross-platform modules
+pub use crate::mods::clap_localization;
 pub use crate::mods::display;
 pub use crate::mods::error;
 #[cfg(feature = "fs")]
@@ -176,17 +177,20 @@ macro_rules! bin {
             use uucore::locale;
             // suppress extraneous error output for SIGPIPE failures/panics
             uucore::panic::mute_sigpipe_panic();
-            locale::setup_localization(uucore::get_canonical_util_name(stringify!($util)))
-                .unwrap_or_else(|err| {
-                    match err {
-                        uucore::locale::LocalizationError::ParseResource {
-                            error: err_msg,
-                            snippet,
-                        } => eprintln!("Localization parse error at {snippet}: {err_msg}"),
-                        other => eprintln!("Could not init the localization system: {other}"),
-                    }
-                    std::process::exit(99)
-                });
+            locale::setup_localization_with_common(uucore::get_canonical_util_name(stringify!(
+                $util
+            )))
+            .unwrap_or_else(|err| {
+                match err {
+                    #[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
+                    uucore::locale::LocalizationError::ParseResource {
+                        error: err_msg,
+                        snippet,
+                    } => eprintln!("Localization parse error at {snippet}: {err_msg}"),
+                    other => eprintln!("Could not init the localization system: {other}"),
+                }
+                std::process::exit(99)
+            });
 
             // execute utility code
             let code = $util::uumain(uucore::args_os());

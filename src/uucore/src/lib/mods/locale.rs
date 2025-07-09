@@ -5,39 +5,57 @@
 // spell-checker:disable
 
 use crate::error::UError;
-use fluent::{FluentArgs, FluentBundle, FluentResource};
-use fluent_syntax::parser::ParserError;
 use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::sync::OnceLock;
 use thiserror::Error;
+
+#[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
+use std::sync::OnceLock;
+
+#[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
+use fluent::{FluentArgs, FluentBundle, FluentResource};
+#[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
+use fluent_syntax::parser::ParserError;
+#[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
+use std::fs;
+#[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
+use std::path::{Path, PathBuf};
+#[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
+use std::str::FromStr;
+#[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
 use unic_langid::LanguageIdentifier;
 
 #[derive(Error, Debug)]
 pub enum LocalizationError {
+    #[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
     #[error("I/O error loading '{path}': {source}")]
     Io {
         source: std::io::Error,
         path: PathBuf,
     },
+    #[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
     #[error("Parse-locale error: {0}")]
     ParseLocale(String),
+    #[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
     #[error("Resource parse error at '{snippet}': {error:?}")]
     ParseResource {
         #[source]
         error: ParserError,
         snippet: String,
     },
+    #[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
     #[error("Bundle error: {0}")]
     Bundle(String),
+    #[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
     #[error("Locales directory not found: {0}")]
     LocalesDirNotFound(String),
+    #[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
     #[error("Path resolution error: {0}")]
     PathResolution(String),
+    #[error("Localization disabled")]
+    Disabled,
 }
 
+#[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
 impl From<std::io::Error> for LocalizationError {
     fn from(error: std::io::Error) -> Self {
         LocalizationError::Io {
@@ -56,8 +74,16 @@ impl UError for LocalizationError {
 
 pub const DEFAULT_LOCALE: &str = "en-US";
 
-// A struct to handle localization with optional English fallback
-struct Localizer {
+//==============================================================================
+// Configuration with i18n enabled (default)
+//==============================================================================
+
+#[cfg(all(feature = "i18n", not(feature = "embed_strings")))]
+mod i18n_enabled {
+    use super::*;
+
+    // A struct to handle localization with optional English fallback
+    pub struct Localizer {
     primary_bundle: FluentBundle<FluentResource>,
     fallback_bundle: Option<FluentBundle<FluentResource>>,
 }

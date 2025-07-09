@@ -60,9 +60,10 @@ num-traits = { workspace = true, optional = true }
 selinux = { workspace = true, optional = true }
 
 # Fluent dependencies
-fluent = { workspace = true }
-fluent-syntax = { workspace = true }
-unic-langid = { workspace = true }
+fluent = { workspace = true, optional = true }
+fluent-bundle = { workspace = true, optional = true }
+fluent-syntax = { workspace = true, optional = true }
+unic-langid = { workspace = true, optional = true }
 thiserror = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 walkdir = { workspace = true, optional = true }
@@ -87,7 +88,11 @@ windows-sys = { workspace = true, optional = true, default-features = false, fea
 utmp-classic = { workspace = true, optional = true }
 
 [features]
-default = []
+default = ["i18n"]
+# i18n support (enabled by default, disabled when embed_strings is used)
+i18n = ["fluent-bundle", "fluent", "fluent-syntax", "unic-langid"]
+# embed_strings disables translations and embeds English strings directly
+embed_strings = []
 # * non-default features
 backup-control = []
 colors = []
@@ -108,7 +113,6 @@ format = [
   "num-traits",
   "quoting-style",
 ]
-i18n = ["icu_collator", "icu_locale"]
 mode = ["libc"]
 perms = ["entries", "libc", "walkdir"]
 buf-copy = []

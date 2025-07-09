@@ -36,8 +36,9 @@ pub fn main() {
                 "nightly" | "test_unimplemented" | "expensive_tests" | "test_risky_names" => {
                     continue;
                 } // crate-local custom features
-                "uudoc" => continue, // is not a utility
+                "uudoc" => continue,         // is not a utility
                 "test" => continue, // over-ridden with 'uu_test' to avoid collision with rust core crate 'test'
+                "embed_strings" => continue, // is not a utility, just a feature flag
                 s if s.starts_with(FEATURE_PREFIX) => continue, // crate feature sets
                 _ => {}             // util feature name
             }
@@ -105,4 +106,113 @@ pub fn main() {
     mf.write_all(b"\n}\n").unwrap();
 
     mf.flush().unwrap();
+
+    // Generate embedded locale strings if embed_strings feature is enabled
+    if env::var("CARGO_FEATURE_EMBED_STRINGS").is_ok() {
+        generate_embedded_locale_strings(&out_dir, &crates).unwrap();
+    }
+}
+
+/// Generate embedded locale strings from .ftl files
+///
+/// # Errors
+///
+/// Returns an error if file operations fail or if there are I/O issues
+fn generate_embedded_locale_strings(
+    out_dir: &str,
+    crates: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::collections::HashMap;
+    use std::fs;
+
+    let mut all_strings = HashMap::new();
+
+    // Collect all English strings from all utilities
+    for krate in crates {
+        let locale_path = format!("src/uu/{}/locales/en-US.ftl", krate);
+        if Path::new(&locale_path).exists() {
+            let content = fs::read_to_string(&locale_path)?;
+
+            // Parse the Fluent file and extract key-value pairs
+            for line in content.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+
+                if let Some(equals_pos) = line.find(" = ") {
+                    let key = line[..equals_pos].trim();
+                    let value = line[equals_pos + 3..].trim();
+                    all_strings.insert(key.to_string(), value.to_string());
+                }
+            }
+        }
+    }
+
+    // Generate Rust code with embedded strings as individual consts
+    let mut embedded_file = File::create(Path::new(out_dir).join("embedded_locale.rs"))?;
+
+    writeln!(embedded_file, "// Generated at compile time - do not edit")?;
+    writeln!(embedded_file)?;
+
+    // Generate individual const strings
+    for (key, value) in &all_strings {
+        // Create a valid Rust identifier from the key
+        let const_name = key
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect::<String>()
+            .to_uppercase();
+
+        // Ensure it doesn't start with a number
+        let const_name = if const_name.chars().next().unwrap_or('_').is_numeric() {
+            format!("S_{}", const_name)
+        } else {
+            const_name
+        };
+
+        // Escape the value for Rust string literal
+        let escaped_value = value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n");
+        writeln!(
+            embedded_file,
+            "pub const {}: &str = {:?};",
+            const_name, escaped_value
+        )?;
+    }
+
+    writeln!(embedded_file)?;
+
+    // Generate lookup function
+    writeln!(
+        embedded_file,
+        "pub fn get_embedded_string(id: &str) -> Option<&'static str> {{"
+    )?;
+    writeln!(embedded_file, "    match id {{")?;
+
+    for key in all_strings.keys() {
+        let const_name = key
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect::<String>()
+            .to_uppercase();
+
+        // Ensure it doesn't start with a number
+        let const_name = if const_name.chars().next().unwrap_or('_').is_numeric() {
+            format!("S_{}", const_name)
+        } else {
+            const_name
+        };
+
+        writeln!(embedded_file, "        {:?} => Some({}),", key, const_name)?;
+    }
+
+    writeln!(embedded_file, "        _ => None,")?;
+    writeln!(embedded_file, "    }}")?;
+    writeln!(embedded_file, "}}")?;
+
+    embedded_file.flush()?;
+    Ok(())
 }
