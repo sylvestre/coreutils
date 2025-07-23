@@ -32,11 +32,14 @@ types = ("/*/*.sh", "/*/*.pl", "/*/*.xpl")
 tests = []
 error_tests = []
 skip_tests = []
+missing_from_json = []
 
 for files in types:
     tests.extend(glob.glob(base + files))
 # sort by size
 list_of_files = sorted(tests, key=lambda x: os.stat(x).st_size)
+# Keep track of all tests found on disk
+all_disk_tests = set(list_of_files)
 
 
 def show_list(list_test):
@@ -63,6 +66,9 @@ def contains_require_root(file_path):
 with open("result.json", "r") as json_file:
     data = json.load(json_file)
 
+# Keep track of tests we've seen in JSON
+tests_in_json = set()
+
 for d in data:
     for e in data[d]:
         # Not all the tests are .sh files, rename them if not.
@@ -72,6 +78,9 @@ for d in data:
             a = a.replace(".sh", ".pl")
             if not os.path.exists(a):
                 a = a.replace(".pl", ".xpl")
+
+        # Track that we've seen this test in JSON
+        tests_in_json.add(a)
 
         # the tests pass, we don't care anymore
         if data[d][e] == "PASS":
@@ -91,6 +100,17 @@ for d in data:
             list_of_files.remove(a)
             error_tests.append(a)
 
+# Find tests that exist on disk but aren't in JSON
+missing_from_json = sorted(list(all_disk_tests - tests_in_json), key=lambda x: os.stat(x).st_size)
+
+# Remove missing tests from the fail list
+for test in missing_from_json:
+    if test in list_of_files:
+        list_of_files.remove(test)
+
+print("===============")
+print("ERROR: Tests found on disk but missing from result.json:")
+show_list(missing_from_json)
 print("===============")
 print("SKIP tests:")
 show_list(skip_tests)
