@@ -11,7 +11,7 @@ use uucore::error::UResult;
 use uucore::locale::get_message;
 
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let _matches = uu_app().try_get_matches_from(args)?;
+    let _matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
     println!("{}", get_message("who-unsupported-openbsd"));
     Ok(())
 }

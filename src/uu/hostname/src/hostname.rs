@@ -15,6 +15,7 @@ use clap::{Arg, ArgAction, ArgMatches, Command};
 
 #[cfg(any(target_os = "freebsd", target_os = "openbsd"))]
 use dns_lookup::lookup_host;
+use uucore::init_clap_with_l10n;
 use uucore::locale::get_message;
 
 use uucore::{
@@ -60,7 +61,7 @@ mod wsa {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     #[cfg(windows)]
     let _handle = wsa::start().map_err_context(|| get_message("hostname-error-winsock"))?;

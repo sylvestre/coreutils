@@ -23,6 +23,7 @@ use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UResult, USimpleError};
+use uucore::init_clap_with_l10n;
 use uucore::parser::shortcut_value_parser::ShortcutValueParser;
 use uucore::{format_usage, show};
 
@@ -187,7 +188,7 @@ fn shr2(s: &str) -> String {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let mut filenames: Vec<&String> = matches
         .get_many::<String>(ARG_FILES)

@@ -23,7 +23,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         }
         Err(err) => {
             // Use the centralized clap error handler
-            handle_clap_error(err, "whoami");
+            handle_clap_error(err.into(), "whoami");
         }
     }
 }

@@ -7,6 +7,7 @@ use clap::{Arg, ArgAction, Command};
 use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 use uucore::{
     error::{UResult, USimpleError, UUsageError},
@@ -21,7 +22,7 @@ mod options {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let numbers = matches
         .get_many::<String>(options::NUMBER)

@@ -12,10 +12,10 @@ use std::ffi::OsString;
 use std::io::{self, Write};
 use uucore::error::{UResult, USimpleError};
 use uucore::format_usage;
+use uucore::init_clap_with_l10n;
+use uucore::locale::{get_message, get_message_with_args};
 #[cfg(unix)]
 use uucore::signals::enable_pipe_errors;
-
-use uucore::locale::{get_message, get_message_with_args};
 
 // it's possible that using a smaller or larger buffer might provide better performance on some
 // systems, but honestly this is good enough
@@ -23,7 +23,7 @@ const BUF_SIZE: usize = 16 * 1024;
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let mut buffer = Vec::with_capacity(BUF_SIZE);
     args_into_buffer(&mut buffer, matches.get_many::<OsString>("STRING")).unwrap();

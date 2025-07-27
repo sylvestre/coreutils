@@ -26,6 +26,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use thiserror::Error;
 use uucore::display::{Quotable, print_verbatim};
 use uucore::error::{FromIo, UError, UResult, USimpleError, set_exit_code};
+use uucore::init_clap_with_l10n;
 use uucore::line_ending::LineEnding;
 use uucore::locale::{get_message, get_message_with_args};
 use uucore::parser::parse_glob;
@@ -655,7 +656,7 @@ fn read_files_from(file_name: &str) -> Result<Vec<PathBuf>, std::io::Error> {
 #[uucore::main]
 #[allow(clippy::cognitive_complexity)]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let summarize = matches.get_flag(options::SUMMARIZE);
 

@@ -13,6 +13,7 @@ use std::path::Path;
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UResult, USimpleError};
 use uucore::format_usage;
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 
 const TAB_WIDTH: usize = 8;
@@ -32,7 +33,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let args = args.collect_lossy();
 
     let (args, obs_width) = handle_obsolete(&args[..]);
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let bytes = matches.get_flag(options::BYTES);
     let spaces = matches.get_flag(options::SPACES);

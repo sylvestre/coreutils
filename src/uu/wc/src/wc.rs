@@ -27,6 +27,7 @@ use unicode_width::UnicodeWidthChar;
 use utf8::{BufReadDecoder, BufReadDecoderError};
 use uucore::locale::{get_message, get_message_with_args};
 
+use uucore::init_clap_with_l10n;
 use uucore::{
     error::{FromIo, UError, UResult},
     format_usage,
@@ -377,7 +378,7 @@ impl UError for WcError {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let settings = Settings::new(&matches);
     let inputs = Inputs::new(&matches)?;

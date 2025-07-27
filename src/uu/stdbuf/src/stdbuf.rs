@@ -15,6 +15,7 @@ use tempfile::tempdir;
 use thiserror::Error;
 use uucore::error::{FromIo, UClapError, UResult, USimpleError, UUsageError};
 use uucore::format_usage;
+use uucore::init_clap_with_l10n;
 use uucore::parser::parse_size::parse_size_u64;
 
 use uucore::locale::{get_message, get_message_with_args};
@@ -183,7 +184,7 @@ fn get_preload_env(_tmp_dir: &TempDir) -> UResult<(String, PathBuf)> {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args).with_exit_code(125)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args), 125);
 
     let options =
         ProgramOptions::try_from(&matches).map_err(|e| UUsageError::new(125, e.to_string()))?;

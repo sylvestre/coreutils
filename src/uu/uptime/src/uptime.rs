@@ -18,6 +18,7 @@ use uucore::uptime::*;
 use clap::{Arg, ArgAction, Command, ValueHint, builder::ValueParser};
 
 use uucore::format_usage;
+use uucore::init_clap_with_l10n;
 
 use uucore::locale::{get_message, get_message_with_args};
 #[cfg(unix)]
@@ -48,7 +49,7 @@ impl UError for UptimeError {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     #[cfg(unix)]
     let file_path = matches.get_one::<OsString>(options::PATH);

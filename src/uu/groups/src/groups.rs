@@ -14,6 +14,7 @@ use uucore::{
 };
 
 use clap::{Arg, ArgAction, Command};
+use uucore::init_clap_with_l10n;
 use uucore::locale::get_message;
 
 mod options {
@@ -47,7 +48,7 @@ fn infallible_gid2grp(gid: &u32) -> String {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let users: Vec<String> = matches
         .get_many::<String>(options::USERS)

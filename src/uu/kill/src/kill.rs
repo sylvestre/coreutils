@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::io::Error;
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UResult, USimpleError};
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 use uucore::signals::{ALL_SIGNALS, signal_by_name_or_value, signal_name_by_value};
 use uucore::{format_usage, show};
@@ -40,7 +41,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let mut args = args.collect_ignore();
     let obs_signal = handle_obsolete(&mut args);
 
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let mode = if matches.get_flag(options::TABLE) {
         Mode::Table

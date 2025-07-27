@@ -7,11 +7,12 @@ use platform_info::*;
 
 use clap::Command;
 use uucore::error::{UResult, USimpleError};
+use uucore::init_clap_with_l10n;
 use uucore::locale::get_message;
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    uu_app().try_get_matches_from(args)?;
+    init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let uts =
         PlatformInfo::new().map_err(|_e| USimpleError::new(1, get_message("cannot-get-system")))?;

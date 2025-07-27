@@ -169,7 +169,7 @@ static ARG_FILES: &str = "files";
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let matches = match uu_app().try_get_matches_from(args) {
         Ok(matches) => matches,
-        Err(err) => handle_clap_error(err, "install"),
+        Err(err) => handle_clap_error(err.into(), "install"),
     };
 
     let paths: Vec<String> = matches

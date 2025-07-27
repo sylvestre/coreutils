@@ -14,7 +14,7 @@ use std::io;
 use std::path::Path;
 use uucore::display::Quotable;
 use uucore::error::{UResult, set_exit_code, strip_errno};
-
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 use uucore::{format_usage, show_error, util_name};
 
@@ -26,7 +26,7 @@ static ARG_DIRS: &str = "dirs";
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let opts = Opts {
         ignore: matches.get_flag(OPT_IGNORE_FAIL_NON_EMPTY),

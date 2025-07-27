@@ -14,6 +14,7 @@ use table::HeaderMode;
 use uucore::display::Quotable;
 use uucore::error::{UError, UResult, USimpleError, get_exit_code};
 use uucore::fsext::{MountInfo, read_fs_list};
+use uucore::init_clap_with_l10n;
 use uucore::parser::parse_size::ParseSizeError;
 use uucore::{format_usage, show};
 
@@ -413,7 +414,7 @@ impl UError for DfError {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     #[cfg(windows)]
     {

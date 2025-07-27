@@ -11,6 +11,7 @@ use std::{env, thread};
 use uucore::display::Quotable;
 use uucore::error::{UResult, USimpleError};
 use uucore::format_usage;
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -27,7 +28,7 @@ static OPT_IGNORE: &str = "ignore";
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let ignore = match matches.get_one::<String>(OPT_IGNORE) {
         Some(numstr) => match numstr.trim().parse::<usize>() {

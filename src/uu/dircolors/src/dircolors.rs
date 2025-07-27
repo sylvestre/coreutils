@@ -17,6 +17,7 @@ use clap::{Arg, ArgAction, Command};
 use uucore::colors::{FILE_ATTRIBUTE_CODES, FILE_COLORS, FILE_TYPES, TERMS};
 use uucore::display::Quotable;
 use uucore::error::{UResult, USimpleError, UUsageError};
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 use uucore::{format_usage, parser::parse_glob};
 
@@ -120,7 +121,7 @@ fn generate_ls_colors(fmt: &OutputFmt, sep: &str) -> String {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let files = matches
         .get_many::<String>(options::FILE)

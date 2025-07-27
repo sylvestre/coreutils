@@ -1153,7 +1153,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         // All other argument parsing errors use centralized localized handling:
         Err(e) => {
             use uucore::clap_localization::handle_clap_error;
-            handle_clap_error(e, "ls");
+            handle_clap_error(e.into(), "ls");
         }
     };
 

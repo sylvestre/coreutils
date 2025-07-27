@@ -7,9 +7,10 @@
 //! Helper clap functions to localize error handling and options
 //!
 
+use crate::error::{ClapErrorWrapper, UError};
 use crate::locale::{get_message, get_message_with_args};
+use clap::Command;
 use clap::error::{ContextKind, ErrorKind};
-use clap::{Command, Error};
 use std::collections::HashMap;
 use std::process;
 
@@ -48,15 +49,16 @@ pub fn uu_app_common(name: impl Into<clap::builder::Str>) -> Command {
 /// with appropriate coloring for better user experience.
 ///
 /// # Arguments
-/// * `err` - The clap error to handle
+/// * `err` - The clap error wrapper to handle
 /// * `util_name` - Name of the utility for error context
 ///
 /// # Returns
 /// * Never returns (calls process::exit)
-pub fn handle_clap_error(err: Error, util_name: &str) -> ! {
-    match err.kind() {
+pub fn handle_clap_error(err: ClapErrorWrapper, util_name: &str) -> ! {
+    let clap_err = &err.error;
+    match clap_err.kind() {
         ErrorKind::UnknownArgument => {
-            if let Some(invalid_arg) = err.get(ContextKind::InvalidArg) {
+            if let Some(invalid_arg) = clap_err.get(ContextKind::InvalidArg) {
                 let arg_str = invalid_arg.to_string();
 
                 // Get the uncolored words from common strings
@@ -80,7 +82,7 @@ pub fn handle_clap_error(err: Error, util_name: &str) -> ! {
                 eprintln!();
 
                 // Show suggestion or generic tip
-                let suggestion = err.get(ContextKind::SuggestedArg);
+                let suggestion = clap_err.get(ContextKind::SuggestedArg);
                 if let Some(suggested_arg) = suggestion {
                     let suggestion_msg = get_message_with_args(
                         "clap-error-similar-argument",
@@ -129,10 +131,10 @@ pub fn handle_clap_error(err: Error, util_name: &str) -> ! {
         }
         _ => {
             // For other errors, use the default clap handling
-            eprint!("{}", err);
+            eprint!("{}", clap_err);
         }
     }
-    process::exit(1);
+    process::exit(err.code());
 }
 
 /// Convenience macro to wrap clap error handling
@@ -143,7 +145,21 @@ macro_rules! init_clap_with_l10n {
     ($result:expr) => {
         match $result {
             Ok(matches) => matches,
-            Err(err) => $crate::clap_localization::handle_clap_error(err, uucore::util_name()),
+            Err(err) => {
+                $crate::clap_localization::handle_clap_error(err.into(), $crate::util_name())
+            }
+        }
+    };
+    ($result:expr, $exit_code:expr) => {
+        match $result {
+            Ok(matches) => matches,
+            Err(err) => {
+                use $crate::error::UClapError;
+                $crate::clap_localization::handle_clap_error(
+                    err.with_exit_code($exit_code),
+                    $crate::util_name(),
+                )
+            }
         }
     };
 }

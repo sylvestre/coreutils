@@ -17,11 +17,11 @@ use std::io::{BufWriter, Write, stdin, stdout};
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UResult, USimpleError, UUsageError};
 use uucore::fs::is_stdin_directory;
+use uucore::init_clap_with_l10n;
 #[cfg(not(target_os = "windows"))]
 use uucore::libc;
-use uucore::{format_usage, os_str_as_bytes, show};
-
 use uucore::locale::{get_message, get_message_with_args};
+use uucore::{format_usage, os_str_as_bytes, show};
 
 mod options {
     pub const COMPLEMENT: &str = "complement";
@@ -42,7 +42,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
 
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let delete_flag = matches.get_flag(options::DELETE);
     let complement_flag = matches.get_flag(options::COMPLEMENT);

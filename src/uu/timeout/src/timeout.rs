@@ -15,10 +15,11 @@ use std::process::{self, Child, Stdio};
 use std::sync::atomic::{self, AtomicBool};
 use std::time::Duration;
 use uucore::display::Quotable;
-use uucore::error::{UClapError, UResult, USimpleError, UUsageError};
+use uucore::error::{UResult, USimpleError, UUsageError};
 use uucore::parser::parse_time;
 use uucore::process::ChildExt;
 
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 #[cfg(unix)]
 use uucore::signals::enable_pipe_errors;
@@ -111,7 +112,7 @@ impl Config {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args).with_exit_code(125)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args), 125);
 
     let config = Config::from(&matches)?;
     timeout(

@@ -11,10 +11,11 @@ use std::{
     path::{Path, PathBuf},
 };
 use uucore::fs::make_path_relative_to;
+use uucore::init_clap_with_l10n;
 use uucore::locale::get_message;
 use uucore::{
     display::{Quotable, print_verbatim},
-    error::{FromIo, UClapError, UResult},
+    error::{FromIo, UResult},
     format_usage,
     fs::{MissingHandling, ResolveMode, canonicalize},
     line_ending::LineEnding,
@@ -35,7 +36,7 @@ const ARG_FILES: &str = "files";
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args).with_exit_code(1)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args), 1);
 
     /*  the list of files */
 

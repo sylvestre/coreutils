@@ -19,6 +19,7 @@ use uucore::display::Quotable;
 use uucore::error::FromIo;
 use uucore::error::{UResult, USimpleError};
 use uucore::format_usage;
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 
 pub mod options {
@@ -175,7 +176,7 @@ mod platform {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
     let files: Vec<String> = matches
         .get_many::<String>(ARG_FILES)
         .map(|v| v.map(ToString::to_string).collect())

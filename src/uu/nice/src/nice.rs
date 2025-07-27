@@ -12,9 +12,10 @@ use std::ffi::{CString, OsString};
 use std::io::{Error, Write};
 use std::ptr;
 
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 use uucore::{
-    error::{UClapError, UResult, USimpleError, UUsageError, set_exit_code},
+    error::{UResult, USimpleError, UUsageError, set_exit_code},
     format_usage, show_error,
 };
 
@@ -104,7 +105,7 @@ fn standardize_nice_args(mut args: impl uucore::Args) -> impl uucore::Args {
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let args = standardize_nice_args(args);
 
-    let matches = uu_app().try_get_matches_from(args).with_exit_code(125)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args), 125);
 
     nix::errno::Errno::clear();
     let mut niceness = unsafe { libc::getpriority(PRIO_PROCESS, 0) };

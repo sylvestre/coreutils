@@ -14,8 +14,9 @@ use std::os::unix::prelude::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process;
 use uucore::entries::{Locate, Passwd, grp2gid, usr2uid};
-use uucore::error::{UClapError, UResult, UUsageError, set_exit_code};
+use uucore::error::{UResult, UUsageError, set_exit_code};
 use uucore::fs::{MissingHandling, ResolveMode, canonicalize};
+use uucore::init_clap_with_l10n;
 use uucore::libc::{self, chroot, setgid, setgroups, setuid};
 use uucore::{format_usage, show};
 
@@ -155,7 +156,7 @@ impl Options {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args).with_exit_code(125)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args), 125);
 
     let default_shell: &'static str = "/bin/sh";
     let default_option: &'static str = "-i";

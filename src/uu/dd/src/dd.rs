@@ -59,6 +59,7 @@ use uucore::display::Quotable;
 use uucore::error::{FromIo, UResult};
 #[cfg(unix)]
 use uucore::error::{USimpleError, set_exit_code};
+use uucore::init_clap_with_l10n;
 #[cfg(target_os = "linux")]
 use uucore::show_if_err;
 use uucore::{format_usage, show_error};
@@ -1440,7 +1441,7 @@ fn is_fifo(filename: &str) -> bool {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let settings: Settings = Parser::new().parse(
         matches

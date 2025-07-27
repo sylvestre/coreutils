@@ -146,7 +146,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         Ok(matches) => matches,
         Err(err) => {
             use uucore::clap_localization::handle_clap_error;
-            handle_clap_error(err, "mv");
+            handle_clap_error(err.into(), "mv");
         }
     };
 

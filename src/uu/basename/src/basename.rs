@@ -11,6 +11,7 @@ use std::path::{PathBuf, is_separator};
 use uucore::display::Quotable;
 use uucore::error::{UResult, UUsageError};
 use uucore::format_usage;
+use uucore::init_clap_with_l10n;
 use uucore::line_ending::LineEnding;
 
 use uucore::locale::{get_message, get_message_with_args};
@@ -29,7 +30,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     //
     // Argument parsing
     //
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let line_ending = LineEnding::from_zero_flag(matches.get_flag(options::ZERO));
 

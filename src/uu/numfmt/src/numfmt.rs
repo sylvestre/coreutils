@@ -16,6 +16,7 @@ use std::str::FromStr;
 use units::{IEC_BASES, SI_BASES};
 use uucore::display::Quotable;
 use uucore::error::UResult;
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 use uucore::parser::shortcut_value_parser::ShortcutValueParser;
 use uucore::ranges::Range;
@@ -267,7 +268,7 @@ fn parse_options(args: &ArgMatches) -> Result<NumfmtOptions> {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let options = parse_options(&matches).map_err(NumfmtError::IllegalArgument)?;
 

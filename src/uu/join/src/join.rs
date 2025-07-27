@@ -20,6 +20,7 @@ use thiserror::Error;
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UError, UResult, USimpleError, set_exit_code};
 use uucore::format_usage;
+use uucore::init_clap_with_l10n;
 use uucore::line_ending::LineEnding;
 
 use uucore::locale::{get_message, get_message_with_args};
@@ -845,7 +846,7 @@ fn parse_settings(matches: &clap::ArgMatches) -> UResult<Settings> {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let settings = parse_settings(&matches)?;
 

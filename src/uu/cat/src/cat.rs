@@ -25,6 +25,7 @@ use memchr::memchr2;
 use thiserror::Error;
 use uucore::display::Quotable;
 use uucore::error::UResult;
+use uucore::init_clap_with_l10n;
 use uucore::locale::get_message;
 use uucore::{fast_inc::fast_inc_one, format_usage};
 
@@ -220,7 +221,7 @@ mod options {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let number_mode = if matches.get_flag(options::NUMBER_NONBLANK) {
         NumberingMode::NonEmpty

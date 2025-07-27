@@ -17,6 +17,7 @@ use std::{
 use uucore::display::Quotable;
 use uucore::error::UError;
 use uucore::error::UResult;
+use uucore::init_clap_with_l10n;
 use uucore::{format_usage, show};
 
 use crate::error::TacError;
@@ -32,7 +33,7 @@ mod options {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let before = matches.get_flag(options::BEFORE);
     let regex = matches.get_flag(options::REGEX);

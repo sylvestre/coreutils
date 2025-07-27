@@ -13,6 +13,7 @@ use std::io::{BufRead, BufReader, BufWriter, IsTerminal, Read, Write, stdin, std
 use std::path::Path;
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UResult, USimpleError, set_exit_code};
+use uucore::init_clap_with_l10n;
 use uucore::line_ending::LineEnding;
 use uucore::os_str_as_bytes;
 
@@ -482,7 +483,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         })
         .collect();
 
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let complement = matches.get_flag(options::COMPLEMENT);
     let only_delimited = matches.get_flag(options::ONLY_DELIMITED);

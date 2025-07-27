@@ -698,8 +698,8 @@ impl From<i32> for Box<dyn UError> {
 /// ```
 #[derive(Debug)]
 pub struct ClapErrorWrapper {
-    code: i32,
-    error: clap::Error,
+    pub(crate) code: i32,
+    pub(crate) error: clap::Error,
 }
 
 /// Extension trait for `clap::Error` to adjust the exit code.
@@ -711,6 +711,12 @@ pub trait UClapError<T> {
 impl From<clap::Error> for Box<dyn UError> {
     fn from(e: clap::Error) -> Self {
         Box::new(ClapErrorWrapper { code: 1, error: e })
+    }
+}
+
+impl From<clap::Error> for ClapErrorWrapper {
+    fn from(error: clap::Error) -> Self {
+        ClapErrorWrapper { code: 1, error }
     }
 }
 

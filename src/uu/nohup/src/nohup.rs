@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 use uucore::display::Quotable;
 use uucore::error::{UClapError, UError, UResult, set_exit_code};
+use uucore::init_clap_with_l10n;
 use uucore::{format_usage, show_error};
 
 use uucore::locale::{get_message, get_message_with_args};
@@ -64,7 +65,7 @@ impl UError for NohupError {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args).with_exit_code(125)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args), 125);
 
     replace_fds()?;
 

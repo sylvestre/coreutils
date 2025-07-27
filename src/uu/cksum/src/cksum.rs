@@ -19,6 +19,7 @@ use uucore::checksum::{
     ChecksumVerbose, SUPPORTED_ALGORITHMS, calculate_blake2b_length, detect_algo, digest_reader,
     perform_checksum_validation,
 };
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 use uucore::{
     encoding,
@@ -239,7 +240,7 @@ fn handle_tag_text_binary_flags<S: AsRef<OsStr>>(
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let check = matches.get_flag(options::CHECK);
 

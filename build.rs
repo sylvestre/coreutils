@@ -129,7 +129,7 @@ fn generate_embedded_locale_strings(
 
     // Collect all English strings from all utilities
     for krate in crates {
-        let locale_path = format!("src/uu/{}/locales/en-US.ftl", krate);
+        let locale_path = format!("src/uu/{krate}/locales/en-US.ftl");
         if Path::new(&locale_path).exists() {
             let content = fs::read_to_string(&locale_path)?;
 
@@ -166,7 +166,7 @@ fn generate_embedded_locale_strings(
 
         // Ensure it doesn't start with a number
         let const_name = if const_name.chars().next().unwrap_or('_').is_numeric() {
-            format!("S_{}", const_name)
+            format!("S_{const_name}")
         } else {
             const_name
         };
@@ -178,8 +178,7 @@ fn generate_embedded_locale_strings(
             .replace('\n', "\\n");
         writeln!(
             embedded_file,
-            "pub const {}: &str = {:?};",
-            const_name, escaped_value
+            "pub const {const_name}: &str = {escaped_value:?};"
         )?;
     }
 
@@ -201,12 +200,12 @@ fn generate_embedded_locale_strings(
 
         // Ensure it doesn't start with a number
         let const_name = if const_name.chars().next().unwrap_or('_').is_numeric() {
-            format!("S_{}", const_name)
+            format!("S_{const_name}")
         } else {
             const_name
         };
 
-        writeln!(embedded_file, "        {:?} => Some({}),", key, const_name)?;
+        writeln!(embedded_file, "        {key:?} => Some({const_name}),")?;
     }
 
     writeln!(embedded_file, "        _ => None,")?;

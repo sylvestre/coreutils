@@ -16,6 +16,7 @@ use uucore::display::Quotable;
 use uucore::error::{FromIo, UResult, USimpleError, set_exit_code};
 use uucore::{format_usage, show_error, show_warning};
 
+use uucore::init_clap_with_l10n;
 use uucore::locale::{get_message, get_message_with_args};
 
 mod options {
@@ -80,7 +81,7 @@ fn write_result(
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     // If matches find --exponents flag than variable print_exponents is true and p^e output format will be used.
     let print_exponents = matches.get_flag(options::EXPONENTS);
