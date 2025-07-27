@@ -137,13 +137,13 @@ pub fn handle_clap_error(err: Error, util_name: &str) -> ! {
 
 /// Convenience macro to wrap clap error handling
 ///
-/// Usage: `handle_clap_result!(app.try_get_matches_from(args), "command_name")`
+/// Usage: `init_clap_with_l10n!(app.try_get_matches_from(args))`
 #[macro_export]
-macro_rules! handle_clap_result {
-    ($result:expr, $util_name:expr) => {
+macro_rules! init_clap_with_l10n {
+    ($result:expr) => {
         match $result {
             Ok(matches) => matches,
-            Err(err) => $crate::clap_localization::handle_clap_error(err, $util_name),
+            Err(err) => $crate::clap_localization::handle_clap_error(err, uucore::util_name()),
         }
     };
 }

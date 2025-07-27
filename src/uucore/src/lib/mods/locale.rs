@@ -645,7 +645,6 @@ pub fn setup_localization_with_common(p: &str) -> Result<(), LocalizationError> 
     i18n_enabled::init_localization_with_common(&locale, &locales_dir)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

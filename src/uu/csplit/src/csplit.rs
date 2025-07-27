@@ -17,6 +17,7 @@ use regex::Regex;
 use uucore::display::Quotable;
 use uucore::error::{FromIo, UResult};
 use uucore::format_usage;
+use uucore::init_clap_with_l10n;
 
 mod csplit_error;
 mod patterns;
@@ -607,7 +608,7 @@ where
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().try_get_matches_from(args)?;
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     // get the file to split
     let file_name = matches.get_one::<String>(options::FILE).unwrap();

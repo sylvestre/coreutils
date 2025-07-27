@@ -142,7 +142,13 @@ static OPT_DEBUG: &str = "debug";
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let mut app = uu_app();
-    let matches = app.try_get_matches_from_mut(args)?;
+    let matches = match app.try_get_matches_from_mut(args) {
+        Ok(matches) => matches,
+        Err(err) => {
+            use uucore::clap_localization::handle_clap_error;
+            handle_clap_error(err, "mv");
+        }
+    };
 
     let files: Vec<OsString> = matches
         .get_many::<OsString>(ARG_FILES)

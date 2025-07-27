@@ -31,6 +31,7 @@ use uucore::fs::{
     get_filename, is_symlink_loop, normalize_path, path_ends_with_terminator,
     paths_refer_to_same_file,
 };
+use uucore::init_clap_with_l10n;
 use uucore::{backup_control, update_control};
 // These are exposed for projects (e.g. nushell) that want to create an `Options` value, which
 // requires these enum.
@@ -794,13 +795,7 @@ pub fn uu_app() -> Command {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = match uu_app().try_get_matches_from(args) {
-        Ok(matches) => matches,
-        Err(err) => {
-            use uucore::clap_localization::handle_clap_error;
-            handle_clap_error(err, "cp");
-        }
-    };
+    let matches = init_clap_with_l10n!(uu_app().try_get_matches_from(args));
 
     let options = Options::from_matches(&matches)?;
 
