@@ -389,6 +389,9 @@ mod tests {
         }
         let _ = locale::setup_localization("uptime");
         assert_eq!("0 users", format_nusers(0));
+        #[cfg(feature = "disable_i18n")]
+        assert_eq!("1 users", format_nusers(1)); // With disable_i18n, plural form is always used
+        #[cfg(not(feature = "disable_i18n"))]
         assert_eq!("1 user", format_nusers(1));
         assert_eq!("2 users", format_nusers(2));
     }

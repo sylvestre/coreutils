@@ -1605,6 +1605,7 @@ dependencies = [
  "digest",
  "dunce",
  "fluent",
+ "fluent-bundle",
  "fluent-syntax",
  "glob",
  "hex",

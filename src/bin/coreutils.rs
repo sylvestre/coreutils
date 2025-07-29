@@ -83,6 +83,7 @@ fn find_prefixed_util<'a>(
 fn setup_localization_or_exit(util_name: &str) {
     locale::setup_localization(get_canonical_util_name(util_name)).unwrap_or_else(|err| {
         match err {
+            #[cfg(not(feature = "disable_i18n"))]
             uucore::locale::LocalizationError::ParseResource {
                 error: err_msg,
                 snippet,

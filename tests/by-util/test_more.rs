@@ -7,7 +7,7 @@ use std::io::IsTerminal;
 
 use uutests::{at_and_ucmd, new_ucmd};
 
-#[cfg(unix)]
+#[cfg(all(unix, not(feature = "disable_i18n")))]
 #[test]
 fn test_no_arg() {
     if std::io::stdout().is_terminal() {
