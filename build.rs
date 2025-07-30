@@ -107,6 +107,10 @@ pub fn main() {
 
     mf.flush().unwrap();
 
+    // Always generate embedded English locale files
+    // This ensures English works even when locale files aren't available (e.g., cargo install)
+    generate_embedded_english_locales(&out_dir, &crates).unwrap();
+
     // Generate embedded locale strings if disable_i18n feature is enabled
     if env::var("CARGO_FEATURE_DISABLE_I18N").is_ok() {
         generate_embedded_locale_strings(&out_dir, &crates).unwrap();
@@ -128,4 +132,79 @@ fn generate_embedded_locale_strings(
     // Use current directory as project root for the main build script
     let project_root = Path::new(".");
     build_common::generate_embedded_locale_strings(out_dir, project_root)
+}
+
+/// Generate embedded English locale files
+///
+/// # Errors
+///
+/// Returns an error if file operations fail or if there are I/O issues
+fn generate_embedded_english_locales(
+    out_dir: &str,
+    crates: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs;
+
+    let mut embedded_file = File::create(Path::new(&out_dir).join("embedded_locales.rs"))?;
+
+    writeln!(embedded_file, "// Generated at compile time - do not edit")?;
+    writeln!(
+        embedded_file,
+        "// This file contains embedded English locale files for all utilities"
+    )?;
+    writeln!(embedded_file)?;
+    writeln!(embedded_file, "use std::collections::HashMap;")?;
+    writeln!(embedded_file)?;
+
+    // Start the function that returns embedded locales
+    writeln!(
+        embedded_file,
+        "pub fn get_embedded_locales() -> HashMap<&'static str, &'static str> {{"
+    )?;
+    writeln!(embedded_file, "    let mut locales = HashMap::new();")?;
+    writeln!(embedded_file)?;
+
+    // Embed locale files for each utility
+    for krate in crates {
+        let util_name = if let Some(stripped) = krate.strip_prefix("uu_") {
+            stripped
+        } else {
+            krate
+        };
+
+        let locale_path = Path::new("src/uu")
+            .join(util_name)
+            .join("locales/en-US.ftl");
+        if locale_path.exists() {
+            let content = fs::read_to_string(&locale_path)?;
+            writeln!(embedded_file, "    // Locale for {util_name}")?;
+            writeln!(
+                embedded_file,
+                "    locales.insert(\"{util_name}/en-US.ftl\", r###\"{content}\"###);"
+            )?;
+            writeln!(embedded_file)?;
+
+            // Tell Cargo to rerun if this file changes
+            println!("cargo:rerun-if-changed={}", locale_path.display());
+        }
+    }
+
+    // Also embed uucore locale file if it exists
+    let uucore_locale_path = Path::new("src/uucore/locales/en-US.ftl");
+    if uucore_locale_path.exists() {
+        let content = fs::read_to_string(uucore_locale_path)?;
+        writeln!(embedded_file, "    // Common uucore locale")?;
+        writeln!(
+            embedded_file,
+            "    locales.insert(\"uucore/en-US.ftl\", r###\"{content}\"###);"
+        )?;
+        println!("cargo:rerun-if-changed={}", uucore_locale_path.display());
+    }
+
+    writeln!(embedded_file)?;
+    writeln!(embedded_file, "    locales")?;
+    writeln!(embedded_file, "}}")?;
+
+    embedded_file.flush()?;
+    Ok(())
 }
