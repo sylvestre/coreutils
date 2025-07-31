@@ -72,55 +72,6 @@ jobs:
       env:
         RUST_BACKTRACE: "1"
 
-  l10n_disable_test:
-    name: L10n/Disabled Build Test
-    runs-on: ${{ matrix.job.os }}
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: "sccache"
-    strategy:
-      fail-fast: false
-      matrix:
-        job:
-          - { os: ubuntu-latest  , features: "feat_os_unix,disable_i18n" }
-          - { os: macos-latest   , features: "feat_os_macos,disable_i18n" }
-          - { os: windows-latest , features: "feat_os_windows,disable_i18n" }
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        persist-credentials: false
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: taiki-e/install-action@nextest
-    - uses: Swatinem/rust-cache@v2
-    - name: Run sccache-cache
-      uses: mozilla-actions/sccache-action@v0.0.9
-    - name: Install/setup prerequisites
-      shell: bash
-      run: |
-        ## Install/setup prerequisites
-        case '${{ matrix.job.os }}' in
-          ubuntu-*)
-            # selinux headers needed for testing
-            sudo apt-get -y update ; sudo apt-get -y install libselinux1-dev
-          ;;
-          macos-*)
-            # needed for testing
-            brew install coreutils
-          ;;
-        esac
-    - name: Build without l10n features
-      shell: bash
-      run: |
-        ## Build without l10n features
-        cargo build --features ${{ matrix.job.features }}
-    - name: Test l10n disabled functionality
-      shell: bash
-      run: |
-        ## Test l10n disabled functionality
-        cargo test --features disable_i18n -p uucore locale
-        cargo test --features disable_i18n
-      env:
-        RUST_BACKTRACE: "1"
 
   l10n_fluent_syntax:
     name: L10n/Fluent Syntax Check
@@ -178,39 +129,6 @@ jobs:
         fi
 
         echo "::notice::All Fluent files passed Mozilla Fluent Linter validation"
-
-  l10n_feature_combinations:
-    name: L10n/Feature Combinations
-    runs-on: ubuntu-latest
-    env:
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: "sccache"
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        persist-credentials: false
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: Swatinem/rust-cache@v2
-    - name: Run sccache-cache
-      uses: mozilla-actions/sccache-action@v0.0.9
-    - name: Install/setup prerequisites
-      shell: bash
-      run: |
-        sudo apt-get -y update ; sudo apt-get -y install libselinux1-dev
-    - name: Test feature combinations
-      shell: bash
-      run: |
-        ## Test different l10n feature combinations
-
-        echo "Testing with i18n enabled by default..."
-        cargo check -p uucore
-
-        echo "Testing with disable_i18n feature..."
-        cargo check --features "disable_i18n" -p uucore
-
-        echo "All feature combinations compiled successfully"
-      env:
-        RUST_BACKTRACE: "1"
 
   l10n_french_integration:
     name: L10n/French Integration Test
@@ -315,7 +233,7 @@ jobs:
         if [ "$french_strings_found" -gt 0 ]; then
           echo "✓ SUCCESS: French locale integration test passed - found $french_strings_found French strings"
         else
-          echo "⚠ WARNING: No French strings were detected, but commands executed successfully"
+          echo "✗ ERROR: No French strings were detected, but commands executed successfully"
           exit 1
         fi
       env:
@@ -588,7 +506,7 @@ jobs:
         CARGO_INSTALL_DIR="$PWD/cargo-install-dir"
 
         # Create locale directory for cargo install
-        LOCALE_DIR="$CARGO_INSTALL_DIR/share/coreutils/locales"
+        LOCALE_DIR="$CARGO_INSTALL_DIR/share/locales"
         mkdir -p "$LOCALE_DIR"
 
         # Copy non-English locale files from l10n repo
@@ -622,7 +540,7 @@ jobs:
 
         # Set installation directories
         CARGO_INSTALL_DIR="$PWD/cargo-install-dir"
-        LOCALE_DIR="$CARGO_INSTALL_DIR/share/coreutils/locales"
+        LOCALE_DIR="$CARGO_INSTALL_DIR/share/locales"
 
         echo "Checking installed binary..."
         if [ ! -f "$CARGO_INSTALL_DIR/bin/coreutils" ]; then
@@ -695,9 +613,9 @@ jobs:
         if [ "$french_strings_found" -gt 0 ]; then
           echo "✓ SUCCESS: French localization test passed after cargo install - found $french_strings_found French strings"
         else
-          echo "⚠ WARNING: No French strings detected with cargo-installed binary"
-          echo "This may indicate an issue with locale loading from downloaded files"
-          # Don't fail but warn about potential issues
+          echo "✗ ERROR: No French strings detected with cargo-installed binary"
+          echo "This indicates an issue with locale loading from downloaded files"
+          exit 1
         fi
 
         echo "✓ French localization verification completed"
@@ -900,32 +818,32 @@ jobs:
           if [ "$french_strings_found" -gt 0 ]; then
             echo "✓ SUCCESS: French locale translation test passed - found $french_strings_found French strings"
           else
-            echo "⚠ WARNING: No French strings were detected in installed binaries"
-            echo "This may indicate that French translations are not working properly with installed binaries"
-            # Don't fail the test but warn about the issue
+            echo "✗ ERROR: No French strings were detected in installed binaries"
+            echo "This indicates that French translations are not working properly with installed binaries"
+            exit 1
           fi
         else
           echo "French locale not available, skipping French-specific tests"
         fi
 
-        # Test with disable_i18n build by creating a new installation
-        echo "Testing disable_i18n build..."
+        # Test with standard build configuration
+        echo "Testing standard build configuration..."
         cd "$GITHUB_WORKSPACE"
 
-        # Create separate installation directory for disable_i18n build
-        DISABLE_I18N_INSTALL_DIR="$PWD/disable-i18n-install-dir"
-        mkdir -p "$DISABLE_I18N_INSTALL_DIR"
+        # Create separate installation directory for standard build
+        STANDARD_BUILD_INSTALL_DIR="$PWD/standard-build-install-dir"
+        mkdir -p "$STANDARD_BUILD_INSTALL_DIR"
 
-        # Build and install disable_i18n version
+        # Clean and build standard version
         make clean
-        make FEATURES="feat_os_unix,disable_i18n" PROFILE=release MULTICALL=y
-        make install DESTDIR="$DISABLE_I18N_INSTALL_DIR" PREFIX=/usr PROFILE=release MULTICALL=y
+        make FEATURES="feat_os_unix" PROFILE=release MULTICALL=y
+        make install DESTDIR="$STANDARD_BUILD_INSTALL_DIR" PREFIX=/usr PROFILE=release MULTICALL=y
 
-        # Verify disable_i18n binary works
-        if "$DISABLE_I18N_INSTALL_DIR/usr/bin/coreutils" --version >/dev/null 2>&1; then
-          echo "✓ disable_i18n build works correctly"
+        # Verify standard build binary works
+        if "$STANDARD_BUILD_INSTALL_DIR/usr/bin/coreutils" --version >/dev/null 2>&1; then
+          echo "✓ Standard build works correctly"
         else
-          echo "✗ disable_i18n build failed"
+          echo "✗ Standard build failed"
           exit 1
         fi
 

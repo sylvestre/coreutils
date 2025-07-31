@@ -1146,24 +1146,7 @@ fn test_truncated_record() {
         .succeeds()
         .stdout_is("ac");
 
-    // In disable_i18n mode, pluralization is resolved at compile time
-    // and prefers the [other] variant, so both cases use "records"
-    #[cfg(feature = "disable_i18n")]
-    {
-        new_ucmd!()
-            .args(&["cbs=1", "conv=block", "status=noxfer"])
-            .pipe_in("ab")
-            .succeeds()
-            .stderr_is("0+1 records in\n0+1 records out\n1 truncated records\n");
-        new_ucmd!()
-            .args(&["cbs=1", "conv=block", "status=noxfer"])
-            .pipe_in("ab\ncd\n")
-            .succeeds()
-            .stderr_is("0+1 records in\n0+1 records out\n2 truncated records\n");
-    }
-
-    // In normal i18n mode, proper pluralization works
-    #[cfg(not(feature = "disable_i18n"))]
+    // Test proper pluralization
     {
         new_ucmd!()
             .args(&["cbs=1", "conv=block", "status=noxfer"])
@@ -1206,17 +1189,7 @@ fn test_block_sync() {
         // blocks:    1    2    3
         .stdout_is("012  abcde     ");
 
-    // In disable_i18n mode, pluralization is resolved at compile time
-    // and prefers the [other] variant, so it uses "records" even for count=1
-    #[cfg(feature = "disable_i18n")]
-    new_ucmd!()
-        .args(&["ibs=5", "cbs=5", "conv=block,sync", "status=noxfer"])
-        .pipe_in("012\nabcdefg\n")
-        .succeeds()
-        .stderr_is("2+1 records in\n0+1 records out\n1 truncated records\n");
-
-    // In normal i18n mode, proper pluralization works
-    #[cfg(not(feature = "disable_i18n"))]
+    // Test proper pluralization
     new_ucmd!()
         .args(&["ibs=5", "cbs=5", "conv=block,sync", "status=noxfer"])
         .pipe_in("012\nabcdefg\n")

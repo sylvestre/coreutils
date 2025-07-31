@@ -36,9 +36,8 @@ pub fn main() {
                 "nightly" | "test_unimplemented" | "expensive_tests" | "test_risky_names" => {
                     continue;
                 } // crate-local custom features
-                "uudoc" => continue,        // is not a utility
+                "uudoc" => continue, // is not a utility
                 "test" => continue, // over-ridden with 'uu_test' to avoid collision with rust core crate 'test'
-                "disable_i18n" => continue, // is not a utility, just a feature flag
                 s if s.starts_with(FEATURE_PREFIX) => continue, // crate feature sets
                 _ => {}             // util feature name
             }
@@ -110,28 +109,6 @@ pub fn main() {
     // Always generate embedded English locale files
     // This ensures English works even when locale files aren't available (e.g., cargo install)
     generate_embedded_english_locales(&out_dir, &crates).unwrap();
-
-    // Generate embedded locale strings if disable_i18n feature is enabled
-    if env::var("CARGO_FEATURE_DISABLE_I18N").is_ok() {
-        generate_embedded_locale_strings(&out_dir, &crates).unwrap();
-    }
-}
-
-// Include the shared build logic
-mod build_common;
-
-/// Generate embedded locale strings from .ftl files using shared logic
-///
-/// # Errors
-///
-/// Returns an error if file operations fail or if there are I/O issues
-fn generate_embedded_locale_strings(
-    out_dir: &str,
-    _crates: &[String],
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Use current directory as project root for the main build script
-    let project_root = Path::new(".");
-    build_common::generate_embedded_locale_strings(out_dir, project_root)
 }
 
 /// Generate embedded English locale files

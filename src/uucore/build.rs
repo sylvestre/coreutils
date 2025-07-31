@@ -13,16 +13,7 @@ fn main() {
 
     // Always generate embedded English locale files for fallback
     generate_embedded_english_locales(&out_dir).unwrap();
-
-    // Generate embedded locale strings if disable_i18n feature is enabled
-    if env::var("CARGO_FEATURE_DISABLE_I18N").is_ok() {
-        generate_embedded_locale_strings(&out_dir).unwrap();
-    }
 }
-
-// Include the shared build logic
-#[path = "../../build_common.rs"]
-mod build_common;
 
 /// Generate embedded English locale files
 ///
@@ -101,19 +92,4 @@ fn generate_embedded_english_locales(out_dir: &str) -> Result<(), Box<dyn std::e
 
     embedded_file.flush()?;
     Ok(())
-}
-
-/// Generate embedded locale strings from .ftl files using shared logic
-///
-/// # Errors
-///
-/// Returns an error if file operations fail or if there are I/O issues
-fn generate_embedded_locale_strings(out_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
-    // Since we're in uucore, we need to go up to the project root
-    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent() // src/
-        .and_then(|p| p.parent()) // project root
-        .ok_or("Failed to find project root")?;
-
-    build_common::generate_embedded_locale_strings(out_dir, project_root)
 }

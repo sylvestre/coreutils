@@ -59,12 +59,6 @@ feat_selinux = [
   "selinux",
   "stat/selinux",
 ]
-# "disable_i18n" == disable translations and embed English strings directly into the binary (by using `--features disable_i18n`)
-# NOTE:
-# * This reduces binary size and removes runtime dependency on .ftl files
-# * All utilities will use hardcoded English strings regardless of system locale
-# * Automatically disables uucore's default i18n feature
-disable_i18n = ["uucore/disable_i18n"]
 ##
 ## feature sets
 ## (common/core and Tier1) feature sets
