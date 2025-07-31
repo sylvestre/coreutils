@@ -516,10 +516,10 @@ jobs:
         echo "Checking structure of coreutils-l10n-repo:"
         ls -la coreutils-l10n-repo/ | head -10
         echo "Looking for locales directory:"
-        find coreutils-l10n-repo -name "*.ftl" -type f | head -10
+        find coreutils-l10n-repo -name "*.ftl" -type f 2>/dev/null | head -10 || true
         echo "Checking specific utilities:"
         ls -la coreutils-l10n-repo/src/uu/ls/locales/ 2>/dev/null || echo "No ls directory in correct location"
-        find coreutils-l10n-repo -path "*/ls/*.ftl" | head -5 || echo "No ls ftl files found"
+        find coreutils-l10n-repo -path "*/ls/*.ftl" 2>/dev/null | head -5 || echo "No ls ftl files found"
 
         # Copy non-English locale files from l10n repo
         for util_dir in src/uu/*/; do
@@ -550,7 +550,7 @@ jobs:
 
         # Debug: Show what was actually installed
         echo "Files installed in locale directory:"
-        find "$LOCALE_DIR" -name "*.ftl" | head -10
+        find "$LOCALE_DIR" -name "*.ftl" 2>/dev/null | head -10 || true
 
         # Fallback: If no files were installed from l10n repo, try copying from main repo
         if [ -z "$(find "$LOCALE_DIR" -name "*.ftl" 2>/dev/null)" ]; then
@@ -564,7 +564,7 @@ jobs:
             fi
           done
           echo "Files after fallback:"
-          find "$LOCALE_DIR" -name "*.ftl" | head -10
+          find "$LOCALE_DIR" -name "*.ftl" 2>/dev/null | head -10 || true
         fi
 
         echo "✓ Additional locale files installed"
@@ -701,7 +701,7 @@ jobs:
 
         # Debug: Show what was installed
         echo "Contents of installation directory:"
-        find "$INSTALL_DIR" -type f -name "coreutils" -o -name "ls" | head -20
+        find "$INSTALL_DIR" -type f -name "coreutils" -o -name "ls" 2>/dev/null | head -20 || true
         echo "Looking for binaries in: $INSTALL_DIR/usr/bin/"
         ls -la "$INSTALL_DIR/usr/bin/" || echo "Directory not found"
 
