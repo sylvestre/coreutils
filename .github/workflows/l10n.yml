@@ -72,7 +72,6 @@ jobs:
       env:
         RUST_BACKTRACE: "1"
 
-
   l10n_fluent_syntax:
     name: L10n/Fluent Syntax Check
     runs-on: ubuntu-latest
@@ -456,6 +455,68 @@ jobs:
         else
           echo "✗ Basic functionality failed"
           exit 1
+        fi
+
+        # Test French localization with make-installed binary (Ubuntu only)
+        if [ "${{ matrix.job.os }}" = "ubuntu-latest" ]; then
+          echo "Testing French localization with make-installed binary..."
+
+          # Set French locale
+          export LANG=fr_FR.UTF-8
+          export LC_ALL=fr_FR.UTF-8
+
+          echo "Testing ls --help with French locale..."
+          ls_help=$("$MAKE_INSTALL_DIR/usr/bin/coreutils" ls --help 2>&1 || echo "Command failed")
+          echo "ls help output (first 10 lines):"
+          echo "$ls_help" | head -10
+
+          # Check for specific French strings from ls fr-FR.ftl
+          french_strings_found=0
+
+          if echo "$ls_help" | grep -q "Lister le contenu des répertoires"; then
+            echo "✓ Found French ls description: 'Lister le contenu des répertoires'"
+            french_strings_found=$((french_strings_found + 1))
+          fi
+
+          if echo "$ls_help" | grep -q "Afficher les informations d'aide"; then
+            echo "✓ Found French ls help text: 'Afficher les informations d'aide'"
+            french_strings_found=$((french_strings_found + 1))
+          fi
+
+          if echo "$ls_help" | grep -q "FICHIER"; then
+            echo "✓ Found French usage pattern: 'FICHIER'"
+            french_strings_found=$((french_strings_found + 1))
+          fi
+
+          echo "Testing cat --help with French locale..."
+          cat_help=$("$MAKE_INSTALL_DIR/usr/bin/coreutils" cat --help 2>&1 || echo "Command failed")
+          echo "cat help output (first 5 lines):"
+          echo "$cat_help" | head -5
+
+          if echo "$cat_help" | grep -q "Concaténer"; then
+            echo "✓ Found French cat description containing: 'Concaténer'"
+            french_strings_found=$((french_strings_found + 1))
+          fi
+
+          echo "Testing error messages with French locale..."
+          error_output=$("$MAKE_INSTALL_DIR/usr/bin/coreutils" ls /nonexistent_test_directory 2>&1 || echo "Expected error occurred")
+          echo "Error output: $error_output"
+
+          if echo "$error_output" | grep -q "impossible d'accéder à"; then
+            echo "✓ Found French error message: 'impossible d'accéder à'"
+            french_strings_found=$((french_strings_found + 1))
+          fi
+
+          # Final validation
+          echo "French strings found: $french_strings_found"
+          if [ "$french_strings_found" -gt 0 ]; then
+            echo "✓ SUCCESS: French localization test passed with make-installed binary - found $french_strings_found French strings"
+          else
+            echo "✗ ERROR: No French strings detected with make-installed binary"
+            exit 1
+          fi
+        else
+          echo "Skipping French localization test on ${{ matrix.job.os }} (no French locale available)"
         fi
 
         echo "✓ Make installation test passed"
