@@ -410,7 +410,10 @@ jobs:
         ## Install/setup prerequisites
         case '${{ matrix.job.os }}' in
           ubuntu-*)
-            sudo apt-get -y update ; sudo apt-get -y install libselinux1-dev build-essential
+            sudo apt-get -y update ; sudo apt-get -y install libselinux1-dev build-essential locales
+            # Generate French locale for testing
+            sudo locale-gen --keep-existing fr_FR.UTF-8
+            locale -a | grep -i fr || echo "French locale generation may have failed"
           ;;
           macos-*)
             brew install coreutils make
@@ -509,6 +512,16 @@ jobs:
         LOCALE_DIR="$CARGO_INSTALL_DIR/share/locales"
         mkdir -p "$LOCALE_DIR"
 
+        # Debug: Check structure of l10n repo
+        echo "Checking structure of coreutils-l10n-repo:"
+        ls -la coreutils-l10n-repo/ | head -10
+        echo "Looking for locales directory:"
+        find coreutils-l10n-repo -name "*.ftl" -type f | head -10
+        echo "Checking specific utilities:"
+        ls -la coreutils-l10n-repo/locales/ls/ 2>/dev/null || echo "No ls directory in expected location"
+        ls -la coreutils-l10n-repo/ls/ 2>/dev/null || echo "No ls directory at root"
+        find coreutils-l10n-repo -path "*/ls/*.ftl" | head -5 || echo "No ls ftl files found"
+
         # Copy non-English locale files from l10n repo
         for util_dir in src/uu/*/; do
           util_name=$(basename "$util_dir")
@@ -524,12 +537,36 @@ jobs:
                 # Skip English locale files (they are embedded)
                 if [ "$filename" != "en-US.ftl" ]; then
                   cp "$locale_file" "$LOCALE_DIR/$util_name/"
-                  echo "  Installed $filename"
+                  echo "  Installed $filename to $LOCALE_DIR/$util_name/"
                 fi
               fi
             done
+          else
+            # Debug: Show what's not found
+            if [ "$util_name" = "ls" ] || [ "$util_name" = "cat" ]; then
+              echo "WARNING: No l10n directory found for $util_name at $l10n_util_dir"
+            fi
           fi
         done
+
+        # Debug: Show what was actually installed
+        echo "Files installed in locale directory:"
+        find "$LOCALE_DIR" -name "*.ftl" | head -10
+
+        # Fallback: If no files were installed from l10n repo, try copying from main repo
+        if [ -z "$(find "$LOCALE_DIR" -name "*.ftl" 2>/dev/null)" ]; then
+          echo "No files found from l10n repo, trying fallback from main repository..."
+          for util_dir in src/uu/*/; do
+            util_name=$(basename "$util_dir")
+            if [ -d "$util_dir/locales" ]; then
+              echo "Copying locales for $util_name from main repo..."
+              mkdir -p "$LOCALE_DIR/$util_name"
+              cp "$util_dir/locales"/*.ftl "$LOCALE_DIR/$util_name/" 2>/dev/null || true
+            fi
+          done
+          echo "Files after fallback:"
+          find "$LOCALE_DIR" -name "*.ftl" | head -10
+        fi
 
         echo "✓ Additional locale files installed"
     - name: Test French localization after cargo install
@@ -549,8 +586,13 @@ jobs:
         fi
 
         echo "Checking locale files..."
+        echo "LOCALE_DIR is: $LOCALE_DIR"
+        echo "Checking if locale directory exists:"
+        ls -la "$LOCALE_DIR" 2>/dev/null || echo "Locale directory not found"
         echo "Contents of locale directory:"
-        find "$LOCALE_DIR" -name "*.ftl" | head -10 || echo "No locale files found"
+        find "$LOCALE_DIR" -name "*.ftl" 2>/dev/null | head -10 || echo "No locale files found"
+        echo "Looking for ls locale files specifically:"
+        ls -la "$LOCALE_DIR/ls/" 2>/dev/null || echo "No ls locale directory"
 
         # Test French localization
         export LANG=fr_FR.UTF-8
