@@ -518,14 +518,13 @@ jobs:
         echo "Looking for locales directory:"
         find coreutils-l10n-repo -name "*.ftl" -type f | head -10
         echo "Checking specific utilities:"
-        ls -la coreutils-l10n-repo/locales/ls/ 2>/dev/null || echo "No ls directory in expected location"
-        ls -la coreutils-l10n-repo/ls/ 2>/dev/null || echo "No ls directory at root"
+        ls -la coreutils-l10n-repo/src/uu/ls/locales/ 2>/dev/null || echo "No ls directory in correct location"
         find coreutils-l10n-repo -path "*/ls/*.ftl" | head -5 || echo "No ls ftl files found"
 
         # Copy non-English locale files from l10n repo
         for util_dir in src/uu/*/; do
           util_name=$(basename "$util_dir")
-          l10n_util_dir="coreutils-l10n-repo/locales/$util_name"
+          l10n_util_dir="coreutils-l10n-repo/src/uu/$util_name/locales"
 
           if [ -d "$l10n_util_dir" ]; then
             echo "Installing locales for $util_name..."
