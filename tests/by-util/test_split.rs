@@ -2007,3 +2007,16 @@ fn test_long_lines() {
     assert_eq!(at.read("xac").len(), 131_072);
     assert!(!at.plus("xad").exists());
 }
+
+#[test]
+fn test_non_utf8_filename() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    
+    let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
+    at.touch_bytes(&filename, b"line1\nline2\nline3\nline4\nline5\n");
+    
+    ucmd.arg(&filename).succeeds();
+    
+    // Check that at least one split file was created
+    assert!(at.plus("xaa").exists());
+}
