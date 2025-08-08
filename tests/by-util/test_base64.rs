@@ -2,8 +2,21 @@
 //
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
-use uutests::new_ucmd;
+use uutests::{new_ucmd, at_and_ucmd};
 use uutests::util::TestScenario;
+
+#[test]
+fn test_non_utf8_filename() {
+    use std::os::unix::ffi::OsStringExt;
+    let (at, mut ucmd) = at_and_ucmd!();
+    
+    let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
+    std::fs::write(at.plus(&filename), b"hello world").unwrap();
+    
+    ucmd.arg(&filename)
+        .succeeds()
+        .stdout_is("aGVsbG8gd29ybGQ=\n");
+}
 
 #[test]
 fn test_encode() {
