@@ -1504,10 +1504,11 @@ fn test_stdin_no_trailing_newline() {
 
 #[test]
 fn test_non_utf8_filename() {
+    use std::os::unix::ffi::OsStringExt;
     let (at, mut ucmd) = at_and_ucmd!();
-    
+
     let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
-    at.touch_bytes(&filename, b"line1\nline2\nline3\nline4\nline5\n");
-    
+    std::fs::write(at.plus(&filename), b"line1\nline2\nline3\nline4\nline5\n").unwrap();
+
     ucmd.arg(&filename).arg("3").succeeds();
 }
