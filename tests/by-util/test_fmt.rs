@@ -374,3 +374,15 @@ fn test_fmt_knuth_plass_line_breaking() {
         .succeeds()
         .stdout_is(expected);
 }
+
+#[test]
+fn test_non_utf8_filename() {
+    use uutests::at_and_ucmd;
+    
+    let (at, mut ucmd) = at_and_ucmd!();
+    let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
+    
+    at.touch_bytes(&filename, b"hello world this is a test");
+    
+    ucmd.arg(&filename).succeeds();
+}
