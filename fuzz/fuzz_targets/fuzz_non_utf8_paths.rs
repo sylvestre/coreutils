@@ -161,7 +161,7 @@ fuzz_target!(|_data: &[u8]| {
                 test_file.as_os_str().to_owned(),
             ];
 
-            let chmod_result = run_gnu_cmd("chmod", &chmod_args[1..], false, None);
+            let chmod_result = run_gnu_cmd(local_binary, &chmod_args, false, None);
             match chmod_result {
                 Ok(result) => {
                     check_for_utf8_error_and_panic(&result, "chmod", test_file);
