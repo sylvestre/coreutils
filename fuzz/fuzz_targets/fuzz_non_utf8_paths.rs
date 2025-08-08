@@ -181,7 +181,7 @@ fuzz_target!(|_data: &[u8]| {
         let local_binary = "/home/sylvestre/dev/debian/coreutils.disable-loca/target/debug/coreutils";
         let mkdir_args = vec![OsString::from("mkdir"), non_utf8_dir.as_os_str().to_owned()];
 
-        let mkdir_result = run_gnu_cmd("mkdir", &mkdir_args[1..], false, None);
+        let mkdir_result = run_gnu_cmd(local_binary, &mkdir_args, false, None);
         match mkdir_result {
             Ok(result) => {
                 check_for_utf8_error_and_panic(&result, "mkdir", &non_utf8_dir);
