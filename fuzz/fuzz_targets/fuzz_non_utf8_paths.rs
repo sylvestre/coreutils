@@ -97,7 +97,7 @@ fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResu
     match run_gnu_cmd(local_binary, &local_args, false, None) {
         Ok(result) => result,
         Err(error_result) => {
-            // GNU command failed, return the error
+            // Local command failed, return the error
             error_result
         }
     }
