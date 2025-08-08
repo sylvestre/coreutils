@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 // spell-checker:ignore dyld dylib setvbuf
-use uutests::new_ucmd;
+use uutests::{new_ucmd, at_and_ucmd};
 #[cfg(not(target_os = "windows"))]
 use uutests::util::TestScenario;
 use uutests::util_name;
@@ -215,4 +215,26 @@ fn test_libstdbuf_preload() {
         no_arch_mismatch,
         "uutils echo should not show architecture mismatch"
     );
+}
+
+#[cfg(all(
+    not(target_os = "windows"),
+    not(target_os = "freebsd"),
+    not(target_os = "openbsd"),
+    not(all(target_arch = "x86_64", target_env = "musl"))
+))]
+#[test]
+fn test_non_utf8_filename() {
+    use std::os::unix::ffi::OsStringExt;
+    
+    let (at, mut ucmd) = at_and_ucmd!();
+    
+    let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
+    std::fs::write(at.plus(&filename), b"test content for stdbuf\n").unwrap();
+    
+    ucmd.arg("-o0")
+        .arg("cat")
+        .arg(&filename)
+        .succeeds()
+        .stdout_is("test content for stdbuf\n");
 }
