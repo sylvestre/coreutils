@@ -4,7 +4,7 @@
 // file that was distributed with this source code.
 // spell-checker:ignore roff
 
-use uutests::{new_ucmd, at_and_ucmd};
+use uutests::new_ucmd;
 
 #[test]
 fn test_invalid_arg() {

@@ -378,13 +378,14 @@ fn test_data() {
 
 #[test]
 fn test_non_utf8_filename() {
+    use std::os::unix::ffi::OsStringExt;
     let (at, mut ucmd) = at_and_ucmd!();
 
     let filename1 = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
     let filename2 = std::ffi::OsString::from_vec(vec![0xF0, 0x90]);
 
-    at.write_bytes(&filename1, b"line1\nline2\n");
-    at.write_bytes(&filename2, b"col1\ncol2\n");
+    std::fs::write(at.plus(&filename1), b"line1\nline2\n").unwrap();
+    std::fs::write(at.plus(&filename2), b"col1\ncol2\n").unwrap();
 
     ucmd.arg(&filename1)
         .arg(&filename2)

@@ -752,7 +752,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         output_file = "-".to_string();
     } else {
         input_files = vec![files.next().unwrap_or(OsString::from("-"))];
-        output_file = files.next().unwrap_or(OsString::from("-")).to_string_lossy().into_owned();
+        output_file = files
+            .next()
+            .unwrap_or(OsString::from("-"))
+            .to_string_lossy()
+            .into_owned();
         if let Some(file) = files.next() {
             return Err(UUsageError::new(
                 1,

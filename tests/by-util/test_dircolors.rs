@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 // spell-checker:ignore overridable colorterm
-use uutests::{new_ucmd, at_and_ucmd};
+use uutests::{at_and_ucmd, new_ucmd};
 
 use dircolors::{OutputFmt, StrUtils, guess_syntax};
 
@@ -11,11 +11,12 @@ use dircolors::{OutputFmt, StrUtils, guess_syntax};
 fn test_non_utf8_filename() {
     use std::os::unix::ffi::OsStringExt;
     let (at, mut ucmd) = at_and_ucmd!();
-    
+
     let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
     std::fs::write(at.plus(&filename), b"NORMAL 00\n*.txt 32\n").unwrap();
-    
-    ucmd.arg(&filename)
+
+    ucmd.arg("-b") // Use Bourne shell syntax to avoid needing SHELL env var
+        .arg(&filename)
         .succeeds()
         .stdout_contains("LS_COLORS=")
         .stdout_contains("*.txt=32");

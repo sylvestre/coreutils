@@ -191,14 +191,11 @@ fn find_last_contiguous_block_of_xs(s: &str) -> Option<(usize, usize)> {
 impl Params {
     fn from(options: Options) -> Result<Self, MkTempError> {
         // Convert OsString template to string for processing
-        let template_str = match options.template.to_str() {
-            Some(s) => s,
-            None => {
-                // For non-UTF-8 templates, return an error
-                return Err(MkTempError::InvalidTemplate(
-                    options.template.to_string_lossy().into_owned(),
-                ));
-            }
+        let Some(template_str) = options.template.to_str() else {
+            // For non-UTF-8 templates, return an error
+            return Err(MkTempError::InvalidTemplate(
+                options.template.to_string_lossy().into_owned(),
+            ));
         };
 
         // The template argument must end in 'X' if a suffix option is given.

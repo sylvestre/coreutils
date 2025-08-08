@@ -3,18 +3,18 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 // spell-checker:ignore axxbxx bxxaxx axxx axxxx xxaxx xxax xxxxa axyz zyax zyxa
-use uutests::{new_ucmd, at_and_ucmd};
 use uutests::util::TestScenario;
 use uutests::util_name;
+use uutests::{at_and_ucmd, new_ucmd};
 
 #[test]
 fn test_non_utf8_filename() {
     use std::os::unix::ffi::OsStringExt;
     let (at, mut ucmd) = at_and_ucmd!();
-    
+
     let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
     std::fs::write(at.plus(&filename), b"line1\nline2\nline3\n").unwrap();
-    
+
     ucmd.arg(&filename)
         .succeeds()
         .stdout_is("line3\nline2\nline1\n");

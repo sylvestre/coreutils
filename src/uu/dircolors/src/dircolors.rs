@@ -203,7 +203,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     } else if files[0] == "-" {
         let fin = BufReader::new(std::io::stdin());
         // For example, for echo "owt 40;33"|dircolors -b -
-        result = parse(fin.lines().map_while(Result::ok), &out_format, &files[0].to_string_lossy());
+        result = parse(
+            fin.lines().map_while(Result::ok),
+            &out_format,
+            &files[0].to_string_lossy(),
+        );
     } else {
         let path = Path::new(&files[0]);
         if path.is_dir() {

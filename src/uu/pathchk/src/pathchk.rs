@@ -9,7 +9,6 @@ use clap::{Arg, ArgAction, Command};
 use std::ffi::OsString;
 use std::fs;
 use std::io::{ErrorKind, Write};
-use std::path::Path;
 use uucore::display::Quotable;
 use uucore::error::{UResult, UUsageError, set_exit_code};
 use uucore::format_usage;

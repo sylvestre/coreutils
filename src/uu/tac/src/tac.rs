@@ -252,13 +252,15 @@ fn tac(filenames: &[OsString], before: bool, regex: bool, separator: &str) -> UR
         } else {
             let path = Path::new(filename);
             if path.is_dir() {
-                let e: Box<dyn UError> = TacError::InvalidArgument(filename.to_string_lossy().to_string()).into();
+                let e: Box<dyn UError> =
+                    TacError::InvalidArgument(filename.to_string_lossy().to_string()).into();
                 show!(e);
                 continue;
             }
 
             if path.metadata().is_err() {
-                let e: Box<dyn UError> = TacError::FileNotFound(filename.to_string_lossy().to_string()).into();
+                let e: Box<dyn UError> =
+                    TacError::FileNotFound(filename.to_string_lossy().to_string()).into();
                 show!(e);
                 continue;
             }

@@ -19,32 +19,91 @@ use uufuzz::{CommandResult, run_gnu_cmd};
 // Programs that typically take file/path arguments and should be tested
 static PATH_PROGRAMS: &[&str] = &[
     // Core file operations
-    "cat", "cp", "mv", "rm", "ln", "link", "unlink", "touch", "truncate",
+    "cat",
+    "cp",
+    "mv",
+    "rm",
+    "ln",
+    "link",
+    "unlink",
+    "touch",
+    "truncate",
     // Directory operations
-    "ls", "mkdir", "rmdir", "du", "stat", "mktemp", "df", // Path operations
-    "basename", "dirname", "readlink", "realpath", "pathchk", "chroot",
+    "ls",
+    "mkdir",
+    "rmdir",
+    "du",
+    "stat",
+    "mktemp",
+    "df", // Path operations
+    "basename",
+    "dirname",
+    "readlink",
+    "realpath",
+    "pathchk",
+    "chroot",
     // File content operations
-    "head", "tail", "tee", "more", "od", "wc", "cksum", "sum", "nl", "tac", // File processing
-    "sort", "uniq", "split", "csplit", "cut", "tr", "shred", "shuf", "ptx", "tsort",
+    "head",
+    "tail",
+    "tee",
+    "more",
+    "od",
+    "wc",
+    "cksum",
+    "sum",
+    "nl",
+    "tac", // File processing
+    "sort",
+    "uniq",
+    "split",
+    "csplit",
+    "cut",
+    "tr",
+    "shred",
+    "shuf",
+    "ptx",
+    "tsort",
     // File permissions/ownership
-    "chmod", "chown", "chgrp", "install", "chcon", "runcon", // Text processing with files
-    "comm", "join", "paste", "pr", "fmt", "fold", "expand", "unexpand",
+    "chmod",
+    "chown",
+    "chgrp",
+    "install",
+    "chcon",
+    "runcon", // Text processing with files
+    "comm",
+    "join",
+    "paste",
+    "pr",
+    "fmt",
+    "fold",
+    "expand",
+    "unexpand",
     // Directory listing variants
-    "dir", "vdir",
+    "dir",
+    "vdir",
     // Special file creation
-    "mkfifo", "mknod",
+    "mkfifo",
+    "mknod",
     // Hash/checksum utilities
     "hashsum",
-    // File I/O utilities  
-    "dd", "sync", "stdbuf",
+    // File I/O utilities
+    "dd",
+    "sync",
+    "stdbuf",
     // Configuration files
     "dircolors",
     // Encoding/decoding utilities
-    "base32", "base64", "basenc",
+    "base32",
+    "base64",
+    "basenc",
     // System utilities that may handle device files
-    "stty", "tty",
+    "stty",
+    "tty",
     // Command execution wrappers
-    "env", "nohup", "nice", "timeout",
+    "env",
+    "nohup",
+    "nice",
+    "timeout",
 ];
 
 fn generate_non_utf8_bytes() -> Vec<u8> {
@@ -182,12 +241,9 @@ fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResu
                     OsString::from("3"),
                 ]
             } else {
-                vec![
-                    OsString::from(program),
-                    new_path.as_os_str().to_owned(),
-                ]
+                vec![OsString::from(program), new_path.as_os_str().to_owned()]
             }
-        },
+        }
         // DD needs input/output file
         "dd" => vec![
             OsString::from(program),
@@ -203,15 +259,9 @@ fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResu
             path_os.to_owned(),
         ],
         // Encoding/decoding programs
-        "base32" | "base64" | "basenc" => vec![
-            OsString::from(program),
-            path_os.to_owned(),
-        ],
+        "base32" | "base64" | "basenc" => vec![OsString::from(program), path_os.to_owned()],
         // System programs that take paths
-        "df" => vec![
-            OsString::from(program),
-            path_os.to_owned(),
-        ],
+        "df" => vec![OsString::from(program), path_os.to_owned()],
         "chroot" => {
             // chroot needs a directory and command
             vec![
@@ -219,44 +269,44 @@ fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResu
                 path_os.to_owned(),
                 OsString::from("true"),
             ]
-        },
-        "sync" => vec![
-            OsString::from(program),
-            path_os.to_owned(),
-        ],
+        }
+        "sync" => vec![OsString::from(program), path_os.to_owned()],
         "stty" => vec![
             OsString::from(program),
             OsString::from("-F"),
             path_os.to_owned(),
         ],
-        "tty" => vec![
-            OsString::from(program),
-        ], // tty doesn't take file args, but test anyway
+        "tty" => vec![OsString::from(program)], // tty doesn't take file args, but test anyway
         // Command execution wrappers - test with simple command
         "env" => vec![
             OsString::from(program),
+            OsString::from(local_binary),
             OsString::from("cat"),
             path_os.to_owned(),
         ],
         "nohup" => vec![
             OsString::from(program),
+            OsString::from(local_binary),
             OsString::from("cat"),
             path_os.to_owned(),
         ],
         "nice" => vec![
             OsString::from(program),
+            OsString::from(local_binary),
             OsString::from("cat"),
             path_os.to_owned(),
         ],
         "timeout" => vec![
             OsString::from(program),
             OsString::from("1"),
+            OsString::from(local_binary),
             OsString::from("cat"),
             path_os.to_owned(),
         ],
         "stdbuf" => vec![
             OsString::from(program),
             OsString::from("-o0"),
+            OsString::from(local_binary),
             OsString::from("cat"),
             path_os.to_owned(),
         ],

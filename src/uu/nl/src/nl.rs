@@ -216,7 +216,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 );
                 set_exit_code(1);
             } else {
-                let reader = File::open(path).map_err_context(|| file.to_string_lossy().to_string())?;
+                let reader =
+                    File::open(path).map_err_context(|| file.to_string_lossy().to_string())?;
                 let mut buffer = BufReader::new(reader);
                 nl(&mut buffer, &mut stats, &settings)?;
             }

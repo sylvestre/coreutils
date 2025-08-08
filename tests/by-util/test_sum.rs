@@ -83,10 +83,11 @@ fn test_invalid_metadata() {
 
 #[test]
 fn test_non_utf8_filename() {
+    use std::os::unix::ffi::OsStringExt;
     let (at, mut ucmd) = at_and_ucmd!();
 
     let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
-    at.touch_bytes(&filename, b"test content");
+    std::fs::write(at.plus(&filename), b"test content").unwrap();
 
     ucmd.arg(&filename).succeeds();
 }

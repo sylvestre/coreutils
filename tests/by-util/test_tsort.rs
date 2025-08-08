@@ -11,13 +11,11 @@ use uutests::new_ucmd;
 fn test_non_utf8_filename() {
     use std::os::unix::ffi::OsStringExt;
     let (at, mut ucmd) = at_and_ucmd!();
-    
+
     let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
     std::fs::write(at.plus(&filename), b"a b\nb c\n").unwrap();
-    
-    ucmd.arg(&filename)
-        .succeeds()
-        .stdout_is("a\nb\nc\n");
+
+    ucmd.arg(&filename).succeeds().stdout_is("a\nb\nc\n");
 }
 
 #[test]

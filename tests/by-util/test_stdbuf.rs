@@ -3,10 +3,10 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 // spell-checker:ignore dyld dylib setvbuf
-use uutests::{new_ucmd, at_and_ucmd};
 #[cfg(not(target_os = "windows"))]
 use uutests::util::TestScenario;
 use uutests::util_name;
+use uutests::{at_and_ucmd, new_ucmd};
 
 #[test]
 fn invalid_input() {
@@ -226,12 +226,12 @@ fn test_libstdbuf_preload() {
 #[test]
 fn test_non_utf8_filename() {
     use std::os::unix::ffi::OsStringExt;
-    
+
     let (at, mut ucmd) = at_and_ucmd!();
-    
+
     let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
     std::fs::write(at.plus(&filename), b"test content for stdbuf\n").unwrap();
-    
+
     ucmd.arg("-o0")
         .arg("cat")
         .arg(&filename)
