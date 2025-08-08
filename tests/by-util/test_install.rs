@@ -2366,3 +2366,15 @@ fn test_install_compare_with_mode_bits() {
         );
     }
 }
+
+#[test]
+fn test_non_utf8_filename() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let source_filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
+    let dest_dir = "target_dir";
+    
+    at.touch_bytes(&source_filename, b"test content");
+    at.mkdir(dest_dir);
+    
+    ucmd.arg(&source_filename).arg(dest_dir).succeeds();
+}
