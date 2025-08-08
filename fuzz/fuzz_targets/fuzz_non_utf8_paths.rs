@@ -153,7 +153,8 @@ fuzz_target!(|_data: &[u8]| {
             // This path contains replacement characters, indicating invalid UTF-8
             println!("Testing chmod with non-UTF-8 path: {:?}", test_file);
 
-            // Try chmod with basic permissions
+            // Try chmod with basic permissions using local binary
+            let local_binary = "/home/sylvestre/dev/debian/coreutils.disable-loca/target/debug/coreutils";
             let chmod_args = vec![
                 OsString::from("chmod"),
                 OsString::from("644"),
