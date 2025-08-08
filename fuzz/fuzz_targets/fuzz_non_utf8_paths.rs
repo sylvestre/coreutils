@@ -20,20 +20,31 @@ use uufuzz::{CommandResult, run_gnu_cmd};
 static PATH_PROGRAMS: &[&str] = &[
     // Core file operations
     "cat", "cp", "mv", "rm", "ln", "link", "unlink", "touch", "truncate",
-    // Directory operations  
-    "ls", "mkdir", "rmdir", "du", "stat", "mktemp",
-    // Path operations
-    "basename", "dirname", "readlink", "realpath", "pathchk",
+    // Directory operations
+    "ls", "mkdir", "rmdir", "du", "stat", "mktemp", "df", // Path operations
+    "basename", "dirname", "readlink", "realpath", "pathchk", "chroot",
     // File content operations
-    "head", "tail", "tee", "more", "od", "wc", "cksum", "sum",
-    // File processing
-    "sort", "uniq", "split", "csplit", "cut", "tr", "shred",
+    "head", "tail", "tee", "more", "od", "wc", "cksum", "sum", "nl", "tac", // File processing
+    "sort", "uniq", "split", "csplit", "cut", "tr", "shred", "shuf", "ptx", "tsort",
     // File permissions/ownership
-    "chmod", "chown", "chgrp", "install",
-    // Text processing with files
+    "chmod", "chown", "chgrp", "install", "chcon", "runcon", // Text processing with files
     "comm", "join", "paste", "pr", "fmt", "fold", "expand", "unexpand",
     // Directory listing variants
     "dir", "vdir",
+    // Special file creation
+    "mkfifo", "mknod",
+    // Hash/checksum utilities
+    "hashsum",
+    // File I/O utilities  
+    "dd", "sync", "stdbuf",
+    // Configuration files
+    "dircolors",
+    // Encoding/decoding utilities
+    "base32", "base64", "basenc",
+    // System utilities that may handle device files
+    "stty", "tty",
+    // Command execution wrappers
+    "env", "nohup", "nice", "timeout",
 ];
 
 fn generate_non_utf8_bytes() -> Vec<u8> {
@@ -95,7 +106,7 @@ fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResu
     let path_os = path.as_os_str();
 
     // Use the locally built uutils binary instead of system PATH
-    let local_binary = "/home/sylvestre/dev/debian/coreutils.disable-loca/target/debug/coreutils";
+    let local_binary = "/home/sylvestre/dev/debian/coreutils.disable-loca/target/release/coreutils";
 
     // Build appropriate arguments for each program
     let local_args = match program {
@@ -115,6 +126,17 @@ fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResu
             OsString::from("root"),
             path_os.to_owned(),
         ],
+        "chcon" => vec![
+            OsString::from(program),
+            OsString::from("system_u:object_r:admin_home_t:s0"),
+            path_os.to_owned(),
+        ],
+        "runcon" => vec![
+            OsString::from(program),
+            OsString::from("system_u:object_r:admin_home_t:s0"),
+            OsString::from("cat"),
+            path_os.to_owned(),
+        ],
         // Programs that need source and destination
         "cp" | "mv" | "ln" | "link" => {
             let dest_path = path.with_extension("dest");
@@ -123,7 +145,7 @@ fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResu
                 path_os.to_owned(),
                 dest_path.as_os_str().to_owned(),
             ]
-        },
+        }
         "install" => {
             let dest_path = path.with_extension("dest");
             vec![
@@ -131,7 +153,7 @@ fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResu
                 path_os.to_owned(),
                 dest_path.as_os_str().to_owned(),
             ]
-        },
+        }
         // Programs that need size/truncate operations
         "truncate" => vec![
             OsString::from(program),
@@ -148,6 +170,96 @@ fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResu
             path_os.to_owned(),
             OsString::from("1"),
         ],
+        // File creation programs
+        "mkfifo" | "mknod" => {
+            let new_path = path.with_extension("new");
+            if program == "mknod" {
+                vec![
+                    OsString::from(program),
+                    new_path.as_os_str().to_owned(),
+                    OsString::from("c"),
+                    OsString::from("1"),
+                    OsString::from("3"),
+                ]
+            } else {
+                vec![
+                    OsString::from(program),
+                    new_path.as_os_str().to_owned(),
+                ]
+            }
+        },
+        // DD needs input/output file
+        "dd" => vec![
+            OsString::from(program),
+            OsString::from(format!("if={}", path_os.to_string_lossy())),
+            OsString::from("of=/dev/null"),
+            OsString::from("bs=1"),
+            OsString::from("count=1"),
+        ],
+        // Hashsum needs algorithm
+        "hashsum" => vec![
+            OsString::from(program),
+            OsString::from("--md5"),
+            path_os.to_owned(),
+        ],
+        // Encoding/decoding programs
+        "base32" | "base64" | "basenc" => vec![
+            OsString::from(program),
+            path_os.to_owned(),
+        ],
+        // System programs that take paths
+        "df" => vec![
+            OsString::from(program),
+            path_os.to_owned(),
+        ],
+        "chroot" => {
+            // chroot needs a directory and command
+            vec![
+                OsString::from(program),
+                path_os.to_owned(),
+                OsString::from("true"),
+            ]
+        },
+        "sync" => vec![
+            OsString::from(program),
+            path_os.to_owned(),
+        ],
+        "stty" => vec![
+            OsString::from(program),
+            OsString::from("-F"),
+            path_os.to_owned(),
+        ],
+        "tty" => vec![
+            OsString::from(program),
+        ], // tty doesn't take file args, but test anyway
+        // Command execution wrappers - test with simple command
+        "env" => vec![
+            OsString::from(program),
+            OsString::from("cat"),
+            path_os.to_owned(),
+        ],
+        "nohup" => vec![
+            OsString::from(program),
+            OsString::from("cat"),
+            path_os.to_owned(),
+        ],
+        "nice" => vec![
+            OsString::from(program),
+            OsString::from("cat"),
+            path_os.to_owned(),
+        ],
+        "timeout" => vec![
+            OsString::from(program),
+            OsString::from("1"),
+            OsString::from("cat"),
+            path_os.to_owned(),
+        ],
+        "stdbuf" => vec![
+            OsString::from(program),
+            OsString::from("-o0"),
+            OsString::from("cat"),
+            path_os.to_owned(),
+        ],
         // Programs that work with multiple files (use just one for testing)
         "comm" | "join" => {
             // These need two files, use the same file twice for simplicity
@@ -156,7 +268,7 @@ fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResu
                 path_os.to_owned(),
                 path_os.to_owned(),
             ]
-        },
+        }
         // Programs that typically take file input
         _ => vec![OsString::from(program), path_os.to_owned()],
     };
@@ -240,7 +352,7 @@ fuzz_target!(|_data: &[u8]| {
             let non_utf8_dir = temp_root.join(non_utf8_dir_name);
 
             let local_binary =
-                "/home/sylvestre/dev/debian/coreutils.disable-loca/target/debug/coreutils";
+                "/home/sylvestre/dev/debian/coreutils.disable-loca/target/release/coreutils";
             let mkdir_args = vec![OsString::from("mkdir"), non_utf8_dir.as_os_str().to_owned()];
 
             let mkdir_result = run_gnu_cmd(local_binary, &mkdir_args, false, None);
