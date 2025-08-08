@@ -80,3 +80,13 @@ fn test_invalid_metadata() {
         .fails()
         .stderr_is("sum: b: No such file or directory\n");
 }
+
+#[test]
+fn test_non_utf8_filename() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    
+    let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
+    at.touch_bytes(&filename, b"test content");
+    
+    ucmd.arg(&filename).succeeds();
+}
