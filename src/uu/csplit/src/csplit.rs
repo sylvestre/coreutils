@@ -6,7 +6,9 @@
 #![allow(rustdoc::private_intra_doc_links)]
 
 use std::cmp::Ordering;
+use std::ffi::OsString;
 use std::io::{self, BufReader, ErrorKind};
+use std::path::Path;
 use std::{
     fs::{File, remove_file},
     io::{BufRead, BufWriter, Write},
@@ -620,8 +622,9 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         let stdin = io::stdin();
         Ok(csplit(&options, &patterns, stdin.lock())?)
     } else {
-        let file = File::open(file_name)
-            .map_err_context(|| format!("cannot open {} for reading", file_name.quote()))?;
+        let path = Path::new(file_name);
+        let file = File::open(path)
+            .map_err_context(|| format!("cannot open {} for reading", path.display()))?;
         Ok(csplit(&options, &patterns, BufReader::new(file))?)
     }
 }
