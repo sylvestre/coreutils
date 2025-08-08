@@ -8,6 +8,19 @@ use uutests::at_and_ucmd;
 use uutests::new_ucmd;
 
 #[test]
+fn test_non_utf8_filename() {
+    use std::os::unix::ffi::OsStringExt;
+    let (at, mut ucmd) = at_and_ucmd!();
+    
+    let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
+    std::fs::write(at.plus(&filename), b"a b\nb c\n").unwrap();
+    
+    ucmd.arg(&filename)
+        .succeeds()
+        .stdout_is("a\nb\nc\n");
+}
+
+#[test]
 fn test_invalid_arg() {
     new_ucmd!().arg("--definitely-invalid").fails_with_code(1);
 }
