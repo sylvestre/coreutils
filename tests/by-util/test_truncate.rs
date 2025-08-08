@@ -425,26 +425,22 @@ fn test_fifo_error_reference_and_size() {
 #[cfg(unix)]
 fn test_non_utf8_filename() {
     use std::fs;
-    
+
     let ts = TestScenario::new(util_name!());
     let at = &ts.fixtures;
-    
+
     // Create test file with normal name first
     at.write("temp.txt", "test content");
-    
+
     // Rename to non-UTF-8 name
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStrExt;
         let file_name = std::ffi::OsStr::from_bytes(b"test_\xFF\xFE.txt");
-        
+
         fs::rename(at.subdir.join("temp.txt"), at.subdir.join(file_name)).unwrap();
-        
+
         // Test that truncate can handle non-UTF-8 filenames
-        ts.ucmd()
-            .arg("-s")
-            .arg("10")
-            .arg(file_name)
-            .succeeds();
+        ts.ucmd().arg("-s").arg("10").arg(file_name).succeeds();
     }
 }

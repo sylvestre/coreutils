@@ -1,0 +1,26 @@
+Testing each program individually with non-UTF-8 filenames...
+Testing basename... PASS
+Testing cat... PASS
+Testing cp... PASS
+Testing dirname... PASS
+Testing du... PASS
+Testing head... PASS
+Testing ln... FAIL
+Testing ls... PASS
+Testing mkdir... PASS
+Testing mv... PASS
+Testing readlink... SKIP (needs symlink)
+Testing realpath... PASS
+Testing rm... FAIL
+Testing rmdir... PASS
+Testing tail... FAIL
+Testing touch... PASS
+Testing unlink... FAIL
+
+=== SUMMARY ===
+WORKING PROGRAMS: basename cat cp dirname du head ls mkdir mv realpath rmdir touch
+FAILING PROGRAMS: ln rm tail unlink
+
+Programs to fix: 4
+Programs already working: 12
+Failing programs saved to failing_programs.txt

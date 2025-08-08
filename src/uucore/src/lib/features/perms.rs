@@ -13,8 +13,8 @@ pub use crate::features::entries;
 use crate::show_error;
 use clap::{Arg, ArgMatches, Command};
 use libc::{gid_t, uid_t};
-use std::ffi::OsString;
 use options::traverse;
+use std::ffi::OsString;
 use walkdir::WalkDir;
 
 use std::io::Error as IOError;

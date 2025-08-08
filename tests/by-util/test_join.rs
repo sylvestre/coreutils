@@ -538,31 +538,31 @@ fn test_full() {
 #[cfg(unix)]
 fn test_non_utf8_filename() {
     use std::fs;
-    
+
     let ts = TestScenario::new(util_name!());
     let at = &ts.fixtures;
-    
+
     // Create files with non-UTF-8 names using shell commands
     // since the test framework doesn't support OsStr for file names
     let test_dir = at.subdir.as_path();
-    
+
     // Create temporary files with valid names first
     at.write("temp1.txt", "a 1\n");
     at.write("temp2.txt", "a 2\n");
-    
+
     // Rename them to non-UTF-8 names using std::fs
     let file1_bytes = b"test_\xFF\xFE_1.txt";
     let file2_bytes = b"test_\xFF\xFE_2.txt";
-    
+
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStrExt;
         let file1_name = std::ffi::OsStr::from_bytes(file1_bytes);
         let file2_name = std::ffi::OsStr::from_bytes(file2_bytes);
-        
+
         fs::rename(test_dir.join("temp1.txt"), test_dir.join(file1_name)).unwrap();
         fs::rename(test_dir.join("temp2.txt"), test_dir.join(file2_name)).unwrap();
-        
+
         // Test that join can handle non-UTF-8 filenames
         ts.ucmd()
             .arg(file1_name)

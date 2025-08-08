@@ -168,12 +168,12 @@ fn test_posix_all() {
 #[test]
 fn test_non_utf8_filename() {
     use uutests::at_and_ucmd;
-    
+
     let (at, mut ucmd) = at_and_ucmd!();
     let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
-    
+
     // Create the file so pathchk can check it exists
     at.touch_bytes(&filename, b"test");
-    
+
     ucmd.arg(&filename).succeeds();
 }

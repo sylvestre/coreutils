@@ -983,14 +983,11 @@ fn test_missing_short_tmpdir_flag() {
 fn test_non_utf8_template() {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
-    
+
     let ts = TestScenario::new(util_name!());
-    
+
     // Test that mktemp gracefully handles non-UTF-8 templates with an error instead of panicking
     let template = OsStr::from_bytes(b"test_\xFF\xFE_XXXXXX");
-    
-    ts.ucmd()
-        .arg(template)
-        .fails()
-        .stderr_contains("invalid");
+
+    ts.ucmd().arg(template).fails().stderr_contains("invalid");
 }

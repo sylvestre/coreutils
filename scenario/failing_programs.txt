@@ -1,0 +1,16 @@
+basename
+cat
+cp
+dirname
+du
+head
+ln
+ls
+mkdir
+mv
+realpath
+rm
+rmdir
+tail
+touch
+unlink

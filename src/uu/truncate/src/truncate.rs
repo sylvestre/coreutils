@@ -177,7 +177,7 @@ pub fn uu_app() -> Command {
 /// size of the file.
 fn file_truncate(filename: &OsString, create: bool, size: u64) -> UResult<()> {
     let path = Path::new(filename);
-    
+
     #[cfg(unix)]
     if let Ok(metadata) = metadata(path) {
         if metadata.file_type().is_fifo() {

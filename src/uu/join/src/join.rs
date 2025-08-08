@@ -435,7 +435,8 @@ impl<'a> State<'a> {
         let file_buf = if name == "-" {
             Box::new(stdin.lock()) as Box<dyn BufRead>
         } else {
-            let file = File::open(name).map_err_context(|| format!("{}", name.to_string_lossy().maybe_quote()))?;
+            let file = File::open(name)
+                .map_err_context(|| format!("{}", name.to_string_lossy().maybe_quote()))?;
             Box::new(BufReader::new(file)) as Box<dyn BufRead>
         };
 
@@ -962,7 +963,12 @@ pub fn uu_app() -> Command {
         )
 }
 
-fn exec<Sep: Separator>(file1: &OsString, file2: &OsString, settings: Settings, sep: Sep) -> UResult<()> {
+fn exec<Sep: Separator>(
+    file1: &OsString,
+    file2: &OsString,
+    settings: Settings,
+    sep: Sep,
+) -> UResult<()> {
     let stdin = stdin();
 
     let mut state1 = State::new(

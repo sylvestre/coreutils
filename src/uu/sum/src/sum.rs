@@ -126,7 +126,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         let mut stdout = stdout().lock();
         if print_names {
-            writeln!(stdout, "{sum:0width$} {blocks:width$} {}", file.to_string_lossy())?;
+            writeln!(
+                stdout,
+                "{sum:0width$} {blocks:width$} {}",
+                file.to_string_lossy()
+            )?;
         } else {
             writeln!(stdout, "{sum:0width$} {blocks:width$}")?;
         }

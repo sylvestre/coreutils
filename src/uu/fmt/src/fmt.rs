@@ -306,7 +306,9 @@ fn extract_width(matches: &ArgMatches) -> UResult<Option<usize>> {
     }
 
     if let Some(1) = matches.index_of(options::FILES_OR_WIDTH) {
-        let width_arg = matches.get_one::<OsString>(options::FILES_OR_WIDTH).unwrap();
+        let width_arg = matches
+            .get_one::<OsString>(options::FILES_OR_WIDTH)
+            .unwrap();
         let width_str = width_arg.to_string_lossy();
         if let Some(num) = width_str.strip_prefix('-') {
             Ok(num.parse::<usize>().ok())

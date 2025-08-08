@@ -603,12 +603,12 @@ fn test_numeric_group_formats() {
 #[test]
 fn test_non_utf8_filename() {
     let (at, mut ucmd) = at_and_ucmd!();
-    
+
     let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
     at.touch_bytes(&filename, b"test content");
-    
+
     // Get current user's primary group
     let current_gid = getegid();
-    
+
     ucmd.arg(current_gid.to_string()).arg(&filename).succeeds();
 }
