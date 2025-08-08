@@ -78,7 +78,6 @@ fn setup_test_files() -> Result<(PathBuf, Vec<PathBuf>), std::io::Error> {
 
 fn test_program_with_non_utf8_path(program: &str, path: &PathBuf) -> CommandResult {
     let path_os = path.as_os_str();
-    let args = vec![OsString::from(program), path_os.to_owned()];
 
     // Try to run the GNU version to compare behavior
     match run_gnu_cmd(program, &args[1..], false, None) {
