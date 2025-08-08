@@ -68,10 +68,9 @@ fn extract_negative_modes(mut args: impl uucore::Args) -> (Option<String>, Vec<O
     // "-mode" will be extracted into parsed_cmode_vec
     let (parsed_cmode_vec, pre_double_hyphen_args): (Vec<OsString>, Vec<OsString>) =
         args.by_ref().take_while(|a| a != "--").partition(|arg| {
-            let arg = if let Some(arg) = arg.to_str() {
-                arg.to_string()
-            } else {
-                return false;
+            let arg = match arg.to_str() {
+                Some(arg) => arg.to_string(),
+                None => return false, // Non-UTF-8 arguments can't be mode strings
             };
             arg.len() >= 2
                 && arg.starts_with('-')
