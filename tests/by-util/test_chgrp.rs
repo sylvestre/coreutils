@@ -599,3 +599,16 @@ fn test_numeric_group_formats() {
     let final_gid = at.plus("test_file").metadata().unwrap().gid();
     assert_eq!(final_gid, first_group.as_raw());
 }
+
+#[test]
+fn test_non_utf8_filename() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    
+    let filename = std::ffi::OsString::from_vec(vec![0xFF, 0xFE]);
+    at.touch_bytes(&filename, b"test content");
+    
+    // Get current user's primary group
+    let current_gid = getegid();
+    
+    ucmd.arg(current_gid.to_string()).arg(&filename).succeeds();
+}
