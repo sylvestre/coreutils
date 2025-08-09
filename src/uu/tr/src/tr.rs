@@ -4,6 +4,7 @@
 // file that was distributed with this source code.
 
 mod operation;
+mod simd;
 mod unicode_table;
 
 use clap::{Arg, ArgAction, Command, value_parser};
@@ -11,6 +12,7 @@ use operation::{
     DeleteOperation, Sequence, SqueezeOperation, SymbolTranslator, TranslateOperation,
     translate_input,
 };
+use simd::process_input_fast;
 use std::ffi::OsString;
 use std::io::{Write, stdin, stdout};
 use uucore::display::Quotable;
@@ -134,7 +136,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             translate_input(&mut locked_stdin, &mut locked_stdout, op)?;
         } else {
             let op = DeleteOperation::new(set1);
-            translate_input(&mut locked_stdin, &mut locked_stdout, op)?;
+            process_input_fast(&mut locked_stdin, &mut locked_stdout, &op)?;
         }
     } else if squeeze_flag {
         if sets_len == 1 {
@@ -148,7 +150,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         }
     } else {
         let op = TranslateOperation::new(set1, set2)?;
-        translate_input(&mut locked_stdin, &mut locked_stdout, op)?;
+        process_input_fast(&mut locked_stdin, &mut locked_stdout, &op)?;
     }
 
     #[cfg(not(target_os = "windows"))]

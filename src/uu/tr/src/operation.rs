@@ -21,10 +21,68 @@ use std::{
     fmt::{Debug, Display},
     io::{BufRead, Write},
 };
-use uucore::error::{FromIo, UError, UResult};
+use uucore::error::{UError, UResult};
 use uucore::translate;
 
 use uucore::show_warning;
+
+/// Common trait for operations that can process chunks of data
+pub trait ChunkProcessor {
+    fn process_chunk(&self, input: &[u8], output: &mut Vec<u8>);
+}
+
+/// Helper to detect single-character operations for optimization
+fn find_single_change<T, F>(table: &[T; 256], default_val: T, check: F) -> Option<(u8, T)>
+where
+    F: Fn(usize, &T) -> bool,
+    T: Copy,
+{
+    let mut count = 0;
+    let mut char_index = 0;
+    let mut result_val = default_val;
+
+    for (i, val) in table.iter().enumerate() {
+        if check(i, val) {
+            count += 1;
+            if count == 1 {
+                char_index = i as u8;
+                result_val = *val;
+            } else {
+                return None; // More than one change
+            }
+        }
+    }
+
+    if count == 1 {
+        Some((char_index, result_val))
+    } else {
+        None
+    }
+}
+
+/// Process single character operations with SIMD optimization
+#[inline]
+fn process_single_char_operation<F>(
+    input: &[u8],
+    output: &mut Vec<u8>,
+    target_char: u8,
+    transform: F,
+) where
+    F: Fn(u8) -> u8,
+{
+    let count = bytecount::count(input, target_char);
+    if count == 0 {
+        output.extend_from_slice(input);
+    } else if count == input.len() {
+        output.resize(output.len() + input.len(), transform(target_char));
+    } else {
+        output.extend(
+            input
+                .iter()
+                .map(|&b| if b == target_char { transform(b) } else { b }),
+        );
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum BadSequence {
@@ -592,7 +650,7 @@ fn set_to_bitmap(set: &[u8]) -> [bool; 256] {
 
 #[derive(Debug)]
 pub struct DeleteOperation {
-    delete_table: [bool; 256],
+    pub(crate) delete_table: [bool; 256],
 }
 
 impl DeleteOperation {
@@ -610,9 +668,34 @@ impl SymbolTranslator for DeleteOperation {
     }
 }
 
+impl ChunkProcessor for DeleteOperation {
+    fn process_chunk(&self, input: &[u8], output: &mut Vec<u8>) {
+        // Check if this is single character deletion
+        if let Some((delete_char, _)) =
+            find_single_change(&self.delete_table, false, |_, &should_delete| should_delete)
+        {
+            let count = bytecount::count(input, delete_char);
+            if count == 0 {
+                output.extend_from_slice(input);
+            } else if count < input.len() {
+                output.extend(input.iter().filter(|&&b| b != delete_char).copied());
+            }
+            // If count == input.len(), all deleted, output nothing
+        } else {
+            // Standard deletion
+            output.extend(
+                input
+                    .iter()
+                    .filter(|&&b| !self.delete_table[b as usize])
+                    .copied(),
+            );
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct TranslateOperation {
-    translation_table: [u8; 256],
+    pub(crate) translation_table: [u8; 256],
 }
 
 impl TranslateOperation {
@@ -642,6 +725,21 @@ impl TranslateOperation {
 impl SymbolTranslator for TranslateOperation {
     fn translate(&mut self, current: u8) -> Option<u8> {
         Some(self.translation_table[current as usize])
+    }
+}
+
+impl ChunkProcessor for TranslateOperation {
+    fn process_chunk(&self, input: &[u8], output: &mut Vec<u8>) {
+        // Check if this is a simple single-character translation
+        if let Some((source, target)) =
+            find_single_change(&self.translation_table, 0u8, |i, &val| val != i as u8)
+        {
+            // Use SIMD-optimized single character operation
+            process_single_char_operation(input, output, source, |_| target);
+        } else {
+            // Standard translation using table lookup
+            output.extend(input.iter().map(|&b| self.translation_table[b as usize]));
+        }
     }
 }
 
@@ -675,47 +773,29 @@ impl SymbolTranslator for SqueezeOperation {
     }
 }
 
-pub fn translate_input<T, R, W>(input: &mut R, output: &mut W, mut translator: T) -> UResult<()>
+pub fn translate_input<T, R, W>(input: &mut R, output: &mut W, translator: T) -> UResult<()>
 where
     T: SymbolTranslator,
     R: BufRead,
     W: Write,
 {
-    const BUFFER_SIZE: usize = 32768; // Large buffer for better throughput
-    let mut buf = [0; BUFFER_SIZE];
-    let mut output_buf = Vec::with_capacity(buf.len());
+    use crate::simd::process_input;
+    use std::cell::RefCell;
 
-    loop {
-        let length = match input.read(&mut buf[..]) {
-            Ok(0) => break, // EOF reached
-            Ok(len) => len,
-            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-            Err(e) => return Err(e.map_err_context(|| translate!("tr-error-read-error"))),
-        };
+    // Wrapper to adapt SymbolTranslator to ChunkProcessor
+    struct Adapter<S: SymbolTranslator>(RefCell<S>);
 
-        // Process the buffer and collect translated chars to output
-        output_buf.clear();
-        for &byte in &buf[..length] {
-            if let Some(translated) = translator.translate(byte) {
-                output_buf.push(translated);
-            }
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        output
-            .write_all(&output_buf)
-            .map_err_context(|| translate!("tr-error-write-error"))?;
-
-        // SIGPIPE is not available on Windows.
-        #[cfg(target_os = "windows")]
-        if let Err(err) = output.write_all(&output_buf) {
-            if err.kind() == std::io::ErrorKind::BrokenPipe {
-                std::process::exit(13);
-            } else {
-                return Err(err.map_err_context(|| translate!("tr-error-write-error")));
+    impl<S: SymbolTranslator> ChunkProcessor for Adapter<S> {
+        fn process_chunk(&self, input: &[u8], output: &mut Vec<u8>) {
+            let mut translator = self.0.borrow_mut();
+            for &byte in input {
+                if let Some(translated) = translator.translate(byte) {
+                    output.push(translated);
+                }
             }
         }
     }
 
-    Ok(())
+    let adapter = Adapter(RefCell::new(translator));
+    process_input(input, output, &adapter)
 }
