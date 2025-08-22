@@ -14,7 +14,6 @@ use uucore::translate;
 use uucore::error::{FromIo, UResult, USimpleError};
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
-
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 

@@ -65,6 +65,8 @@ pub use crate::features::quoting_style;
 pub use crate::features::ranges;
 #[cfg(feature = "ringbuffer")]
 pub use crate::features::ringbuffer;
+#[cfg(all(feature = "safe-traversal", unix))]
+pub use crate::features::safe_traversal;
 #[cfg(feature = "sum")]
 pub use crate::features::sum;
 #[cfg(feature = "time")]

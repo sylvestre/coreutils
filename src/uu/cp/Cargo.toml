@@ -33,6 +33,7 @@ uucore = { workspace = true, features = [
   "perms",
   "mode",
   "update-control",
+  "safe-traversal",
 ] }
 walkdir = { workspace = true }
 indicatif = { workspace = true }

@@ -56,7 +56,7 @@ du-error-invalid-time-style = argument invalide { $style } pour 'style de temps'
   Essayez '{ $help }' pour plus d'informations.
 du-error-invalid-time-arg = les arguments 'birth' et 'creation' pour --time ne sont pas supportés sur cette plateforme.
 du-error-invalid-glob = Syntaxe d'exclusion invalide : { $error }
-du-error-cannot-read-directory = impossible de lire le répertoire { $path }
+du-error-cannot-read-directory = impossible de lire le répertoire { $path } : Permission refusée
 du-error-cannot-access = impossible d'accéder à { $path }
 du-error-read-error-is-directory = { $file } : erreur de lecture : C'est un répertoire
 du-error-cannot-open-for-reading = impossible d'ouvrir '{ $file }' en lecture : Aucun fichier ou répertoire de ce type

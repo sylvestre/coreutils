@@ -1072,3 +1072,122 @@ fn test_rm_non_utf8_paths() {
 
     assert!(!at.dir_exists(non_utf8_dir_name));
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_rm_recursive_long_path_safe_traversal() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("rm_deep");
+    at.mkdir(&deep_path);
+
+    for i in 0..12 {
+        let long_dir_name = format!("{}{}", "r".repeat(88), i);
+        deep_path = format!("{deep_path}/{long_dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    at.write("rm_deep/test1.txt", "content1");
+    at.write(&format!("{deep_path}/test2.txt"), "content2");
+    at.mkdir(format!("{deep_path}/subdir"));
+    at.write(&format!("{deep_path}/subdir/test3.txt"), "content3");
+
+    assert!(at.file_exists("rm_deep/test1.txt"));
+    assert!(at.file_exists(format!("{deep_path}/test2.txt")));
+    assert!(at.file_exists(format!("{deep_path}/subdir/test3.txt")));
+
+    ts.ucmd().arg("-r").arg("rm_deep").succeeds();
+
+    assert!(!at.dir_exists("rm_deep"));
+}
+
+#[test]
+#[cfg(unix)]
+fn test_rm_safe_traversal_repeated_dirs() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut path = String::from("y");
+    at.mkdir(&path);
+
+    for _ in 0..9 {
+        path = format!("{path}/y");
+        at.mkdir_all(&path);
+    }
+
+    at.write(&format!("{path}/test.txt"), "test content");
+    at.write(&format!("{path}/another.txt"), "another content");
+
+    assert!(at.dir_exists("y"));
+    assert!(at.file_exists(format!("{path}/test.txt")));
+    assert!(at.file_exists(format!("{path}/another.txt")));
+
+    ts.ucmd().arg("-r").arg("y").succeeds();
+
+    assert!(!at.dir_exists("y"));
+}
+
+#[test]
+#[cfg(unix)]
+fn test_rm_safe_traversal_with_verbose() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("verbose_rm_test");
+    at.mkdir(&deep_path);
+
+    for i in 0..6 {
+        let dir_name = format!("{}{}", "v".repeat(75), i);
+        deep_path = format!("{deep_path}/{dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    at.write(&format!("{deep_path}/target.txt"), "target");
+    at.write(&format!("{deep_path}/another.txt"), "another");
+
+    let result = ts
+        .ucmd()
+        .arg("-r")
+        .arg("-v")
+        .arg("verbose_rm_test")
+        .succeeds();
+
+    let output = result.stdout_str();
+    assert!(output.contains("verbose_rm_test") || output.contains("removed"));
+
+    assert!(!at.dir_exists("verbose_rm_test"));
+}
+
+#[test]
+#[cfg(unix)]
+fn test_rm_safe_traversal_with_symlinks() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("symlink_rm_test");
+    at.mkdir(&deep_path);
+
+    for i in 0..5 {
+        let dir_name = format!("{}{}", "s".repeat(80), i);
+        deep_path = format!("{deep_path}/{dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    at.write(&format!("{deep_path}/target.txt"), "target content");
+
+    at.symlink_file(&format!("{deep_path}/target.txt"), "link_to_deep.txt");
+
+    at.symlink_dir(&deep_path, "link_to_deep_dir");
+
+    ts.ucmd().arg("link_to_deep.txt").succeeds();
+    assert!(!at.symlink_exists("link_to_deep.txt"));
+    assert!(at.file_exists(format!("{deep_path}/target.txt")));
+
+    ts.ucmd().arg("link_to_deep_dir").succeeds();
+    assert!(!at.symlink_exists("link_to_deep_dir"));
+    assert!(at.dir_exists(&deep_path));
+
+    ts.ucmd().arg("-r").arg("symlink_rm_test").succeeds();
+    assert!(!at.dir_exists("symlink_rm_test"));
+}

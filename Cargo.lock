@@ -3188,6 +3188,7 @@ dependencies = [
  "clap",
  "fluent",
  "glob",
+ "libc",
  "thiserror 2.0.15",
  "uucore",
  "windows-sys 0.60.2",

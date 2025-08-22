@@ -38,6 +38,8 @@ pub mod quoting_style;
 pub mod ranges;
 #[cfg(feature = "ringbuffer")]
 pub mod ringbuffer;
+#[cfg(all(feature = "safe-traversal", unix))]
+pub mod safe_traversal;
 #[cfg(feature = "sum")]
 pub mod sum;
 #[cfg(feature = "time")]

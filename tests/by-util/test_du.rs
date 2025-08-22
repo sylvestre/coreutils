@@ -1430,3 +1430,100 @@ fn test_du_inodes_total_text() {
 
     assert!(parts[0].parse::<u64>().is_ok());
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_du_long_path_safe_traversal() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("long_path_test");
+    at.mkdir(&deep_path);
+
+    for i in 0..15 {
+        let long_dir_name = format!("{}{}", "a".repeat(100), i);
+        deep_path = format!("{deep_path}/{long_dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    let test_file = format!("{deep_path}/test.txt");
+    at.write(&test_file, "test content");
+
+    let result = ts.ucmd().arg("-s").arg("long_path_test").succeeds();
+    assert!(result.stdout_str().contains("long_path_test"));
+
+    let result = ts.ucmd().arg("long_path_test").succeeds();
+    let lines: Vec<&str> = result.stdout_str().trim().lines().collect();
+    assert!(lines.len() >= 15);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_du_very_deep_directory() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut current_path = String::from("x");
+    at.mkdir(&current_path);
+
+    for _ in 0..10 {
+        current_path = format!("{current_path}/x");
+        at.mkdir_all(&current_path);
+    }
+
+    at.write(&format!("{current_path}/file.txt"), "deep file");
+
+    let result = ts.ucmd().arg("-s").arg("x").succeeds();
+    assert!(result.stdout_str().contains('x'));
+
+    let result = ts.ucmd().arg("-a").arg("x").succeeds();
+    let output = result.stdout_str();
+    assert!(output.contains("file.txt"));
+}
+
+#[test]
+#[cfg(unix)]
+fn test_du_safe_traversal_with_symlinks() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("symlink_test");
+    at.mkdir(&deep_path);
+
+    for i in 0..8 {
+        let dir_name = format!("{}{}", "b".repeat(50), i);
+        deep_path = format!("{deep_path}/{dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    at.write(&format!("{deep_path}/target.txt"), "target content");
+
+    at.symlink_file(&format!("{deep_path}/target.txt"), "shallow_link.txt");
+
+    let result = ts.ucmd().arg("-L").arg("shallow_link.txt").succeeds();
+    assert!(!result.stdout_str().is_empty());
+
+    let result = ts.ucmd().arg("shallow_link.txt").succeeds();
+    assert!(!result.stdout_str().is_empty());
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_du_inaccessible_directory() {
+    // tested by tests/du/no-x
+    let ts = TestScenario::new(util_name!());
+    let at = ts.fixtures.clone();
+
+    at.mkdir("d");
+    at.mkdir("d/no-x");
+    at.mkdir("d/no-x/y");
+
+    at.set_mode("d/no-x", 0o600);
+
+    let result = ts.ucmd().arg("d").fails();
+
+    let stderr = result.stderr_str();
+    assert!(
+        stderr.contains("du: cannot read directory 'd/no-x/y': Permission denied")
+    );
+}

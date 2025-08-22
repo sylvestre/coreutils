@@ -91,6 +91,7 @@ cp-error-failed-to-create-whole-tree = failed to create whole tree
 cp-error-failed-to-create-directory = Failed to create directory: { $error }
 cp-error-backup-format = cp: { $error }
   Try '{ $exec } --help' for more information.
+cp-error-failed-to-read-directory = failed to read directory '{ $path }'
 
 # Debug enum strings
 cp-debug-enum-no = no

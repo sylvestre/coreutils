@@ -232,14 +232,20 @@ fn test_chmod_ugoa() {
 }
 
 #[test]
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-// TODO fix android, it has 0777
-// We should force for the umask on startup
-fn test_chmod_umask_expected() {
-    let current_umask = uucore::mode::get_umask();
+fn test_chmod_umask_flexibility() {
+    // Test that chmod works with any umask value (environment-independent)
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.touch("file");
+    set_permissions(at.plus("file"), Permissions::from_mode(0o644)).unwrap();
+
+    // Test with umask 002 (common alternative to 022)
+    ucmd.args(&["+x", "file"]).umask(0o002).succeeds();
+
+    // Verify chmod worked correctly
     assert_eq!(
-        current_umask, 0o022,
-        "Unexpected umask value: expected 022 (octal), but got {current_umask:03o}. Please adjust the test environment.",
+        metadata(at.plus("file")).unwrap().permissions().mode(),
+        0o100_755 // 644 + execute bits
     );
 }
 
@@ -1267,4 +1273,114 @@ fn test_chmod_non_utf8_paths() {
             & 0o777,
         0o644
     );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_chmod_recursive_long_path_safe_traversal() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("chmod_deep");
+    at.mkdir(&deep_path);
+
+    for i in 0..12 {
+        let long_dir_name = format!("{}{}", "c".repeat(80), i);
+        deep_path = format!("{deep_path}/{long_dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    at.write("chmod_deep/test1.txt", "content1");
+    at.write(&format!("{deep_path}/test2.txt"), "content2");
+
+    ts.ucmd().arg("-R").arg("755").arg("chmod_deep").succeeds();
+
+    let deep_file_path = format!("{deep_path}/test2.txt");
+    let deep_file_perms = metadata(at.plus(&deep_file_path))
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(deep_file_perms, 0o755);
+
+    ts.ucmd().arg("-R").arg("744").arg("chmod_deep").succeeds();
+
+    let shallow_file_perms = metadata(at.plus("chmod_deep/test1.txt"))
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(shallow_file_perms, 0o744);
+
+    let deep_file_perms = metadata(at.plus(&deep_file_path))
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(deep_file_perms, 0o744);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_chmod_safe_traversal_repeated_dirs() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut path = String::from("a");
+    at.mkdir(&path);
+
+    for _ in 0..8 {
+        path = format!("{path}/a");
+        at.mkdir_all(&path);
+    }
+
+    at.write(&format!("{path}/test.txt"), "test content");
+
+    ts.ucmd().arg("-R").arg("700").arg("a").succeeds();
+
+    let file_path = format!("{path}/test.txt");
+    let perms = metadata(at.plus(&file_path)).unwrap().permissions().mode() & 0o777;
+    assert_eq!(perms, 0o700);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_chmod_safe_traversal_with_symlinks() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("symlink_chmod_test");
+    at.mkdir(&deep_path);
+
+    for i in 0..6 {
+        let dir_name = format!("{}{}", "d".repeat(60), i);
+        deep_path = format!("{deep_path}/{dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    at.write(&format!("{deep_path}/target.txt"), "target");
+    at.write("regular.txt", "regular");
+
+    at.symlink_file(&format!("{deep_path}/target.txt"), "link.txt");
+
+    ts.ucmd().arg("-L").arg("600").arg("link.txt").succeeds();
+
+    let target_perms = metadata(at.plus(format!("{deep_path}/target.txt")))
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(target_perms, 0o600);
+
+    at.write(&format!("{deep_path}/target2.txt"), "target2");
+    at.symlink_file(&format!("{deep_path}/target2.txt"), "link2.txt");
+
+    ts.ucmd().arg("700").arg("link2.txt").succeeds();
+
+    let target_perms_second = metadata(at.plus(format!("{deep_path}/target2.txt")))
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(target_perms_second, 0o700);
 }

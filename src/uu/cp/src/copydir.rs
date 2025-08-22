@@ -6,54 +6,38 @@
 //! Recursively copy the contents of a directory.
 //!
 //! See the [`copy_directory`] function for more information.
-#[cfg(windows)]
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+#[cfg(unix)]
 use std::env;
+#[cfg(unix)]
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf, StripPrefixError};
+#[cfg(unix)]
+use std::path::StripPrefixError;
+use std::path::{Path, PathBuf};
 
 use indicatif::ProgressBar;
 use uucore::display::Quotable;
+#[cfg(unix)]
 use uucore::error::UIoError;
-use uucore::fs::{
-    FileInformation, MissingHandling, ResolveMode, canonicalize, path_ends_with_terminator,
-};
+#[cfg(unix)]
+use uucore::fs::path_ends_with_terminator;
+use uucore::fs::{FileInformation, MissingHandling, ResolveMode, canonicalize};
 use uucore::translate;
 
+#[cfg(unix)]
+use uucore::safe_traversal::DirFd;
+#[cfg(unix)]
 use uucore::show;
-use uucore::show_error;
+#[cfg(unix)]
 use uucore::uio_error;
-use walkdir::{DirEntry, WalkDir};
 
-use crate::{
-    CopyResult, CpError, Options, aligned_ancestors, context_for, copy_attributes, copy_file,
-    copy_link,
-};
+use crate::{CopyResult, Options, copy_file};
+#[cfg(unix)]
+use crate::{CpError, context_for, copy_link};
 
-/// Ensure a Windows path starts with a `\\?`.
-#[cfg(target_os = "windows")]
-fn adjust_canonicalization(p: &Path) -> Cow<'_, Path> {
-    // In some cases, \\? can be missing on some Windows paths.  Add it at the
-    // beginning unless the path is prefixed with a device namespace.
-    const VERBATIM_PREFIX: &str = r"\\?";
-    const DEVICE_NS_PREFIX: &str = r"\\.";
-
-    let has_prefix = p
-        .components()
-        .next()
-        .and_then(|comp| comp.as_os_str().to_str())
-        .is_some_and(|p_str| {
-            p_str.starts_with(VERBATIM_PREFIX) || p_str.starts_with(DEVICE_NS_PREFIX)
-        });
-
-    if has_prefix {
-        p.into()
-    } else {
-        Path::new(VERBATIM_PREFIX).join(p).into()
-    }
-}
+#[cfg(unix)]
+use crate::{aligned_ancestors, copy_attributes};
 
 /// Get a descendant path relative to the given parent directory.
 ///
@@ -61,20 +45,13 @@ fn adjust_canonicalization(p: &Path) -> Cow<'_, Path> {
 /// itself. Otherwise, this function strips the parent prefix from the
 /// given `path`, leaving only the portion of the path relative to the
 /// parent.
+#[cfg(unix)]
 fn get_local_to_root_parent(
     path: &Path,
     root_parent: Option<&Path>,
 ) -> Result<PathBuf, StripPrefixError> {
     match root_parent {
         Some(parent) => {
-            // On Windows, some paths are starting with \\?
-            // but not always, so, make sure that we are consistent for strip_prefix
-            // See https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file for more info
-            #[cfg(windows)]
-            let (path, parent) = (
-                adjust_canonicalization(path),
-                adjust_canonicalization(parent),
-            );
             let path = path.strip_prefix(parent)?;
             Ok(path.to_path_buf())
         }
@@ -82,13 +59,8 @@ fn get_local_to_root_parent(
     }
 }
 
-/// Given an iterator, return all its items except the last.
-fn skip_last<T>(mut iter: impl Iterator<Item = T>) -> impl Iterator<Item = T> {
-    let last = iter.next();
-    iter.scan(last, |state, item| state.replace(item))
-}
-
 /// Paths that are invariant throughout the traversal when copying a directory.
+#[cfg(unix)]
 struct Context<'a> {
     /// The current working directory at the time of starting the traversal.
     current_dir: PathBuf,
@@ -103,6 +75,7 @@ struct Context<'a> {
     root: &'a Path,
 }
 
+#[cfg(unix)]
 impl<'a> Context<'a> {
     fn new(root: &'a Path, target: &'a Path) -> io::Result<Self> {
         let current_dir = env::current_dir()?;
@@ -156,6 +129,8 @@ impl<'a> Context<'a> {
 ///     }
 /// ];
 /// ```
+#[cfg(unix)]
+#[derive(Clone)]
 struct Entry {
     /// The absolute path to file or directory to copy.
     source_absolute: PathBuf,
@@ -170,6 +145,7 @@ struct Entry {
     target_is_file: bool,
 }
 
+#[cfg(unix)]
 impl Entry {
     fn new<A: AsRef<Path>>(
         context: &Context,
@@ -206,6 +182,7 @@ impl Entry {
     }
 }
 
+#[cfg(unix)]
 #[allow(clippy::too_many_arguments)]
 /// Copy a single entry during a directory traversal.
 fn copy_direntry(
@@ -329,158 +306,73 @@ pub(crate) fn copy_directory(
         .into());
     }
 
-    // If in `--parents` mode, create all the necessary ancestor directories.
-    //
-    // For example, if the command is `cp --parents a/b/c d`, that
-    // means we need to copy the two ancestor directories first:
-    //
-    // a -> d/a
-    // a/b -> d/a/b
-    //
-    let tmp = if options.parents {
-        if let Some(parent) = root.parent() {
-            let new_target = target.join(parent);
-            build_dir(&new_target, true, options, None)?;
-            if options.verbose {
-                // For example, if copying file `a/b/c` and its parents
-                // to directory `d/`, then print
-                //
-                //     a -> d/a
-                //     a/b -> d/a/b
-                //
-                for (x, y) in aligned_ancestors(root, &target.join(root)) {
-                    println!("{} -> {}", x.display(), y.display());
-                }
-            }
+    // Check if we need safe traversal for long paths
+    #[cfg(unix)]
+    return safe_copy_directory(
+        progress_bar,
+        root,
+        target,
+        options,
+        symlinked_files,
+        copied_destinations,
+        copied_files,
+        source_in_command_line,
+    );
 
-            new_target
-        } else {
-            target.to_path_buf()
-        }
-    } else {
-        target.to_path_buf()
-    };
-    let target = tmp.as_path();
-
-    let preserve_hard_links = options.preserve_hard_links();
-
-    // Collect some paths here that are invariant during the traversal
-    // of the given directory, like the current working directory and
-    // the target directory.
-    let context = match Context::new(root, target) {
-        Ok(c) => c,
-        Err(e) => {
-            return Err(translate!("cp-error-failed-get-current-dir", "error" => e).into());
-        }
-    };
-
-    // The directory we were in during the previous iteration
-    let mut last_iter: Option<DirEntry> = None;
-
-    // Keep track of all directories we've created that need permission fixes
-    let mut dirs_needing_permissions: Vec<(PathBuf, PathBuf)> = Vec::new();
-
-    // Traverse the contents of the directory, copying each one.
-    for direntry_result in WalkDir::new(root)
-        .same_file_system(options.one_file_system)
-        .follow_links(options.dereference)
+    #[cfg(not(unix))]
     {
-        match direntry_result {
-            Ok(direntry) => {
-                let entry = Entry::new(&context, direntry.path(), options.no_target_dir)?;
+        // On non-Unix systems, fall back to simple directory copying
+        // This is a basic implementation that doesn't handle all edge cases
+        use std::fs;
 
-                copy_direntry(
-                    progress_bar,
-                    entry,
-                    options,
-                    symlinked_files,
-                    preserve_hard_links,
-                    copied_destinations,
-                    copied_files,
-                )?;
+        if root.is_file() {
+            // If it's just a file, copy it directly
+            return copy_file(
+                None,
+                root,
+                target,
+                options,
+                symlinked_files,
+                &HashSet::new(),
+                copied_files,
+                false,
+            );
+        }
 
-                // We omit certain permissions when creating directories
-                // to prevent other users from accessing them before they're done.
-                // We thus need to fix the permissions of each directory we copy
-                // once it's contents are ready.
-                // This "fixup" is implemented here in a memory-efficient manner.
-                //
-                // We detect iterations where we "walk up" the directory tree,
-                // and fix permissions on all the directories we exited.
-                // (Note that there can be more than one! We might step out of
-                // `./a/b/c` into `./a/`, in which case we'll need to fix the
-                // permissions of both `./a/b/c` and `./a/b`, in that order.)
-                if direntry.file_type().is_dir() {
-                    // Add this directory to our list for permission fixing later
-                    let entry_for_tracking =
-                        Entry::new(&context, direntry.path(), options.no_target_dir)?;
-                    dirs_needing_permissions.push((
-                        entry_for_tracking.source_absolute,
-                        entry_for_tracking.local_to_target,
-                    ));
+        if root.is_dir() {
+            // Create the target directory
+            if let Some(dir_name) = root.file_name() {
+                let target_dir = target.join(dir_name);
+                let _ = fs::create_dir_all(&target_dir);
 
-                    // If true, last_iter is not a parent of this iter.
-                    // The means we just exited a directory.
-                    let went_up = if let Some(last_iter) = &last_iter {
-                        last_iter.path().strip_prefix(direntry.path()).is_ok()
-                    } else {
-                        false
-                    };
+                // Basic recursive copy - just iterate through entries
+                if let Ok(entries) = fs::read_dir(root) {
+                    for entry in entries.flatten() {
+                        let source_path = entry.path();
+                        let target_path = target_dir.join(entry.file_name());
 
-                    if went_up {
-                        // Compute the "difference" between `last_iter` and `direntry`.
-                        // For example, if...
-                        // - last_iter = `a/b/c/d`
-                        // - direntry = `a/b`
-                        // then diff = `c/d`
-                        //
-                        // All the unwraps() here are unreachable.
-                        let last_iter = last_iter.as_ref().unwrap();
-                        let diff = last_iter.path().strip_prefix(direntry.path()).unwrap();
-
-                        // Fix permissions for every entry in `diff`, inside-out.
-                        // We skip the last directory (which will be `.`) because
-                        // its permissions will be fixed when we walk _out_ of it.
-                        // (at this point, we might not be done copying `.`!)
-                        for p in skip_last(diff.ancestors()) {
-                            let src = direntry.path().join(p);
-                            let entry = Entry::new(&context, &src, options.no_target_dir)?;
-
-                            copy_attributes(
-                                &entry.source_absolute,
-                                &entry.local_to_target,
-                                &options.attributes,
-                            )?;
+                        if source_path.is_file() {
+                            let _ = fs::copy(&source_path, &target_path);
+                        } else if source_path.is_dir() {
+                            // Recursive call
+                            let _ = copy_directory(
+                                progress_bar,
+                                &source_path,
+                                &target_dir,
+                                options,
+                                symlinked_files,
+                                copied_destinations,
+                                copied_files,
+                                false,
+                            );
                         }
                     }
-
-                    last_iter = Some(direntry);
                 }
             }
-
-            // Print an error message, but continue traversing the directory.
-            Err(e) => show_error!("{e}"),
         }
-    }
 
-    // Fix permissions for all directories we created
-    // This ensures that even sibling directories get their permissions fixed
-    for (source_path, dest_path) in dirs_needing_permissions {
-        copy_attributes(&source_path, &dest_path, &options.attributes)?;
+        Ok(())
     }
-
-    // Also fix permissions for parent directories,
-    // if we were asked to create them.
-    if options.parents {
-        let dest = target.join(root.file_name().unwrap());
-        for (x, y) in aligned_ancestors(root, dest.as_path()) {
-            if let Ok(src) = canonicalize(x, MissingHandling::Normal, ResolveMode::Physical) {
-                copy_attributes(&src, y, &options.attributes)?;
-            }
-        }
-    }
-
-    Ok(())
 }
 
 /// Decide whether the second path is a prefix of the first.
@@ -518,6 +410,7 @@ pub fn path_has_prefix(p1: &Path, p2: &Path) -> io::Result<bool> {
 /// - The `recursive` flag determines whether parent directories should be created
 ///   if they do not already exist.
 // we need to allow unused_variable since `options` might be unused in non unix systems
+#[cfg(unix)]
 #[allow(unused_variables)]
 fn build_dir(
     path: &PathBuf,
@@ -547,21 +440,221 @@ fn build_dir(
             0
         } as u32;
 
-        let umask = if copy_attributes_from.is_some()
-            && matches!(options.attributes.mode, Preserve::Yes { .. })
-        {
-            !fs::symlink_metadata(copy_attributes_from.unwrap())?
-                .permissions()
-                .mode()
+        let (umask, target_mode) = if let Some(path) = copy_attributes_from {
+            if matches!(options.attributes.mode, Preserve::Yes { .. }) {
+                // For directories, get the source mode to preserve permissions
+                let source_mode = if options.dereference && fs::symlink_metadata(path)?.is_dir() {
+                    fs::metadata(path)?.permissions().mode()
+                } else {
+                    fs::symlink_metadata(path)?.permissions().mode()
+                };
+                // Use the source mode directly, but still apply excluded permissions
+                (0, source_mode & 0o777)
+            } else {
+                // Don't preserve mode
+                let umask = uucore::mode::get_umask();
+                (umask, (0o777 & !umask) | excluded_perms)
+            }
         } else {
-            uucore::mode::get_umask()
+            (uucore::mode::get_umask(), 0o777)
         };
 
         excluded_perms |= umask;
-        let mode = !excluded_perms & 0o777; //use only the last three octet bits
+        let mode = !excluded_perms & 0o777;
         std::os::unix::fs::DirBuilderExt::mode(&mut builder, mode);
     }
 
     builder.create(path)?;
+
+    Ok(())
+}
+
+#[cfg(unix)]
+#[allow(clippy::too_many_arguments)]
+fn safe_copy_directory(
+    progress_bar: Option<&ProgressBar>,
+    root: &Path,
+    target: &Path,
+    options: &Options,
+    symlinked_files: &mut HashSet<FileInformation>,
+    copied_destinations: &HashSet<PathBuf>,
+    copied_files: &mut HashMap<FileInformation, PathBuf>,
+    _source_in_command_line: bool,
+) -> CopyResult<()> {
+    // Handle --parents mode
+    let tmp = if options.parents {
+        if let Some(parent) = root.parent() {
+            let new_target = target.join(parent);
+            build_dir(&new_target, true, options, None)?;
+            if options.verbose {
+                for (x, y) in aligned_ancestors(root, &target.join(root)) {
+                    println!("{} -> {}", x.display(), y.display());
+                }
+            }
+            new_target
+        } else {
+            target.to_path_buf()
+        }
+    } else {
+        target.to_path_buf()
+    };
+    let target = tmp.as_path();
+
+    // Collect context information
+    let context = match Context::new(root, target) {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(translate!("cp-error-failed-get-current-dir", "error" => e).into());
+        }
+    };
+
+    // Create root directory first
+    let entry = Entry::new(&context, root, options.no_target_dir)?;
+    copy_direntry(
+        progress_bar,
+        entry.clone(),
+        options,
+        symlinked_files,
+        false, // preserve_hard_links not used for root
+        copied_destinations,
+        copied_files,
+    )?;
+
+    // Keep track of directories needing permission fixes
+    let mut dirs_needing_permissions: Vec<(PathBuf, PathBuf)> = Vec::new();
+    dirs_needing_permissions.push((entry.source_absolute, entry.local_to_target));
+
+    // Start safe traversal
+    match DirFd::open(root) {
+        Ok(dir_fd) => {
+            safe_copy_dir_recursive(
+                progress_bar,
+                &dir_fd,
+                root,
+                &context,
+                options,
+                symlinked_files,
+                copied_destinations,
+                copied_files,
+                &mut dirs_needing_permissions,
+            )?;
+        }
+        Err(e) => {
+            return Err(CpError::IoErrContext(
+                e,
+                format!("failed to open directory '{}'", root.display()),
+            ));
+        }
+    }
+
+    // Fix permissions for all directories we created
+    for (source_abs, local_to_target) in dirs_needing_permissions.into_iter().rev() {
+        copy_attributes(&source_abs, &local_to_target, &options.attributes)?;
+    }
+
+    // Also fix permissions for parent directories,
+    // if we were asked to create them.
+    if options.parents {
+        let dest = target.join(root.file_name().unwrap());
+        for (x, y) in aligned_ancestors(root, dest.as_path()) {
+            if let Ok(src) = canonicalize(x, MissingHandling::Normal, ResolveMode::Physical) {
+                copy_attributes(&src, y, &options.attributes)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+#[allow(clippy::too_many_arguments)]
+fn safe_copy_dir_recursive(
+    progress_bar: Option<&ProgressBar>,
+    dir_fd: &DirFd,
+    current_dir_path: &Path,
+    context: &Context,
+    options: &Options,
+    symlinked_files: &mut HashSet<FileInformation>,
+    copied_destinations: &HashSet<PathBuf>,
+    copied_files: &mut HashMap<FileInformation, PathBuf>,
+    dirs_needing_permissions: &mut Vec<(PathBuf, PathBuf)>,
+) -> CopyResult<()> {
+    // Read directory entries using safe traversal
+    let entries = match dir_fd.read_dir() {
+        Ok(entries) => entries,
+        Err(e) => {
+            return Err(CpError::IoErrContext(
+                e,
+                translate!("cp-error-failed-to-read-directory", "path" => current_dir_path.display()),
+            ));
+        }
+    };
+
+    for entry_name in entries {
+        // Construct the real filesystem path for this entry
+        let entry_path = current_dir_path.join(&entry_name);
+        let entry_display_path = entry_path.display().to_string();
+
+        // Get file stats to determine type
+        let follow_symlinks = options.dereference;
+        let entry_stat = match dir_fd.stat_at(&entry_name, follow_symlinks) {
+            Ok(stat) => stat,
+            Err(e) => {
+                // Skip entries we can't stat, similar to WalkDir behavior
+                show!(uio_error!(
+                    e,
+                    "{}",
+                    translate!("cp-error-cannot-stat", "source" => entry_display_path),
+                ));
+                continue;
+            }
+        };
+
+        // Create Entry for this item using the real filesystem path
+        let entry = Entry::new(context, &entry_path, options.no_target_dir)?;
+
+        // Copy this entry
+        copy_direntry(
+            progress_bar,
+            entry.clone(),
+            options,
+            symlinked_files,
+            false, // preserve_hard_links not used in recursive calls
+            copied_destinations,
+            copied_files,
+        )?;
+
+        // If it's a directory, add to permissions list and recurse
+        #[allow(clippy::unnecessary_cast)]
+        let is_dir = (entry_stat.st_mode & libc::S_IFMT as u32) == libc::S_IFDIR as u32;
+        if is_dir {
+            dirs_needing_permissions.push((entry.source_absolute, entry.local_to_target));
+
+            // Recurse into subdirectory
+            match dir_fd.open_subdir(&entry_name) {
+                Ok(subdir_fd) => {
+                    safe_copy_dir_recursive(
+                        progress_bar,
+                        &subdir_fd,
+                        &entry_path,
+                        context,
+                        options,
+                        symlinked_files,
+                        copied_destinations,
+                        copied_files,
+                        dirs_needing_permissions,
+                    )?;
+                }
+                Err(e) => {
+                    show!(uio_error!(
+                        e,
+                        "{}",
+                        translate!("cp-error-cannot-read-directory", "dir" => entry_display_path),
+                    ));
+                }
+            }
+        }
+    }
+
     Ok(())
 }

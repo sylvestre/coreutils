@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-// spell-checker:ignore (flags) reflink (fs) tmpfs (linux) rlimit Rlim NOFILE clob btrfs neve ROOTDIR USERDIR outfile uufs xattrs
+// spell-checker:ignore (flags) reflink (fs) tmpfs (linux) rlimit Rlim NOFILE clob btrfs neve ROOTDIR USERDIR outfile uufs xattrs replacen
 // spell-checker:ignore bdfl hlsl IRWXO IRWXG nconfined matchpathcon libselinux-devel prwx doesnotexist reftests subdirs mksocket srwx
 use uucore::display::Quotable;
 #[cfg(feature = "feat_selinux")]
@@ -6865,4 +6865,128 @@ fn test_cp_no_dereference_symlink_with_parents() {
         .args(&["--parents", "--no-dereference", "symlink-to-directory", "x"])
         .succeeds();
     assert_eq!(at.resolve_link("x/symlink-to-directory"), "directory");
+}
+
+#[test]
+#[cfg(unix)]
+fn test_cp_recursive_long_path_safe_traversal() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("cp_source_deep");
+    at.mkdir(&deep_path);
+
+    for i in 0..10 {
+        let long_dir_name = format!("{}{}", "s".repeat(85), i);
+        deep_path = format!("{deep_path}/{long_dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    at.write("cp_source_deep/test1.txt", "content1");
+    at.write(&format!("{deep_path}/test2.txt"), "content2");
+    at.mkdir(format!("{deep_path}/subdir"));
+    at.write(&format!("{deep_path}/subdir/test3.txt"), "content3");
+
+    ts.ucmd()
+        .arg("-R")
+        .arg("cp_source_deep")
+        .arg("cp_dest_deep")
+        .succeeds();
+
+    assert!(at.file_exists("cp_dest_deep/test1.txt"));
+    assert_eq!(at.read("cp_dest_deep/test1.txt"), "content1");
+
+    let deep_dest_path = deep_path.replace("cp_source_deep", "cp_dest_deep");
+    assert!(at.file_exists(format!("{deep_dest_path}/test2.txt")));
+    assert_eq!(at.read(&format!("{deep_dest_path}/test2.txt")), "content2");
+
+    assert!(at.dir_exists(format!("{deep_dest_path}/subdir")));
+    assert!(at.file_exists(format!("{deep_dest_path}/subdir/test3.txt")));
+    assert_eq!(
+        at.read(&format!("{deep_dest_path}/subdir/test3.txt")),
+        "content3"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_cp_safe_traversal_repeated_dirs() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut path = String::from("x");
+    at.mkdir(&path);
+
+    for _ in 0..7 {
+        path = format!("{path}/x");
+        at.mkdir_all(&path);
+    }
+
+    at.write(&format!("{path}/test.txt"), "test content");
+    at.write(&format!("{path}/another.txt"), "another content");
+
+    ts.ucmd().arg("-R").arg("x").arg("x_copy").succeeds();
+
+    let dest_path = path.replacen('x', "x_copy", 1);
+    assert!(at.file_exists(format!("{dest_path}/test.txt")));
+    assert_eq!(at.read(&format!("{dest_path}/test.txt")), "test content");
+    assert!(at.file_exists(format!("{dest_path}/another.txt")));
+    assert_eq!(
+        at.read(&format!("{dest_path}/another.txt")),
+        "another content"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn test_cp_safe_traversal_with_symlinks() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("symlink_cp_test");
+    at.mkdir(&deep_path);
+
+    for i in 0..6 {
+        let dir_name = format!("{}{}", "l".repeat(65), i);
+        deep_path = format!("{deep_path}/{dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    at.write(&format!("{deep_path}/target.txt"), "target content");
+
+    at.symlink_file(&format!("{deep_path}/target.txt"), "link.txt");
+
+    ts.ucmd()
+        .arg("-L")
+        .arg("link.txt")
+        .arg("copied_target.txt")
+        .succeeds();
+    assert!(at.file_exists("copied_target.txt"));
+    assert_eq!(at.read("copied_target.txt"), "target content");
+
+    ts.ucmd()
+        .arg("-P")
+        .arg("link.txt")
+        .arg("copied_link.txt")
+        .succeeds();
+    assert!(at.symlink_exists("copied_link.txt"));
+
+    at.symlink_dir(
+        &deep_path,
+        &format!("{}/deep_link", deep_path.split('/').next().unwrap()),
+    );
+
+    ts.ucmd()
+        .arg("-R")
+        .arg("symlink_cp_test")
+        .arg("symlink_cp_dest")
+        .succeeds();
+
+    assert!(at.dir_exists("symlink_cp_dest"));
+    let dest_deep_path = deep_path.replace("symlink_cp_test", "symlink_cp_dest");
+    assert!(at.file_exists(format!("{dest_deep_path}/target.txt")));
+    assert_eq!(
+        at.read(&format!("{dest_deep_path}/target.txt")),
+        "target content"
+    );
 }

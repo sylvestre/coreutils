@@ -91,6 +91,7 @@ cp-error-failed-to-create-whole-tree = échec de la création de l'arborescence 
 cp-error-failed-to-create-directory = Échec de la création du répertoire : { $error }
 cp-error-backup-format = cp : { $error }
   Tentez '{ $exec } --help' pour plus d'informations.
+cp-error-failed-to-read-directory = échec de la lecture du répertoire '{ $path }'
 
 # Debug enum strings
 cp-debug-enum-no = non
