@@ -568,7 +568,9 @@ impl Chmoder {
                 }
             };
 
-            let is_dir = (entry_stat.st_mode & uucore::libc::S_IFMT) == uucore::libc::S_IFDIR;
+            #[allow(clippy::unnecessary_cast)]
+            let is_dir = (entry_stat.st_mode as u32 & uucore::libc::S_IFMT as u32)
+                == uucore::libc::S_IFDIR as u32;
 
             r = self
                 .safe_chmod_file_at(dir_fd, &entry_name, &entry_display, should_follow_symlink)
@@ -639,8 +641,12 @@ impl Chmoder {
         // (u16 on macOS, u32 on Linux)
         #[allow(clippy::unnecessary_cast)]
         let fperm = (metadata.st_mode & 0o7777) as u32;
-        let is_dir = (metadata.st_mode & uucore::libc::S_IFMT) == uucore::libc::S_IFDIR;
-        let is_symlink = (metadata.st_mode & uucore::libc::S_IFMT) == uucore::libc::S_IFLNK;
+        #[allow(clippy::unnecessary_cast)]
+        let is_dir =
+            (metadata.st_mode as u32 & uucore::libc::S_IFMT as u32) == uucore::libc::S_IFDIR as u32;
+        #[allow(clippy::unnecessary_cast)]
+        let is_symlink =
+            (metadata.st_mode as u32 & uucore::libc::S_IFMT as u32) == uucore::libc::S_IFLNK as u32;
 
         // If it's a symlink and we're not following symlinks, skip it
         // (symlink permissions can't be changed on most Unix systems)

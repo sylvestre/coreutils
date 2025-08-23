@@ -626,7 +626,7 @@ fn safe_copy_dir_recursive(
 
         // If it's a directory, add to permissions list and recurse
         #[allow(clippy::unnecessary_cast)]
-        let is_dir = (entry_stat.st_mode & libc::S_IFMT as u32) == libc::S_IFDIR as u32;
+        let is_dir = (entry_stat.st_mode as u32 & libc::S_IFMT as u32) == libc::S_IFDIR as u32;
         if is_dir {
             dirs_needing_permissions.push((entry.source_absolute, entry.local_to_target));
 

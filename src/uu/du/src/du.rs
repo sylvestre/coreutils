@@ -834,7 +834,8 @@ fn safe_du_with_output(
 
     let mut total_stat = Stat {
         path: path.to_path_buf(),
-        size: if (stat.st_mode & libc::S_IFMT) == libc::S_IFDIR {
+        #[allow(clippy::unnecessary_cast)]
+        size: if (stat.st_mode as u32 & libc::S_IFMT as u32) == libc::S_IFDIR as u32 {
             0
         } else {
             stat.st_size as u64
@@ -856,7 +857,8 @@ fn safe_du_with_output(
     seen_inodes.insert(file_info);
 
     // If not a directory, we're done
-    if (stat.st_mode & libc::S_IFMT) != libc::S_IFDIR {
+    #[allow(clippy::unnecessary_cast)]
+    if (stat.st_mode as u32 & libc::S_IFMT as u32) != libc::S_IFDIR as u32 {
         return Ok(total_stat);
     }
 
@@ -956,7 +958,8 @@ fn safe_du_with_output(
             }
         }
 
-        if (entry_stat.st_mode & libc::S_IFMT) == libc::S_IFDIR {
+        #[allow(clippy::unnecessary_cast)]
+        if (entry_stat.st_mode as u32 & libc::S_IFMT as u32) == libc::S_IFDIR as u32 {
             // When using --dereference and follow_symlinks is true, check if we've already seen this inode
             // This prevents counting the same directory twice (once directly and once through a symlink)
             if follow_symlinks && seen_inodes.contains(&entry_file_info) {
