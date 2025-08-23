@@ -65,6 +65,7 @@ du-error-extra-operand-with-files0-from = opérande supplémentaire { $file }
   les opérandes de fichier ne peuvent pas être combinées avec --files0-from
 du-error-invalid-block-size-argument = argument --{ $option } invalide { $value }
 du-error-cannot-access-no-such-file = impossible d'accéder à { $path } : Aucun fichier ou répertoire de ce type
+du-error-cannot-access-permission-denied = impossible d'accéder à { $path } : Permission refusée
 du-error-printing-thread-panicked = Le thread d'affichage a paniqué.
 du-error-invalid-suffix = suffixe invalide dans l'argument --{ $option } { $value }
 du-error-invalid-argument = argument --{ $option } invalide { $value }

@@ -1521,9 +1521,5 @@ fn test_du_inaccessible_directory() {
     at.set_mode("d/no-x", 0o600);
 
     let result = ts.ucmd().arg("d").fails();
-
-    let stderr = result.stderr_str();
-    assert!(
-        stderr.contains("du: cannot read directory 'd/no-x/y': Permission denied")
-    );
+    result.stderr_contains("du: cannot access 'd/no-x/y': Permission denied");
 }

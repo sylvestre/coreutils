@@ -65,6 +65,7 @@ du-error-extra-operand-with-files0-from = extra operand { $file }
   file operands cannot be combined with --files0-from
 du-error-invalid-block-size-argument = invalid --{ $option } argument { $value }
 du-error-cannot-access-no-such-file = cannot access { $path }: No such file or directory
+du-error-cannot-access-permission-denied = cannot access { $path }: Permission denied
 du-error-printing-thread-panicked = Printing thread panicked.
 du-error-invalid-suffix = invalid suffix in --{ $option } argument { $value }
 du-error-invalid-argument = invalid --{ $option } argument { $value }

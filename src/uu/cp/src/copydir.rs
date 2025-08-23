@@ -6,38 +6,54 @@
 //! Recursively copy the contents of a directory.
 //!
 //! See the [`copy_directory`] function for more information.
+#[cfg(windows)]
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-#[cfg(unix)]
 use std::env;
-#[cfg(unix)]
 use std::fs;
 use std::io;
-#[cfg(unix)]
-use std::path::StripPrefixError;
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, StripPrefixError};
 
 use indicatif::ProgressBar;
 use uucore::display::Quotable;
-#[cfg(unix)]
 use uucore::error::UIoError;
-#[cfg(unix)]
-use uucore::fs::path_ends_with_terminator;
-use uucore::fs::{FileInformation, MissingHandling, ResolveMode, canonicalize};
+use uucore::fs::{
+    FileInformation, MissingHandling, ResolveMode, canonicalize, path_ends_with_terminator,
+};
+use uucore::show;
 use uucore::translate;
+use uucore::uio_error;
 
 #[cfg(unix)]
 use uucore::safe_traversal::DirFd;
-#[cfg(unix)]
-use uucore::show;
-#[cfg(unix)]
-use uucore::uio_error;
+#[cfg(windows)]
+use walkdir::{DirEntry, WalkDir};
 
 use crate::{CopyResult, Options, copy_file};
-#[cfg(unix)]
-use crate::{CpError, context_for, copy_link};
+use crate::{CpError, aligned_ancestors, context_for, copy_attributes, copy_link};
 
-#[cfg(unix)]
-use crate::{aligned_ancestors, copy_attributes};
+/// Ensure a Windows path starts with a `\\?`.
+#[cfg(target_os = "windows")]
+fn adjust_canonicalization(p: &Path) -> Cow<'_, Path> {
+    // In some cases, \\? can be missing on some Windows paths.  Add it at the
+    // beginning unless the path is prefixed with a device namespace.
+    const VERBATIM_PREFIX: &str = r"\\?";
+    const DEVICE_NS_PREFIX: &str = r"\\.";
+
+    let has_prefix = p
+        .components()
+        .next()
+        .and_then(|comp| comp.as_os_str().to_str())
+        .is_some_and(|p_str| {
+            p_str.starts_with(VERBATIM_PREFIX) || p_str.starts_with(DEVICE_NS_PREFIX)
+        });
+
+    if has_prefix {
+        p.into()
+    } else {
+        Path::new(VERBATIM_PREFIX).join(p).into()
+    }
+}
 
 /// Get a descendant path relative to the given parent directory.
 ///
@@ -45,13 +61,20 @@ use crate::{aligned_ancestors, copy_attributes};
 /// itself. Otherwise, this function strips the parent prefix from the
 /// given `path`, leaving only the portion of the path relative to the
 /// parent.
-#[cfg(unix)]
 fn get_local_to_root_parent(
     path: &Path,
     root_parent: Option<&Path>,
 ) -> Result<PathBuf, StripPrefixError> {
     match root_parent {
         Some(parent) => {
+            // On Windows, some paths are starting with \\?
+            // but not always, so, make sure that we are consistent for strip_prefix
+            // See https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file for more info
+            #[cfg(windows)]
+            let (path, parent) = (
+                adjust_canonicalization(path),
+                adjust_canonicalization(parent),
+            );
             let path = path.strip_prefix(parent)?;
             Ok(path.to_path_buf())
         }
@@ -60,7 +83,6 @@ fn get_local_to_root_parent(
 }
 
 /// Paths that are invariant throughout the traversal when copying a directory.
-#[cfg(unix)]
 struct Context<'a> {
     /// The current working directory at the time of starting the traversal.
     current_dir: PathBuf,
@@ -75,7 +97,6 @@ struct Context<'a> {
     root: &'a Path,
 }
 
-#[cfg(unix)]
 impl<'a> Context<'a> {
     fn new(root: &'a Path, target: &'a Path) -> io::Result<Self> {
         let current_dir = env::current_dir()?;
@@ -129,7 +150,6 @@ impl<'a> Context<'a> {
 ///     }
 /// ];
 /// ```
-#[cfg(unix)]
 #[derive(Clone)]
 struct Entry {
     /// The absolute path to file or directory to copy.
@@ -145,7 +165,6 @@ struct Entry {
     target_is_file: bool,
 }
 
-#[cfg(unix)]
 impl Entry {
     fn new<A: AsRef<Path>>(
         context: &Context,
@@ -180,9 +199,17 @@ impl Entry {
             target_is_file,
         })
     }
+
+    #[cfg(windows)]
+    fn from_walkdir(
+        context: &Context,
+        direntry: &DirEntry,
+        no_target_dir: bool,
+    ) -> Result<Self, StripPrefixError> {
+        Self::new(context, direntry.path(), no_target_dir)
+    }
 }
 
-#[cfg(unix)]
 #[allow(clippy::too_many_arguments)]
 /// Copy a single entry during a directory traversal.
 fn copy_direntry(
@@ -320,59 +347,16 @@ pub(crate) fn copy_directory(
     );
 
     #[cfg(not(unix))]
-    {
-        // On non-Unix systems, fall back to simple directory copying
-        // This is a basic implementation that doesn't handle all edge cases
-        use std::fs;
-
-        if root.is_file() {
-            // If it's just a file, copy it directly
-            return copy_file(
-                None,
-                root,
-                target,
-                options,
-                symlinked_files,
-                &HashSet::new(),
-                copied_files,
-                false,
-            );
-        }
-
-        if root.is_dir() {
-            // Create the target directory
-            if let Some(dir_name) = root.file_name() {
-                let target_dir = target.join(dir_name);
-                let _ = fs::create_dir_all(&target_dir);
-
-                // Basic recursive copy - just iterate through entries
-                if let Ok(entries) = fs::read_dir(root) {
-                    for entry in entries.flatten() {
-                        let source_path = entry.path();
-                        let target_path = target_dir.join(entry.file_name());
-
-                        if source_path.is_file() {
-                            let _ = fs::copy(&source_path, &target_path);
-                        } else if source_path.is_dir() {
-                            // Recursive call
-                            let _ = copy_directory(
-                                progress_bar,
-                                &source_path,
-                                &target_dir,
-                                options,
-                                symlinked_files,
-                                copied_destinations,
-                                copied_files,
-                                false,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
+    return walkdir_copy_directory(
+        progress_bar,
+        root,
+        target,
+        options,
+        symlinked_files,
+        copied_destinations,
+        copied_files,
+        source_in_command_line,
+    );
 }
 
 /// Decide whether the second path is a prefix of the first.
@@ -410,7 +394,6 @@ pub fn path_has_prefix(p1: &Path, p2: &Path) -> io::Result<bool> {
 /// - The `recursive` flag determines whether parent directories should be created
 ///   if they do not already exist.
 // we need to allow unused_variable since `options` might be unused in non unix systems
-#[cfg(unix)]
 #[allow(unused_variables)]
 fn build_dir(
     path: &PathBuf,
@@ -657,4 +640,92 @@ fn safe_copy_dir_recursive(
     }
 
     Ok(())
+}
+
+#[cfg(windows)]
+#[allow(clippy::too_many_arguments)]
+fn walkdir_copy_directory(
+    progress_bar: Option<&ProgressBar>,
+    root: &Path,
+    target: &Path,
+    options: &Options,
+    symlinked_files: &mut HashSet<FileInformation>,
+    copied_destinations: &HashSet<PathBuf>,
+    copied_files: &mut HashMap<FileInformation, PathBuf>,
+    source_in_command_line: bool,
+) -> CopyResult<()> {
+    let context = Context::new(root, target)?;
+
+    // Handle --parents mode
+    let tmp = if options.parents {
+        if let Some(parent) = root.parent() {
+            let new_target = target.join(parent);
+            build_dir(&new_target, true, options, None)?;
+            if options.verbose {
+                for (x, y) in aligned_ancestors(root, &target.join(root)) {
+                    println!("{} -> {}", x.display(), y.display());
+                }
+            }
+            new_target
+        } else {
+            target.to_path_buf()
+        }
+    } else {
+        target.to_path_buf()
+    };
+
+    let target = &tmp;
+    let preserve_hard_links = options.preserve_hard_links();
+
+    let walker = WalkDir::new(root).follow_links(options.dereference);
+    let mut errors = Vec::new();
+
+    for entry in walker {
+        match entry {
+            Ok(entry) => {
+                let entry_copy = Entry::from_walkdir(&context, &entry, options.no_target_dir)?;
+
+                if let Err(err) = copy_direntry(
+                    progress_bar,
+                    entry_copy,
+                    options,
+                    symlinked_files,
+                    preserve_hard_links,
+                    copied_destinations,
+                    copied_files,
+                ) {
+                    // Store the error but continue processing other entries
+                    errors.push(err);
+                }
+            }
+            Err(err) => {
+                show_error!(
+                    "{}\n",
+                    uio_error!(
+                        err,
+                        "cannot access '{}'",
+                        err.path().unwrap_or(root).display()
+                    )
+                );
+            }
+        }
+    }
+
+    // Also fix permissions for parent directories,
+    // if we were asked to create them.
+    if options.parents {
+        let dest = target.join(root.file_name().unwrap());
+        for (x, y) in aligned_ancestors(root, dest.as_path()) {
+            if let Ok(src) = canonicalize(x, MissingHandling::Normal, ResolveMode::Physical) {
+                copy_attributes(&src, y, &options.attributes)?;
+            }
+        }
+    }
+
+    // Return the first error if any occurred
+    if let Some(err) = errors.into_iter().next() {
+        Err(err)
+    } else {
+        Ok(())
+    }
 }

@@ -9,10 +9,12 @@ use std::collections::HashSet;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs::Metadata;
-use std::fs::{self, File};
+use std::fs::{self, DirEntry, File};
 use std::io::{BufRead, BufReader, stdout};
-#[cfg(unix)]
+#[cfg(not(windows))]
 use std::os::unix::fs::MetadataExt;
+#[cfg(windows)]
+use std::os::windows::io::AsRawHandle;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::mpsc;
@@ -31,6 +33,13 @@ use uucore::safe_traversal::DirFd;
 use uucore::time::{FormatSystemTimeFallback, format, format_system_time};
 use uucore::translate;
 use uucore::{format_usage, show, show_error, show_warning};
+#[cfg(windows)]
+use windows_sys::Win32::Foundation::HANDLE;
+#[cfg(windows)]
+use windows_sys::Win32::Storage::FileSystem::{
+    FILE_ID_128, FILE_ID_INFO, FILE_STANDARD_INFO, FileIdInfo, FileStandardInfo,
+    GetFileInformationByHandleEx,
+};
 
 mod options {
     pub const HELP: &str = "help";
@@ -64,15 +73,10 @@ mod options {
 }
 
 struct TraversalOptions {
-    #[cfg(unix)]
     all: bool,
-    #[cfg(unix)]
     separate_dirs: bool,
-    #[cfg(unix)]
     one_file_system: bool,
-    #[cfg(unix)]
     dereference: Deref,
-    #[cfg(unix)]
     count_links: bool,
     verbose: bool,
     excludes: Vec<Pattern>,
@@ -92,7 +96,6 @@ struct StatPrinter {
     total_text: String,
 }
 
-#[cfg(unix)]
 #[derive(PartialEq, Clone)]
 enum Deref {
     All,
@@ -107,24 +110,60 @@ enum SizeFormat {
     BlockSize(u64),
 }
 
-#[derive(Clone)]
-struct Stat {
-    path: PathBuf,
-    size: u64,
-    blocks: u64,
-    inodes: u64,
-    metadata: Metadata,
-}
-
-#[cfg(unix)]
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 struct FileInfo {
     file_id: u128,
     dev_id: u64,
 }
 
+#[derive(Clone)]
+struct Stat {
+    path: PathBuf,
+    size: u64,
+    blocks: u64,
+    inodes: u64,
+    #[allow(dead_code)]
+    inode: Option<FileInfo>,
+    metadata: Metadata,
+}
+
 impl Stat {
-    // Stat constructor removed - safe traversal uses different data structures
+    #[allow(dead_code)]
+    fn new(
+        path: &Path,
+        dir_entry: Option<&DirEntry>,
+        options: &TraversalOptions,
+    ) -> std::io::Result<Self> {
+        // Determine whether to dereference (follow) the symbolic link
+        let should_dereference = match &options.dereference {
+            Deref::All => true,
+            Deref::Args(paths) => paths.contains(&path.to_path_buf()),
+            Deref::None => false,
+        };
+
+        let metadata = if should_dereference {
+            // Get metadata, following symbolic links if necessary
+            fs::metadata(path)
+        } else if let Some(dir_entry) = dir_entry {
+            // Get metadata directly from the DirEntry, which is faster on Windows
+            dir_entry.metadata()
+        } else {
+            // Get metadata from the filesystem without following symbolic links
+            fs::symlink_metadata(path)
+        }?;
+
+        let file_info = get_file_info(path, &metadata);
+        let blocks = get_blocks(path, &metadata);
+
+        Ok(Self {
+            path: path.to_path_buf(),
+            size: if metadata.is_dir() { 0 } else { metadata.len() },
+            blocks,
+            inodes: 1,
+            inode: file_info,
+            metadata,
+        })
+    }
 }
 
 fn read_block_size(s: Option<&str>) -> UResult<u64> {
@@ -171,6 +210,86 @@ impl UError for DuError {
             | Self::InvalidGlob(_) => 1,
         }
     }
+}
+
+#[cfg(not(windows))]
+#[allow(dead_code)]
+fn get_blocks(_path: &Path, metadata: &Metadata) -> u64 {
+    metadata.blocks()
+}
+
+#[cfg(windows)]
+#[allow(dead_code)]
+fn get_blocks(path: &Path, _metadata: &Metadata) -> u64 {
+    let mut size_on_disk = 0;
+
+    // bind file so it stays in scope until end of function
+    // if it goes out of scope the handle below becomes invalid
+    let Ok(file) = File::open(path) else {
+        return size_on_disk; // opening directories will fail
+    };
+
+    unsafe {
+        let mut file_info: FILE_STANDARD_INFO = core::mem::zeroed();
+        let file_info_ptr: *mut FILE_STANDARD_INFO = &raw mut file_info;
+
+        let success = GetFileInformationByHandleEx(
+            file.as_raw_handle() as HANDLE,
+            FileStandardInfo,
+            file_info_ptr.cast(),
+            size_of::<FILE_STANDARD_INFO>() as u32,
+        );
+
+        if success != 0 {
+            size_on_disk = file_info.AllocationSize as u64;
+        }
+    }
+
+    size_on_disk / 1024 * 2
+}
+
+#[cfg(not(windows))]
+fn get_file_info(_path: &Path, metadata: &Metadata) -> Option<FileInfo> {
+    Some(FileInfo {
+        file_id: metadata.ino() as u128,
+        dev_id: metadata.dev(),
+    })
+}
+
+#[cfg(windows)]
+fn get_file_info(path: &Path, _metadata: &Metadata) -> Option<FileInfo> {
+    let mut result = None;
+
+    let Ok(file) = File::open(path) else {
+        return result;
+    };
+
+    unsafe {
+        let mut file_info: FILE_ID_INFO = core::mem::zeroed();
+        let file_info_ptr: *mut FILE_ID_INFO = &raw mut file_info;
+
+        let success = GetFileInformationByHandleEx(
+            file.as_raw_handle() as HANDLE,
+            FileIdInfo,
+            file_info_ptr.cast(),
+            size_of::<FILE_ID_INFO>() as u32,
+        );
+
+        if success != 0 {
+            // Convert FILE_ID_128 to u128
+            let mut file_id: u128 = 0;
+            for (i, byte) in file_info.FileId.Identifier.iter().enumerate() {
+                file_id |= (*byte as u128) << (8 * i);
+            }
+
+            result = Some(FileInfo {
+                file_id,
+                dev_id: file_info.VolumeSerialNumber,
+            });
+        }
+    }
+
+    result
 }
 
 /// Read a file and return each line in a vector of String
@@ -448,13 +567,9 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     };
 
     let traversal_options = TraversalOptions {
-        #[cfg(unix)]
         all: matches.get_flag(options::ALL),
-        #[cfg(unix)]
         separate_dirs: matches.get_flag(options::SEPARATE_DIRS),
-        #[cfg(unix)]
         one_file_system: matches.get_flag(options::ONE_FILE_SYSTEM),
-        #[cfg(unix)]
         dereference: if matches.get_flag(options::DEREFERENCE) {
             Deref::All
         } else if matches.get_flag(options::DEREFERENCE_ARGS) {
@@ -463,7 +578,6 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         } else {
             Deref::None
         },
-        #[cfg(unix)]
         count_links,
         verbose: matches.get_flag(options::VERBOSE),
         excludes: build_exclude_patterns(&matches)?,
@@ -544,29 +658,16 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
         #[cfg(not(unix))]
         {
-            // On non-Unix systems, safe traversal is not available, use basic implementation
-            // This will be a simplified version that works for most cases
-            if path.is_dir() {
-                print_tx
-                    .send(Ok(StatPrintInfo {
-                        stat: Stat {
-                            path: path.clone(),
-                            size: 0, // Placeholder - would need proper calculation
-                            blocks: 0,
-                            inodes: 1,
-                            metadata: fs::metadata(&path)
-                                .unwrap_or_else(|_| fs::metadata(".").unwrap()),
-                        },
-                        depth: 0,
-                    }))
-                    .map_err(|e| USimpleError::new(1, e.to_string()))?;
-            } else {
-                print_tx
-                    .send(Err(USimpleError::new(
-                        1,
-                        translate!("du-error-cannot-access-no-such-file", "path" => path.to_string_lossy().quote()),
-                    )))
-                    .map_err(|e| USimpleError::new(1, e.to_string()))?;
+            // On non-Unix systems, use Windows-compatible traversal
+            match try_windows_du(&path, &traversal_options, &print_tx) {
+                Ok(stat) => {
+                    print_tx
+                        .send(Ok(StatPrintInfo { stat, depth: 0 }))
+                        .map_err(|e| USimpleError::new(1, e.to_string()))?;
+                }
+                Err(_e) => {
+                    // try_windows_du already sent the error message, so don't send another one
+                }
             }
         }
     }
@@ -658,6 +759,7 @@ fn try_safe_du(
                         size: 0,
                         blocks: 0, // GNU du often shows 0 for permission denied directories
                         inodes: 1,
+                        inode: None,
                         metadata,
                     });
                 }
@@ -746,6 +848,7 @@ fn try_safe_du(
             size,
             blocks,
             inodes: 1,
+            inode: get_file_info(path, &metadata),
             metadata,
         });
     }
@@ -771,6 +874,7 @@ fn try_safe_du(
                     size: 0,
                     blocks,
                     inodes: 1,
+                    inode: None,
                     metadata, // We already have metadata from earlier
                 });
             }
@@ -842,6 +946,7 @@ fn safe_du_with_output(
         },
         blocks: stat.st_blocks as u64,
         inodes: 1,
+        inode: Some(file_info),
         metadata: fs::metadata(path).map_err(|e| format!("metadata failed: {e}"))?,
     };
 
@@ -896,6 +1001,7 @@ fn safe_du_with_output(
                     blocks,
                     #[allow(clippy::unnecessary_cast)]
                     inodes: stat.st_nlink as u64,
+                    inode: Some(file_info),
                     metadata,
                 });
             }
@@ -913,8 +1019,7 @@ fn safe_du_with_output(
                     let entry_path = path.join(entry_name.to_string_lossy().as_ref());
                     let _ = print_tx.send(Err(USimpleError::new(
                         1,
-                        translate!("du-error-cannot-read-directory",
-                            "path" => entry_path.to_string_lossy().quote()),
+                        translate!("du-error-cannot-access-permission-denied", "path" => entry_path.to_string_lossy().quote())
                     )));
                     set_exit_code(1);
                 }
@@ -1002,7 +1107,7 @@ fn safe_du_with_output(
                     if e.kind() == std::io::ErrorKind::PermissionDenied {
                         let _ = print_tx.send(Err(USimpleError::new(
                             1,
-                            translate!("du-error-cannot-read-directory", "path" => entry_path.to_string_lossy().quote()),
+                            translate!("du-error-cannot-access-permission-denied", "path" => entry_path.to_string_lossy().quote())
                         )));
                     }
                     // Skip inaccessible subdirectories
@@ -1025,6 +1130,7 @@ fn safe_du_with_output(
                 size: entry_stat.st_size as u64,
                 blocks: entry_stat.st_blocks as u64,
                 inodes: 1,
+                inode: Some(entry_file_info),
                 metadata: fs::metadata(&entry_path).unwrap_or_else(|_| fs::metadata(".").unwrap()),
             };
 
@@ -1043,6 +1149,161 @@ fn safe_du_with_output(
     }
 
     Ok(total_stat)
+}
+
+#[cfg(windows)]
+fn du(
+    mut my_stat: Stat,
+    options: &TraversalOptions,
+    depth: usize,
+    seen_inodes: &mut HashSet<FileInfo>,
+    print_tx: &mpsc::Sender<UResult<StatPrintInfo>>,
+) -> Result<Stat, Box<mpsc::SendError<UResult<StatPrintInfo>>>> {
+    if my_stat.metadata.is_dir() {
+        let read = match fs::read_dir(&my_stat.path) {
+            Ok(read) => read,
+            Err(e) => {
+                print_tx.send(Err(USimpleError::new(
+                    1,
+                    format!(
+                        "{}: {}",
+                        translate!("du-error-cannot-read-directory", "path" => my_stat.path.quote()),
+                        e
+                    ),
+                )))?;
+                return Ok(my_stat);
+            }
+        };
+
+        'file_loop: for f in read {
+            match f {
+                Ok(entry) => {
+                    match Stat::new(&entry.path(), Some(&entry), options) {
+                        Ok(this_stat) => {
+                            // We have an exclude list
+                            for pattern in &options.excludes {
+                                // Look at all patterns with both short and long paths
+                                // if we have 'du foo' but search to exclude 'foo/bar'
+                                // we need the full path
+                                if pattern.matches(&this_stat.path.to_string_lossy())
+                                    || pattern.matches(&entry.file_name().to_string_lossy())
+                                {
+                                    // if the directory is ignored, leave early
+                                    if options.verbose {
+                                        println!(
+                                            "{}",
+                                            translate!("du-verbose-ignored", "path" => this_stat.path.quote())
+                                        );
+                                    }
+                                    // Go to the next file
+                                    continue 'file_loop;
+                                }
+                            }
+
+                            if let Some(inode) = this_stat.inode {
+                                // Check if the inode has been seen before and if we should skip it
+                                if seen_inodes.contains(&inode)
+                                    && (!options.count_links || !options.all)
+                                {
+                                    // If `count_links` is enabled and `all` is not, increment the inode count
+                                    if options.count_links && !options.all {
+                                        my_stat.inodes += 1;
+                                    }
+                                    // Skip further processing for this inode
+                                    continue;
+                                }
+                                // Mark this inode as seen
+                                seen_inodes.insert(inode);
+                            }
+
+                            if this_stat.metadata.is_dir() {
+                                if options.one_file_system {
+                                    if let (Some(this_inode), Some(my_inode)) =
+                                        (this_stat.inode, my_stat.inode)
+                                    {
+                                        if this_inode.dev_id != my_inode.dev_id {
+                                            continue;
+                                        }
+                                    }
+                                }
+
+                                let this_stat =
+                                    du(this_stat, options, depth + 1, seen_inodes, print_tx)?;
+
+                                if !options.separate_dirs {
+                                    my_stat.size += this_stat.size;
+                                    my_stat.blocks += this_stat.blocks;
+                                    my_stat.inodes += this_stat.inodes;
+                                }
+                                print_tx.send(Ok(StatPrintInfo {
+                                    stat: this_stat,
+                                    depth: depth + 1,
+                                }))?;
+                            } else {
+                                my_stat.size += this_stat.size;
+                                my_stat.blocks += this_stat.blocks;
+                                my_stat.inodes += 1;
+                                if options.all {
+                                    print_tx.send(Ok(StatPrintInfo {
+                                        stat: this_stat,
+                                        depth: depth + 1,
+                                    }))?;
+                                }
+                            }
+                        }
+                        Err(e) => print_tx.send(Err(USimpleError::new(
+                            1,
+                            format!(
+                                "{}: {}",
+                                translate!("du-error-cannot-access", "path" => entry.path().quote()),
+                                e
+                            ),
+                        )))?,
+                    }
+                }
+                Err(error) => print_tx.send(Err(USimpleError::new(1, error.to_string())))?,
+            }
+        }
+    }
+
+    Ok(my_stat)
+}
+
+#[cfg(windows)]
+fn try_windows_du(
+    path: &Path,
+    traversal_options: &TraversalOptions,
+    print_tx: &mpsc::Sender<UResult<StatPrintInfo>>,
+) -> Result<Stat, Box<mpsc::SendError<UResult<StatPrintInfo>>>> {
+    let mut seen_inodes = HashSet::new();
+
+    let stat = match Stat::new(path, None, traversal_options) {
+        Ok(stat) => stat,
+        Err(e) => {
+            print_tx.send(Err(USimpleError::new(
+                1,
+                format!(
+                    "{}: {}",
+                    translate!("du-error-cannot-access-no-such-file", "path" => path.to_string_lossy().quote()),
+                    e
+                ),
+            )))?;
+            // Return a minimal stat for error cases
+            return Ok(Stat {
+                path: path.to_path_buf(),
+                size: 0,
+                blocks: 0,
+                inodes: 1,
+                inode: None,
+                metadata: fs::metadata(".").unwrap_or_else(|_| {
+                    // This should not happen, but just in case
+                    panic!("Cannot get current directory metadata")
+                }),
+            });
+        }
+    };
+
+    du(stat, traversal_options, 0, &mut seen_inodes, print_tx)
 }
 
 pub fn uu_app() -> Command {
