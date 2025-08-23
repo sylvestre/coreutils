@@ -1,7 +1,7 @@
 // Safe directory traversal using openat() and related syscalls
 // This module provides TOCTOU-safe filesystem operations for recursive traversal
 // Only available on Linux
-// spell-checker:ignore CLOEXEC RDONLY TOCTOU closedir dirp fdopendir fstatat openat
+// spell-checker:ignore CLOEXEC RDONLY TOCTOU closedir dirp fdopendir fstatat openat REMOVEDIR unlinkat
 
 #![cfg(target_os = "linux")]
 
@@ -132,6 +132,21 @@ impl DirFd {
 
         unsafe { libc::closedir(dirp) };
         Ok(entries)
+    }
+
+    /// Remove a file or empty directory relative to this directory
+    pub fn unlink_at(&self, name: &OsStr, is_dir: bool) -> io::Result<()> {
+        let name_cstr = CString::new(name.as_bytes())
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "name contains null byte"))?;
+        let flags = if is_dir { libc::AT_REMOVEDIR } else { 0 };
+
+        let ret = unsafe { libc::unlinkat(self.fd, name_cstr.as_ptr(), flags) };
+
+        if ret < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
     }
 
     pub fn as_raw_fd(&self) -> RawFd {
