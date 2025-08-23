@@ -14,6 +14,8 @@ use crate::show_error;
 
 use clap::{Arg, ArgMatches, Command};
 
+#[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+use crate::safe_traversal::DirFd;
 use libc::{gid_t, uid_t};
 use options::traverse;
 use std::ffi::OsString;
@@ -348,6 +350,24 @@ impl ChownExecutor {
             return 0;
         }
 
+        #[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+        {
+            // Use safe traversal on Linux when available
+            // Only use safe traversal for non-symlink directories to avoid interfering
+            // with the complex symlink traversal logic in WalkDir
+            if root.is_dir() && !root.is_symlink() {
+                match DirFd::open(root) {
+                    Ok(dir_fd) => {
+                        return self.dive_into_safe(&dir_fd, root, true);
+                    }
+                    Err(_) => {
+                        // Fall back to regular traversal
+                    }
+                }
+            }
+        }
+
+        // Original walkdir-based traversal
         let mut ret = 0;
         let mut iterator = WalkDir::new(root)
             .follow_links(self.traverse_symlinks == TraverseSymlinks::All)
@@ -425,6 +445,156 @@ impl ChownExecutor {
             }
         }
         ret
+    }
+
+    #[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+    fn dive_into_safe(&self, dir_fd: &DirFd, path: &Path, _is_command_line_arg: bool) -> i32 {
+        let mut ret = 0;
+
+        // Read directory entries using safe traversal
+        let entries = match dir_fd.read_dir() {
+            Ok(entries) => entries,
+            Err(e) => {
+                if self.verbosity.level != VerbosityLevel::Silent {
+                    show_error!("cannot access '{}': {}", path.display(), strip_errno(&e));
+                }
+                return 1;
+            }
+        };
+
+        // Process each entry
+        for entry_name in entries {
+            let entry_path = path.join(&entry_name);
+
+            // Get metadata for the entry using fstatat (without following symlinks to check type)
+            let entry_stat = match dir_fd.stat_at(&entry_name, false) {
+                Ok(stat) => Some(stat),
+                Err(_) => {
+                    // If we can't stat the entry, handle like the original
+                    if let Some(meta) = self.obtain_meta(&entry_path, self.dereference) {
+                        ret |= self.process_entry(&entry_path, &meta);
+                    } else {
+                        ret = 1;
+                    }
+                    continue;
+                }
+            };
+
+            let entry_stat = entry_stat.unwrap();
+
+            // Check file type
+            const S_IFMT: u32 = 0o170_000;
+            const S_IFDIR: u32 = 0o040_000;
+            const S_IFLNK: u32 = 0o120_000;
+
+            let file_type = entry_stat.st_mode & S_IFMT;
+            let is_dir = file_type == S_IFDIR;
+            let is_symlink = file_type == S_IFLNK;
+
+            // Handle preserve root check
+            if self.preserve_root
+                && is_root(&entry_path, self.traverse_symlinks == TraverseSymlinks::All)
+            {
+                return 1;
+            }
+
+            // Handle symlinks during recursion
+            if is_symlink {
+                let should_follow = match self.traverse_symlinks {
+                    TraverseSymlinks::All => true,
+                    // For TraverseSymlinks::First, we only follow symlinks that are
+                    // command line arguments. Since we're in dive_into_safe, we're
+                    // already doing directory traversal, so symlinks found here
+                    // should NOT be followed with -H
+                    TraverseSymlinks::First => false,
+                    TraverseSymlinks::None => false,
+                };
+
+                if should_follow {
+                    // Follow the symlink - use regular metadata lookup
+                    if let Some(meta) = self.obtain_meta(&entry_path, self.dereference) {
+                        ret |= self.process_entry(&entry_path, &meta);
+
+                        // If the symlink points to a directory, recurse
+                        if meta.is_dir() {
+                            match DirFd::open(&entry_path) {
+                                Ok(subdir_fd) => {
+                                    ret |= self.dive_into_safe(&subdir_fd, &entry_path, false);
+                                }
+                                Err(_) => {
+                                    // Fallback to regular traversal
+                                    ret |= self.dive_into(&entry_path);
+                                }
+                            }
+                        }
+                    } else {
+                        ret = 1;
+                    }
+                } else {
+                    // Don't follow symlinks - process the symlink itself
+                    if let Some(meta) = self.obtain_meta(&entry_path, false) {
+                        ret |= self.process_entry(&entry_path, &meta);
+                    } else {
+                        ret = 1;
+                    }
+                }
+            } else {
+                // Regular file or directory
+                if let Some(meta) = self.obtain_meta(&entry_path, self.dereference) {
+                    ret |= self.process_entry(&entry_path, &meta);
+
+                    // If it's a directory, recurse into it
+                    if is_dir {
+                        match dir_fd.open_subdir(&entry_name) {
+                            Ok(subdir_fd) => {
+                                ret |= self.dive_into_safe(&subdir_fd, &entry_path, false);
+                            }
+                            Err(_) => {
+                                // Fallback to regular recursion if openat fails
+                                ret |= self.dive_into(&entry_path);
+                            }
+                        }
+                    }
+                } else {
+                    ret = 1;
+                }
+            }
+        }
+
+        ret
+    }
+
+    fn process_entry(&self, path: &Path, meta: &Metadata) -> i32 {
+        if !self.matched(meta.uid(), meta.gid()) {
+            self.print_verbose_ownership_retained_as(
+                path,
+                meta.uid(),
+                self.dest_gid.map(|_| meta.gid()),
+            );
+            return 0;
+        }
+
+        match wrap_chown(
+            path,
+            meta,
+            self.dest_uid,
+            self.dest_gid,
+            self.dereference,
+            self.verbosity.clone(),
+        ) {
+            Ok(n) => {
+                if !n.is_empty() {
+                    show_error!("{n}");
+                }
+                0
+            }
+            Err(e) => {
+                if self.verbosity.level != VerbosityLevel::Silent {
+                    show_error!("{e}");
+                }
+                1
+            }
+        }
     }
 
     fn obtain_meta<P: AsRef<Path>>(&self, path: P, follow: bool) -> Option<Metadata> {

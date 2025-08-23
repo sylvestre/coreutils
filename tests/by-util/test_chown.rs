@@ -844,3 +844,77 @@ fn test_chown_no_change_to_user_group() {
             ));
     }
 }
+
+#[test]
+#[cfg(unix)]
+fn test_chown_recursive_long_path_safe_traversal() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("chown_deep");
+    at.mkdir(&deep_path);
+
+    for i in 0..10 {
+        let long_dir_name = format!("{}{}", "o".repeat(90), i);
+        deep_path = format!("{deep_path}/{long_dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    at.write("chown_deep/test1.txt", "content1");
+    at.write(&format!("{deep_path}/test2.txt"), "content2");
+
+    let result = ts.ucmd().arg("-R").arg(":").arg("chown_deep").run();
+
+    assert!(result.stderr_str().is_empty() || result.code() == 0);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_chown_safe_traversal_repeated_dirs() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut path = String::from("b");
+    at.mkdir(&path);
+
+    for _ in 0..8 {
+        path = format!("{path}/b");
+        at.mkdir_all(&path);
+    }
+
+    at.write(&format!("{path}/test.txt"), "test content");
+
+    let result = ts.ucmd().arg("-R").arg(":").arg("b").run();
+
+    assert!(result.stderr_str().is_empty() || result.code() == 0);
+}
+
+#[test]
+#[cfg(unix)]
+fn test_chown_safe_traversal_with_verbose() {
+    let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    let mut deep_path = String::from("verbose_chown_test");
+    at.mkdir(&deep_path);
+
+    for i in 0..5 {
+        let dir_name = format!("{}{}", "v".repeat(70), i);
+        deep_path = format!("{deep_path}/{dir_name}");
+        at.mkdir_all(&deep_path);
+    }
+
+    at.write(&format!("{deep_path}/target.txt"), "target");
+
+    let result = ts
+        .ucmd()
+        .arg("-R")
+        .arg("-v")
+        .arg(":")
+        .arg("verbose_chown_test")
+        .run();
+
+    let output = result.stdout_str();
+    let stderr = result.stderr_str();
+    assert!(output.contains("verbose_chown_test") || stderr.contains("verbose_chown_test"));
+}
