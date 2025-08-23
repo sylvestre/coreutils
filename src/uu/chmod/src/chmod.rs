@@ -18,6 +18,8 @@ use uucore::fs::display_permissions_unix;
 use uucore::libc::mode_t;
 use uucore::mode;
 use uucore::perms::{TraverseSymlinks, configure_symlink_and_recursion};
+#[cfg(target_os = "linux")]
+use uucore::safe_traversal::DirFd;
 use uucore::{format_usage, show, show_error};
 
 use uucore::translate;
@@ -324,6 +326,33 @@ impl Chmoder {
         r
     }
 
+    #[cfg(target_os = "linux")]
+    fn walk_dir_with_context(&self, file_path: &Path, is_command_line_arg: bool) -> UResult<()> {
+        let mut r = self.chmod_file(file_path);
+
+        // Determine whether to traverse symlinks based on context and traversal mode
+        let should_follow_symlink = match self.traverse_symlinks {
+            TraverseSymlinks::All => true,
+            TraverseSymlinks::First => is_command_line_arg, // Only follow symlinks that are command line args
+            TraverseSymlinks::None => false,
+        };
+
+        // If the path is a directory (or we should follow symlinks), recurse into it
+        if (!file_path.is_symlink() || should_follow_symlink) && file_path.is_dir() {
+            // Use safe traversal for directory operations
+            match DirFd::open(file_path) {
+                Ok(dir_fd) => {
+                    r = self.walk_dir_safe(&dir_fd, file_path, false).and(r);
+                }
+                Err(err) => {
+                    r = r.and(Err(err.into()));
+                }
+            }
+        }
+        r
+    }
+
+    #[cfg(not(target_os = "linux"))]
     fn walk_dir_with_context(&self, file_path: &Path, is_command_line_arg: bool) -> UResult<()> {
         let mut r = self.chmod_file(file_path);
 
@@ -351,6 +380,79 @@ impl Chmoder {
                 }
             }
         }
+        r
+    }
+
+    #[cfg(target_os = "linux")]
+    fn walk_dir_safe(
+        &self,
+        dir_fd: &DirFd,
+        path: &Path,
+        _is_command_line_arg: bool,
+    ) -> UResult<()> {
+        let mut r = Ok(());
+
+        // Read directory entries using safe traversal
+        let entries = match dir_fd.read_dir() {
+            Ok(entries) => entries,
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
+
+        // Process each entry
+        for entry_name in entries {
+            let entry_path = path.join(&entry_name);
+
+            // Get metadata for the entry using fstatat (without following symlinks to check type)
+            let entry_stat = match dir_fd.stat_at(&entry_name, false) {
+                Ok(stat) => Some(stat),
+                Err(_) => {
+                    // If we can't stat the entry (e.g., dangling symlink), handle like the original
+                    if entry_path.is_symlink() {
+                        // Handle dangling symlinks similar to original implementation
+                        r = self.handle_symlink_during_recursion(&entry_path).and(r);
+                    } else {
+                        // Try to chmod it anyway for consistency with original behavior
+                        r = self.chmod_file(&entry_path).and(r);
+                    }
+                    continue;
+                }
+            };
+
+            let entry_stat = entry_stat.unwrap();
+
+            // Check file type
+            const S_IFMT: u32 = 0o170_000;
+            const S_IFDIR: u32 = 0o040_000;
+            const S_IFLNK: u32 = 0o120_000;
+
+            let file_type = entry_stat.st_mode & S_IFMT;
+            let is_dir = file_type == S_IFDIR;
+            let is_symlink = file_type == S_IFLNK;
+
+            // Handle symlinks during recursion
+            if is_symlink {
+                r = self.handle_symlink_during_recursion(&entry_path).and(r);
+            } else {
+                // First chmod the entry itself (non-symlink)
+                r = self.chmod_file(&entry_path).and(r);
+
+                // If it's a directory, recurse into it
+                if is_dir {
+                    match dir_fd.open_subdir(&entry_name) {
+                        Ok(subdir_fd) => {
+                            r = self.walk_dir_safe(&subdir_fd, &entry_path, false).and(r);
+                        }
+                        Err(_) => {
+                            // Fallback to regular recursion if openat fails
+                            r = self.walk_dir_with_context(&entry_path, false).and(r);
+                        }
+                    }
+                }
+            }
+        }
+
         r
     }
 
