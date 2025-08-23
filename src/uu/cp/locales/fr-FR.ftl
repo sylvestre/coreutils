@@ -92,6 +92,7 @@ cp-error-failed-to-create-directory = Échec de la création du répertoire : { 
 cp-error-backup-format = cp : { $error }
   Tentez '{ $exec } --help' pour plus d'informations.
 cp-error-failed-to-read-directory = échec de la lecture du répertoire '{ $path }'
+cp-error-cannot-access = impossible d'accéder à '{ $path }' : { $error }
 
 # Debug enum strings
 cp-debug-enum-no = non

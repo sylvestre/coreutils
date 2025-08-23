@@ -92,6 +92,7 @@ cp-error-failed-to-create-directory = Failed to create directory: { $error }
 cp-error-backup-format = cp: { $error }
   Try '{ $exec } --help' for more information.
 cp-error-failed-to-read-directory = failed to read directory '{ $path }'
+cp-error-cannot-access = cannot access '{ $path }': { $error }
 
 # Debug enum strings
 cp-debug-enum-no = no

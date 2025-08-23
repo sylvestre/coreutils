@@ -654,7 +654,7 @@ fn walkdir_copy_directory(
     symlinked_files: &mut HashSet<FileInformation>,
     copied_destinations: &HashSet<PathBuf>,
     copied_files: &mut HashMap<FileInformation, PathBuf>,
-    source_in_command_line: bool,
+    _source_in_command_line: bool,
 ) -> CopyResult<()> {
     let context = Context::new(root, target)?;
 
@@ -702,11 +702,11 @@ fn walkdir_copy_directory(
             }
             Err(err) => {
                 show_error!(
-                    "{}\n",
-                    uio_error!(
-                        err,
-                        "cannot access '{}'",
-                        err.path().unwrap_or(root).display()
+                    "{}",
+                    translate!(
+                        "cp-error-cannot-access",
+                        "path" => err.path().unwrap_or(root).display().to_string(),
+                        "error" => err.to_string()
                     )
                 );
             }
