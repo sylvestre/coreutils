@@ -21,6 +21,8 @@ use uucore::fs::{
     FileInformation, MissingHandling, ResolveMode, canonicalize, path_ends_with_terminator,
 };
 use uucore::show;
+#[cfg(windows)]
+use uucore::show_error;
 use uucore::translate;
 use uucore::uio_error;
 
