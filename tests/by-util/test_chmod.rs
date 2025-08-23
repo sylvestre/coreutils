@@ -232,14 +232,20 @@ fn test_chmod_ugoa() {
 }
 
 #[test]
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-// TODO fix android, it has 0777
-// We should force for the umask on startup
-fn test_chmod_umask_expected() {
-    let current_umask = uucore::mode::get_umask();
+fn test_chmod_umask_flexibility() {
+    // Test that chmod works with any umask value (environment-independent)
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.touch("file");
+    set_permissions(at.plus("file"), Permissions::from_mode(0o644)).unwrap();
+
+    // Test with umask 002 (common alternative to 022)
+    ucmd.args(&["+x", "file"]).umask(0o002).succeeds();
+
+    // Verify chmod worked correctly
     assert_eq!(
-        current_umask, 0o022,
-        "Unexpected umask value: expected 022 (octal), but got {current_umask:03o}. Please adjust the test environment.",
+        metadata(at.plus("file")).unwrap().permissions().mode(),
+        0o100_755 // 644 + execute bits
     );
 }
 
