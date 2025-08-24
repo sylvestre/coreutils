@@ -33,6 +33,7 @@ uucore = { workspace = true, features = [
   "perms",
   "mode",
   "update-control",
+  "safe-traversal",
 ] }
 walkdir = { workspace = true }
 indicatif = { workspace = true }
@@ -50,3 +51,4 @@ path = "src/main.rs"
 [features]
 feat_selinux = ["selinux", "uucore/selinux"]
 feat_acl = ["exacl"]
+safe-traversal = ["uucore/safe-traversal"]

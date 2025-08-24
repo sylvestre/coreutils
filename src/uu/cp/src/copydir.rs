@@ -20,8 +20,12 @@ use uucore::error::UIoError;
 use uucore::fs::{
     FileInformation, MissingHandling, ResolveMode, canonicalize, path_ends_with_terminator,
 };
+#[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+use uucore::safe_traversal::DirFd;
 use uucore::translate;
 
+#[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+use std::os::unix::fs::MetadataExt;
 use uucore::show;
 use uucore::show_error;
 use uucore::uio_error;
@@ -31,6 +35,23 @@ use crate::{
     CopyResult, CpError, Options, aligned_ancestors, context_for, copy_attributes, copy_file,
     copy_link,
 };
+
+#[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+struct SafeDirEntry {
+    path: PathBuf,
+    is_dir: bool,
+}
+
+#[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+impl SafeDirEntry {
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn is_dir(&self) -> bool {
+        self.is_dir
+    }
+}
 
 /// Ensure a Windows path starts with a `\\?`.
 #[cfg(target_os = "windows")]
@@ -86,6 +107,276 @@ fn get_local_to_root_parent(
 fn skip_last<T>(mut iter: impl Iterator<Item = T>) -> impl Iterator<Item = T> {
     let last = iter.next();
     iter.scan(last, |state, item| state.replace(item))
+}
+
+#[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+fn traverse_directory_safe(
+    progress_bar: Option<&ProgressBar>,
+    dir_fd: &DirFd,
+    root_path: &Path,
+    context: &Context,
+    options: &Options,
+    symlinked_files: &mut HashSet<FileInformation>,
+    preserve_hard_links: &mut bool,
+    copied_destinations: &HashSet<PathBuf>,
+    copied_files: &mut HashMap<FileInformation, PathBuf>,
+    dirs_needing_permissions: &mut Vec<(PathBuf, PathBuf)>,
+    last_iter: &mut Option<SafeDirEntry>,
+    current_dev: Option<u64>,
+) -> CopyResult<()> {
+    // Read directory entries using safe traversal
+    let entries = match dir_fd.read_dir() {
+        Ok(entries) => entries,
+        Err(e) => {
+            show_error!("cannot read directory '{}': {}", root_path.display(), e);
+            return Ok(());
+        }
+    };
+
+    // Process each entry
+    for entry_name in entries {
+        let entry_path = root_path.join(&entry_name);
+
+        // Get metadata for the entry using fstatat (don't follow symlinks for type check)
+        let entry_stat = match dir_fd.stat_at(&entry_name, false) {
+            Ok(stat) => stat,
+            Err(e) => {
+                show_error!("cannot access '{}': {}", entry_path.display(), e);
+                continue;
+            }
+        };
+
+        // Check file type
+        const S_IFMT: u32 = 0o170_000;
+        const S_IFDIR: u32 = 0o040_000;
+        const S_IFLNK: u32 = 0o120_000;
+        const S_IFREG: u32 = 0o100_000;
+
+        let file_type_mode = entry_stat.st_mode & S_IFMT;
+        let is_symlink = file_type_mode == S_IFLNK;
+
+        // Handle symlink dereferencing based on options
+        let (final_stat, follow_symlink) = if is_symlink && options.dereference {
+            match dir_fd.stat_at(&entry_name, true) {
+                Ok(target_stat) => (target_stat, true),
+                Err(_) => (entry_stat, false), // Use symlink stat if target is inaccessible
+            }
+        } else {
+            (entry_stat, false)
+        };
+
+        let final_file_type_mode = final_stat.st_mode & S_IFMT;
+        let is_final_dir = final_file_type_mode == S_IFDIR;
+
+        // Handle --one-file-system option
+        if options.one_file_system {
+            if let Some(root_dev) = current_dev {
+                if final_stat.st_dev != root_dev {
+                    continue; // Skip files on different filesystems
+                }
+            }
+        }
+
+        // Create SafeDirEntry to mimic WalkDir's DirEntry
+        let safe_entry = SafeDirEntry {
+            path: entry_path.clone(),
+            is_dir: is_final_dir,
+        };
+
+        // Process the entry using existing cp logic
+        process_entry(
+            progress_bar,
+            &safe_entry,
+            context,
+            options,
+            symlinked_files,
+            preserve_hard_links,
+            copied_destinations,
+            copied_files,
+            dirs_needing_permissions,
+            last_iter,
+        )?;
+
+        // If it's a directory and we should recurse into it
+        if is_final_dir && (!is_symlink || follow_symlink) {
+            match dir_fd.open_subdir(&entry_name) {
+                Ok(subdir_fd) => {
+                    let subdir_dev = if options.one_file_system {
+                        Some(final_stat.st_dev)
+                    } else {
+                        current_dev
+                    };
+
+                    traverse_directory_safe(
+                        progress_bar,
+                        &subdir_fd,
+                        &entry_path,
+                        context,
+                        options,
+                        symlinked_files,
+                        preserve_hard_links,
+                        copied_destinations,
+                        copied_files,
+                        dirs_needing_permissions,
+                        last_iter,
+                        subdir_dev,
+                    )?;
+                }
+                Err(e) => {
+                    show_error!("cannot open directory '{}': {}", entry_path.display(), e);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+fn process_entry(
+    progress_bar: Option<&ProgressBar>,
+    direntry: &SafeDirEntry,
+    context: &Context,
+    options: &Options,
+    symlinked_files: &mut HashSet<FileInformation>,
+    preserve_hard_links: &mut bool,
+    copied_destinations: &HashSet<PathBuf>,
+    copied_files: &mut HashMap<FileInformation, PathBuf>,
+    dirs_needing_permissions: &mut Vec<(PathBuf, PathBuf)>,
+    last_iter: &mut Option<SafeDirEntry>,
+) -> CopyResult<()> {
+    let entry = Entry::new(context, direntry.path(), options.no_target_dir)?;
+
+    copy_direntry(
+        progress_bar,
+        entry,
+        options,
+        symlinked_files,
+        preserve_hard_links,
+        copied_destinations,
+        copied_files,
+    )?;
+
+    // Directory permission handling (same as original)
+    if direntry.is_dir() {
+        let entry_for_tracking = Entry::new(context, direntry.path(), options.no_target_dir)?;
+        dirs_needing_permissions.push((
+            entry_for_tracking.source_absolute,
+            entry_for_tracking.local_to_target,
+        ));
+
+        let went_up = if let Some(last_iter) = last_iter {
+            last_iter.path().strip_prefix(direntry.path()).is_ok()
+        } else {
+            false
+        };
+
+        if went_up {
+            let last_iter_unwrapped = last_iter.as_ref().unwrap();
+            let diff = last_iter_unwrapped
+                .path()
+                .strip_prefix(direntry.path())
+                .unwrap();
+
+            for p in skip_last(diff.ancestors()) {
+                let src = direntry.path().join(p);
+                let entry = Entry::new(context, &src, options.no_target_dir)?;
+                copy_attributes(
+                    &entry.source_absolute,
+                    &entry.local_to_target,
+                    &options.attributes,
+                )?;
+            }
+        }
+
+        *last_iter = Some(SafeDirEntry {
+            path: direntry.path().to_path_buf(),
+            is_dir: direntry.is_dir(),
+        });
+    }
+
+    Ok(())
+}
+
+fn process_walkdir_entry(
+    direntry_result: Result<DirEntry, walkdir::Error>,
+    progress_bar: Option<&ProgressBar>,
+    context: &Context,
+    options: &Options,
+    symlinked_files: &mut HashSet<FileInformation>,
+    preserve_hard_links: &mut bool,
+    copied_destinations: &HashSet<PathBuf>,
+    copied_files: &mut HashMap<FileInformation, PathBuf>,
+    dirs_needing_permissions: &mut Vec<(PathBuf, PathBuf)>,
+    last_iter: &mut Option<DirEntry>,
+) -> CopyResult<()> {
+    match direntry_result {
+        Ok(direntry) => {
+            let entry = Entry::new(context, direntry.path(), options.no_target_dir)?;
+
+            copy_direntry(
+                progress_bar,
+                entry,
+                options,
+                symlinked_files,
+                *preserve_hard_links,
+                copied_destinations,
+                copied_files,
+            )?;
+
+            // Directory permission handling (same as original)
+            if direntry.file_type().is_dir() {
+                // Add this directory to our list for permission fixing later
+                let entry_for_tracking =
+                    Entry::new(context, direntry.path(), options.no_target_dir)?;
+                dirs_needing_permissions.push((
+                    entry_for_tracking.source_absolute,
+                    entry_for_tracking.local_to_target,
+                ));
+
+                // If true, last_iter is not a parent of this iter.
+                // The means we just exited a directory.
+                let went_up = if let Some(last_iter) = last_iter {
+                    last_iter.path().strip_prefix(direntry.path()).is_ok()
+                } else {
+                    false
+                };
+
+                if went_up {
+                    // Compute the "difference" between `last_iter` and `direntry`.
+                    // For example, if...
+                    // - last_iter = `a/b/c/d`
+                    // - direntry = `a/b`
+                    // then diff = `c/d`
+                    //
+                    // All the unwraps() here are unreachable.
+                    let last_iter = last_iter.as_ref().unwrap();
+                    let diff = last_iter.path().strip_prefix(direntry.path()).unwrap();
+
+                    // Fix permissions for every entry in `diff`, inside-out.
+                    // We skip the last directory (which will be `.`) because
+                    // its permissions will be fixed when we walk _out_ of it.
+                    // (at this point, we might not be done copying `.`!)
+                    for p in skip_last(diff.ancestors()) {
+                        let src = direntry.path().join(p);
+                        let entry = Entry::new(context, &src, options.no_target_dir)?;
+
+                        copy_attributes(
+                            &entry.source_absolute,
+                            &entry.local_to_target,
+                            &options.attributes,
+                        )?;
+                    }
+                }
+
+                *last_iter = Some(direntry);
+            }
+        }
+
+        // Print an error message, but continue traversing the directory.
+        Err(e) => show_error!("{e}"),
+    }
+    Ok(())
 }
 
 /// Paths that are invariant throughout the traversal when copying a directory.
@@ -362,7 +653,7 @@ pub(crate) fn copy_directory(
     };
     let target = tmp.as_path();
 
-    let preserve_hard_links = options.preserve_hard_links();
+    let mut preserve_hard_links = options.preserve_hard_links();
 
     // Collect some paths here that are invariant during the traversal
     // of the given directory, like the current working directory and
@@ -380,86 +671,87 @@ pub(crate) fn copy_directory(
     // Keep track of all directories we've created that need permission fixes
     let mut dirs_needing_permissions: Vec<(PathBuf, PathBuf)> = Vec::new();
 
-    // Traverse the contents of the directory, copying each one.
-    for direntry_result in WalkDir::new(root)
-        .same_file_system(options.one_file_system)
-        .follow_links(options.dereference)
-    {
-        match direntry_result {
-            Ok(direntry) => {
-                let entry = Entry::new(&context, direntry.path(), options.no_target_dir)?;
+    // Use safe traversal on Linux when available, otherwise fall back to WalkDir
+    #[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+    let use_safe_traversal = root.is_dir() && !root.is_symlink();
+    #[cfg(not(all(target_os = "linux", feature = "safe-traversal")))]
+    let use_safe_traversal = false;
 
-                copy_direntry(
-                    progress_bar,
-                    entry,
-                    options,
-                    symlinked_files,
-                    preserve_hard_links,
-                    copied_destinations,
-                    copied_files,
-                )?;
-
-                // We omit certain permissions when creating directories
-                // to prevent other users from accessing them before they're done.
-                // We thus need to fix the permissions of each directory we copy
-                // once it's contents are ready.
-                // This "fixup" is implemented here in a memory-efficient manner.
-                //
-                // We detect iterations where we "walk up" the directory tree,
-                // and fix permissions on all the directories we exited.
-                // (Note that there can be more than one! We might step out of
-                // `./a/b/c` into `./a/`, in which case we'll need to fix the
-                // permissions of both `./a/b/c` and `./a/b`, in that order.)
-                if direntry.file_type().is_dir() {
-                    // Add this directory to our list for permission fixing later
-                    let entry_for_tracking =
-                        Entry::new(&context, direntry.path(), options.no_target_dir)?;
-                    dirs_needing_permissions.push((
-                        entry_for_tracking.source_absolute,
-                        entry_for_tracking.local_to_target,
-                    ));
-
-                    // If true, last_iter is not a parent of this iter.
-                    // The means we just exited a directory.
-                    let went_up = if let Some(last_iter) = &last_iter {
-                        last_iter.path().strip_prefix(direntry.path()).is_ok()
-                    } else {
-                        false
+    if use_safe_traversal {
+        #[cfg(all(target_os = "linux", feature = "safe-traversal"))]
+        {
+            match DirFd::open(root) {
+                Ok(dir_fd) => {
+                    let root_stat = match fs::metadata(root) {
+                        Ok(stat) => stat,
+                        Err(e) => {
+                            return Err(translate!("cp-error-failed-access-root", "path" => root.display(), "error" => e).into());
+                        }
                     };
 
-                    if went_up {
-                        // Compute the "difference" between `last_iter` and `direntry`.
-                        // For example, if...
-                        // - last_iter = `a/b/c/d`
-                        // - direntry = `a/b`
-                        // then diff = `c/d`
-                        //
-                        // All the unwraps() here are unreachable.
-                        let last_iter = last_iter.as_ref().unwrap();
-                        let diff = last_iter.path().strip_prefix(direntry.path()).unwrap();
+                    let current_dev = if options.one_file_system {
+                        use std::os::unix::fs::MetadataExt;
+                        Some(root_stat.dev())
+                    } else {
+                        None
+                    };
 
-                        // Fix permissions for every entry in `diff`, inside-out.
-                        // We skip the last directory (which will be `.`) because
-                        // its permissions will be fixed when we walk _out_ of it.
-                        // (at this point, we might not be done copying `.`!)
-                        for p in skip_last(diff.ancestors()) {
-                            let src = direntry.path().join(p);
-                            let entry = Entry::new(&context, &src, options.no_target_dir)?;
-
-                            copy_attributes(
-                                &entry.source_absolute,
-                                &entry.local_to_target,
-                                &options.attributes,
-                            )?;
-                        }
+                    // Use safe traversal
+                    traverse_directory_safe(
+                        progress_bar,
+                        &dir_fd,
+                        root,
+                        &context,
+                        options,
+                        symlinked_files,
+                        preserve_hard_links,
+                        copied_destinations,
+                        copied_files,
+                        &mut dirs_needing_permissions,
+                        &mut last_iter,
+                        current_dev,
+                    )?;
+                }
+                Err(_) => {
+                    // Fallback to WalkDir if safe traversal fails
+                    for direntry_result in WalkDir::new(root)
+                        .same_file_system(options.one_file_system)
+                        .follow_links(options.dereference)
+                    {
+                        process_walkdir_entry(
+                            direntry_result,
+                            progress_bar,
+                            &context,
+                            options,
+                            symlinked_files,
+                            &mut preserve_hard_links,
+                            copied_destinations,
+                            copied_files,
+                            &mut dirs_needing_permissions,
+                            &mut last_iter,
+                        )?;
                     }
-
-                    last_iter = Some(direntry);
                 }
             }
-
-            // Print an error message, but continue traversing the directory.
-            Err(e) => show_error!("{e}"),
+        }
+    } else {
+        // Original WalkDir-based traversal
+        for direntry_result in WalkDir::new(root)
+            .same_file_system(options.one_file_system)
+            .follow_links(options.dereference)
+        {
+            process_walkdir_entry(
+                direntry_result,
+                progress_bar,
+                &context,
+                options,
+                symlinked_files,
+                &mut preserve_hard_links,
+                copied_destinations,
+                copied_files,
+                &mut dirs_needing_permissions,
+                &mut last_iter,
+            )?;
         }
     }
 
