@@ -7,7 +7,6 @@
 #![allow(clippy::upper_case_acronyms)]
 
 use clap::builder::ValueParser;
-use uucore::LocalizedCommand;
 use uucore::error::{UResult, USimpleError, UUsageError};
 use uucore::translate;
 use uucore::{display::Quotable, format_usage, show_error, show_warning};
@@ -305,7 +304,18 @@ struct Options {
 }
 
 fn parse_command_line(config: Command, args: impl uucore::Args) -> Result<Options> {
-    let matches = config.get_matches_from_localized(args);
+    let matches = match config.try_get_matches_from(args) {
+        Ok(matches) => matches,
+        Err(e) if e.exit_code() == 0 => {
+            // This will cause the function to return early, but since chcon has custom error types,
+            // we need to convert it properly
+            print!("{}", e.render());
+            std::process::exit(0);
+        }
+        Err(e) => {
+            uucore::clap_localization::handle_clap_error_with_exit_code(e, "chcon", 1);
+        }
+    };
 
     let verbose = matches.get_flag(options::VERBOSE);
 

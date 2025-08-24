@@ -252,17 +252,31 @@ pub fn format_usage(s: &str) -> String {
 ///     .help_template(localized_help_template("myutil"));
 /// ```
 pub fn localized_help_template(util_name: &str) -> clap::builder::StyledStr {
+    use std::fmt::Write;
+
     // Ensure localization is initialized for this utility
     let _ = crate::locale::setup_localization(util_name);
 
+    // Get the localized "Usage" label
     let usage_label = crate::locale::translate!("common-usage");
 
-    // Create a template that avoids clap's hardcoded {usage-heading}
-    let template = format!(
-        "{{before-help}}{{about-with-newline}}\n{usage_label}: {{usage}}\n\n{{all-args}}{{after-help}}"
-    );
+    // Create a styled template with ANSI codes for bold+underline headers like clap does
+    let mut template = clap::builder::StyledStr::new();
 
-    clap::builder::StyledStr::from(template)
+    // Add the basic template parts
+    writeln!(template, "{{before-help}}{{about-with-newline}}").unwrap();
+
+    // Add styled usage header (bold + underline like clap's default)
+    write!(
+        template,
+        "\x1b[1m\x1b[4m{usage_label}:\x1b[0m {{usage}}\n\n"
+    )
+    .unwrap();
+
+    // Add the rest
+    write!(template, "{{all-args}}{{after-help}}").unwrap();
+
+    template
 }
 
 /// Used to check if the utility is the second argument.

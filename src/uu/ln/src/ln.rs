@@ -23,7 +23,6 @@ use std::os::unix::fs::symlink;
 #[cfg(windows)]
 use std::os::windows::fs::{symlink_dir, symlink_file};
 use std::path::{Path, PathBuf};
-use uucore::LocalizedCommand;
 use uucore::backup_control::{self, BackupMode};
 use uucore::fs::{MissingHandling, ResolveMode, canonicalize};
 
@@ -95,9 +94,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         backup_control::BACKUP_CONTROL_LONG_HELP
     );
 
-    let matches = uu_app()
-        .after_help(after_help)
-        .get_matches_from_localized(args);
+    let matches =
+        uucore::clap_localization::handle_clap_result(uu_app().after_help(after_help), args)?;
 
     /* the list of files */
 

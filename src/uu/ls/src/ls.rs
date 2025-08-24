@@ -1103,13 +1103,12 @@ impl Config {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = match uu_app().try_get_matches_from(args) {
-        Ok(matches) => matches,
-        Err(e) => {
-            // Use localization handler for all clap errors
-            uucore::clap_localization::handle_clap_error_with_exit_code(e, "ls", 2);
-        }
-    };
+    let matches = uucore::clap_localization::handle_clap_result_with_exit_code(
+        uu_app(),
+        args,
+        uucore::util_name(),
+        2,
+    )?;
 
     let config = Config::from(&matches)?;
 
@@ -1126,6 +1125,7 @@ pub fn uu_app() -> Command {
         .override_usage(format_usage(&translate!("ls-usage")))
         .about(translate!("ls-about"))
         .help_template(uucore::localized_help_template(uucore::util_name()))
+        .color(clap::ColorChoice::Auto)
         .infer_long_args(true)
         .disable_help_flag(true)
         .args_override_self(true)

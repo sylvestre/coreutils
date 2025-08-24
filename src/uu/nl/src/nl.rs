@@ -11,7 +11,6 @@ use std::path::Path;
 use uucore::error::{FromIo, UResult, USimpleError, set_exit_code};
 use uucore::translate;
 
-use uucore::LocalizedCommand;
 use uucore::{format_usage, show_error};
 
 mod helper;
@@ -178,7 +177,7 @@ pub mod options {
 
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
-    let matches = uu_app().get_matches_from_localized(args);
+    let matches = uucore::clap_localization::handle_clap_result(uu_app(), args)?;
 
     let mut settings = Settings::default();
 
