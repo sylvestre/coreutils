@@ -1,6 +1,25 @@
 use std::collections::HashSet;
+use std::path::Path;
 use std::process::Command;
 use std::str;
+
+/// Get the canonical utility name for utilities that are aliases
+fn get_canonical_util_name(util_name: &str) -> &str {
+    match util_name {
+        // uu_test aliases - '[' is an alias for test
+        "[" => "test",
+
+        // hashsum aliases - all these hash commands are aliases for hashsum
+        "md5sum" | "sha1sum" | "sha224sum" | "sha256sum" | "sha384sum" | "sha512sum"
+        | "sha3sum" | "sha3-224sum" | "sha3-256sum" | "sha3-384sum" | "sha3-512sum"
+        | "shake128sum" | "shake256sum" | "b2sum" | "b3sum" => "hashsum",
+
+        "dir" | "vdir" => "ls", // dir and vdir are aliases for ls
+
+        // Default case - return the util name as is
+        _ => util_name,
+    }
+}
 
 /// Get list of all enabled utilities from the build-time generated map.
 /// Uses `include_str!` to read the generated `uutils_map.rs` at compile time,
@@ -64,6 +83,23 @@ fn get_utilities_to_skip() -> HashSet<&'static str> {
     skip_set
 }
 
+/// Helper function to create a Command for a utility.
+/// Tries to use individual binary first, falls back to multicall binary if not found.
+fn create_utility_command(utility_name: &str) -> Command {
+    let canonical_name = get_canonical_util_name(utility_name);
+    let individual_binary_path = format!("./target/debug/{canonical_name}");
+
+    // Check if individual binary exists
+    if Path::new(&individual_binary_path).exists() {
+        Command::new(individual_binary_path)
+    } else {
+        // Fall back to multicall binary
+        let mut cmd = Command::new("./target/debug/coreutils");
+        cmd.arg(canonical_name);
+        cmd
+    }
+}
+
 /// Test that help messages contain color codes when `CLICOLOR_FORCE=1`
 #[test]
 fn test_help_messages_have_colors() {
@@ -76,8 +112,7 @@ fn test_help_messages_have_colors() {
         }
         println!("Testing colors for {utility}");
 
-        let output = Command::new("./target/debug/coreutils")
-            .arg(utility)
+        let output = create_utility_command(utility)
             .arg("--help")
             .env("CLICOLOR_FORCE", "1")
             .env("LANG", "en_US.UTF-8")
@@ -119,8 +154,17 @@ fn test_error_messages_have_colors() {
         }
         println!("Testing error colors for {utility}");
 
-        let output = Command::new("./target/debug/coreutils")
-            .arg(utility)
+        let mut cmd = create_utility_command(utility);
+        let binary_name = get_canonical_util_name(utility);
+
+        // For hashsum aliases, we need to pass the hash algorithm as a subcommand
+        if binary_name == "hashsum" && utility != "hashsum" {
+            // Extract the hash algorithm from the utility name
+            let algo = utility.trim_end_matches("sum");
+            cmd.arg(algo);
+        }
+
+        let output = cmd
             .arg("--invalid-option-that-should-not-exist")
             .env("CLICOLOR_FORCE", "1")
             .env("LANG", "en_US.UTF-8")
@@ -167,8 +211,7 @@ fn test_help_messages_french_translation() {
         }
         println!("Testing French translation for {utility}");
 
-        let output = Command::new("./target/debug/coreutils")
-            .arg(utility)
+        let output = create_utility_command(utility)
             .arg("--help")
             .env("CLICOLOR_FORCE", "1")
             .env("LANG", "fr_FR.UTF-8")
@@ -210,8 +253,17 @@ fn test_error_messages_french_translation() {
         }
         println!("Testing French error translation for {utility}");
 
-        let output = Command::new("./target/debug/coreutils")
-            .arg(utility)
+        let mut cmd = create_utility_command(utility);
+        let binary_name = get_canonical_util_name(utility);
+
+        // For hashsum aliases, we need to pass the hash algorithm as a subcommand
+        if binary_name == "hashsum" && utility != "hashsum" {
+            // Extract the hash algorithm from the utility name
+            let algo = utility.trim_end_matches("sum");
+            cmd.arg(algo);
+        }
+
+        let output = cmd
             .arg("--invalid-option-that-should-not-exist")
             .env("CLICOLOR_FORCE", "1")
             .env("LANG", "fr_FR.UTF-8")
@@ -253,8 +305,17 @@ fn test_french_colored_error_messages() {
         }
         println!("Testing French colored errors for {utility}");
 
-        let output = Command::new("./target/debug/coreutils")
-            .arg(utility)
+        let mut cmd = create_utility_command(utility);
+        let binary_name = get_canonical_util_name(utility);
+
+        // For hashsum aliases, we need to pass the hash algorithm as a subcommand
+        if binary_name == "hashsum" && utility != "hashsum" {
+            // Extract the hash algorithm from the utility name
+            let algo = utility.trim_end_matches("sum");
+            cmd.arg(algo);
+        }
+
+        let output = cmd
             .arg("--invalid-option-that-should-not-exist")
             .env("CLICOLOR_FORCE", "1")
             .env("LANG", "fr_FR.UTF-8")

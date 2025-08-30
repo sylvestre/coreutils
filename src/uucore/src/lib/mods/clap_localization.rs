@@ -143,8 +143,18 @@ fn handle_unknown_argument_error(
             // Look for other clap tips (like "-- --file-with-dash") that aren't suggestions
             // These usually start with "  tip:" and contain useful information
             for line in rendered_str.lines() {
-                if line.trim_start().starts_with("tip:") && !line.contains("similar argument") {
-                    eprintln!("{line}");
+                let trimmed_line = line.trim_start();
+                if trimmed_line.starts_with("tip:") && !line.contains("similar argument") {
+                    // Translate "tip:" to the localized version
+                    let tip_word = translate!("common-tip");
+                    let colored_tip_word = maybe_colorize(&tip_word, Color::Green);
+
+                    if let Some(colon_pos) = trimmed_line.find(':') {
+                        let after_colon = &trimmed_line[colon_pos..];
+                        eprintln!("  {colored_tip_word}{after_colon}");
+                    } else {
+                        eprintln!("{line}");
+                    }
                     eprintln!();
                 }
             }
@@ -358,8 +368,16 @@ pub fn handle_clap_error_with_exit_code(err: Error, util_name: &str, exit_code: 
             let rendered_str = err.render().to_string();
             let lines: Vec<&str> = rendered_str.lines().collect();
             if let Some(main_error_line) = lines.first() {
-                // Keep the "error: " prefix for test compatibility
-                eprintln!("{}", main_error_line);
+                // Replace "error:" with localized version
+                let error_word = translate!("common-error");
+                let colored_error_word = maybe_colorize(&error_word, Color::Red);
+
+                if let Some(colon_pos) = main_error_line.find(':') {
+                    let after_colon = &main_error_line[colon_pos..];
+                    eprintln!("{colored_error_word}{after_colon}");
+                } else {
+                    eprintln!("{}", main_error_line);
+                }
                 eprintln!();
                 // Use the execution phrase for the help suggestion to match test expectations
                 eprintln!("{}", translate!("common-help-suggestion"));
@@ -397,9 +415,18 @@ pub fn handle_clap_error_with_exit_code(err: Error, util_name: &str, exit_code: 
             let rendered_str = err.render().to_string();
             let lines: Vec<&str> = rendered_str.lines().collect();
 
-            // Print error message (first line)
+            // Print error message (first line) with translation
             if let Some(first_line) = lines.first() {
-                eprintln!("{}", first_line);
+                // Replace "error:" with localized version
+                let error_word = translate!("common-error");
+                let colored_error_word = maybe_colorize(&error_word, Color::Red);
+
+                if let Some(colon_pos) = first_line.find(':') {
+                    let after_colon = &first_line[colon_pos..];
+                    eprintln!("{colored_error_word}{after_colon}");
+                } else {
+                    eprintln!("{}", first_line);
+                }
             }
 
             // For other errors, just show help suggestion

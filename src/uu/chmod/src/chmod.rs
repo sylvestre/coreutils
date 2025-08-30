@@ -180,7 +180,6 @@ pub fn uu_app() -> Command {
         .about(translate!("chmod-about"))
         .override_usage(format_usage(&translate!("chmod-usage")))
         .help_template(uucore::localized_help_template(uucore::util_name()))
-        .color(clap::ColorChoice::Auto)
         .args_override_self(true)
         .infer_long_args(true)
         .no_binary_name(true)
