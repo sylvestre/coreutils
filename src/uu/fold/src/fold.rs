@@ -7,7 +7,7 @@
 
 use clap::{Arg, ArgAction, Command};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Write, stdin, stdout};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write, stdin, stdout};
 use std::path::Path;
 use uucore::LocalizedCommand;
 use uucore::display::Quotable;
@@ -113,13 +113,17 @@ fn fold(filenames: &[String], bytes: bool, spaces: bool, width: usize) -> UResul
         let filename: &str = filename;
         let mut stdin_buf;
         let mut file_buf;
-        let buffer = BufReader::new(if filename == "-" {
-            stdin_buf = stdin();
-            &mut stdin_buf as &mut dyn Read
-        } else {
-            file_buf = File::open(Path::new(filename)).map_err_context(|| filename.to_string())?;
-            &mut file_buf as &mut dyn Read
-        });
+        let buffer = BufReader::with_capacity(
+            65536,
+            if filename == "-" {
+                stdin_buf = stdin();
+                &mut stdin_buf as &mut dyn Read
+            } else {
+                file_buf =
+                    File::open(Path::new(filename)).map_err_context(|| filename.to_string())?;
+                &mut file_buf as &mut dyn Read
+            },
+        );
 
         if bytes {
             fold_file_bytewise(buffer, spaces, width)?;
@@ -140,6 +144,8 @@ fn fold(filenames: &[String], bytes: bool, spaces: bool, width: usize) -> UResul
 ///  If `spaces` is `true`, attempt to break lines at whitespace boundaries.
 fn fold_file_bytewise<T: Read>(mut file: BufReader<T>, spaces: bool, width: usize) -> UResult<()> {
     let mut line = Vec::new();
+    let mut output_buffer = Vec::with_capacity(8192);
+    let mut stdout = BufWriter::with_capacity(8192, stdout());
 
     loop {
         if file
@@ -151,7 +157,7 @@ fn fold_file_bytewise<T: Read>(mut file: BufReader<T>, spaces: bool, width: usiz
         }
 
         if line == [NL] {
-            println!();
+            output_buffer.push(NL);
             line.truncate(0);
             continue;
         }
@@ -160,10 +166,10 @@ fn fold_file_bytewise<T: Read>(mut file: BufReader<T>, spaces: bool, width: usiz
         let mut i = 0;
 
         while i < len {
-            let width = if len - i >= width { width } else { len - i };
+            let chunk_width = if len - i >= width { width } else { len - i };
             let slice = {
-                let slice = &line[i..i + width];
-                if spaces && i + width < len {
+                let slice = &line[i..i + chunk_width];
+                if spaces && i + chunk_width < len {
                     match slice
                         .iter()
                         .enumerate()
@@ -186,19 +192,28 @@ fn fold_file_bytewise<T: Read>(mut file: BufReader<T>, spaces: bool, width: usiz
             }
 
             i += slice.len();
-
             let at_eol = i >= len;
 
-            if at_eol {
-                stdout().write_all(slice)?;
-            } else {
-                stdout().write_all(slice)?;
-                stdout().write_all(&[NL])?;
+            output_buffer.extend_from_slice(slice);
+            if !at_eol {
+                output_buffer.push(NL);
+            }
+
+            // Flush buffer when it gets large to avoid excessive memory usage
+            if output_buffer.len() > 4096 {
+                stdout.write_all(&output_buffer)?;
+                output_buffer.clear();
             }
         }
 
         line.truncate(0);
     }
+
+    // Write any remaining output
+    if !output_buffer.is_empty() {
+        stdout.write_all(&output_buffer)?;
+    }
+    stdout.flush()?;
 
     Ok(())
 }
@@ -215,6 +230,7 @@ fn fold_file_bytewise<T: Read>(mut file: BufReader<T>, spaces: bool, width: usiz
 fn fold_file<T: Read>(mut file: BufReader<T>, spaces: bool, width: usize) -> UResult<()> {
     let mut line = Vec::new();
     let mut output = Vec::new();
+    let mut stdout_buf = BufWriter::with_capacity(8192, stdout());
     let mut col_count = 0;
     let mut last_space = None;
 
@@ -230,8 +246,8 @@ fn fold_file<T: Read>(mut file: BufReader<T>, spaces: bool, width: usize) -> URe
                 None => output.len(),
             };
 
-            stdout().write_all(&output[..consume])?;
-            stdout().write_all(&[NL])?;
+            stdout_buf.write_all(&output[..consume])?;
+            stdout_buf.write_all(&[NL])?;
             output.drain(..consume);
 
             // we know there are no tabs left in output, so each char counts
@@ -290,12 +306,13 @@ fn fold_file<T: Read>(mut file: BufReader<T>, spaces: bool, width: usize) -> URe
         }
 
         if !output.is_empty() {
-            stdout().write_all(&output)?;
+            stdout_buf.write_all(&output)?;
             output.truncate(0);
         }
 
         line.truncate(0);
     }
 
+    stdout_buf.flush()?;
     Ok(())
 }
