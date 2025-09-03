@@ -197,13 +197,16 @@ fn test_du_soft_link() {
     let ts = TestScenario::new(util_name!());
     let at = &ts.fixtures;
 
-    at.symlink_file(SUB_FILE, SUB_LINK);
+    // Create the directory and file structure explicitly for this test
+    at.mkdir_all("subdir/links");
+    at.write("subdir/links/subwords.txt", &"hello world\n".repeat(100));
+    at.symlink_file("subdir/links/subwords.txt", "subdir/links/sublink.txt");
 
-    let result = ts.ucmd().arg(SUB_DIR_LINKS).succeeds();
+    let result = ts.ucmd().arg("subdir/links").succeeds();
 
     #[cfg(any(target_os = "linux", target_os = "android"))]
     {
-        let result_reference = unwrap_or_return!(expected_result(&ts, &[SUB_DIR_LINKS]));
+        let result_reference = unwrap_or_return!(expected_result(&ts, &["subdir/links"]));
         if result_reference.succeeded() {
             assert_eq!(result.stdout_str(), result_reference.stdout_str());
             return;
@@ -814,12 +817,18 @@ fn test_du_no_exec_permission() {
 #[cfg(not(target_os = "openbsd"))]
 fn test_du_one_file_system() {
     let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
 
-    let result = ts.ucmd().arg("-x").arg(SUB_DIR).succeeds();
+    // Create the directory structure explicitly for this test
+    at.mkdir_all("subdir/deeper/deeper_dir");
+    at.write("subdir/deeper/deeper_dir/deeper_words.txt", "hello world");
+    at.write("subdir/deeper/words.txt", "world");
+
+    let result = ts.ucmd().arg("-x").arg("subdir/deeper").succeeds();
 
     #[cfg(any(target_os = "linux", target_os = "android"))]
     {
-        let result_reference = unwrap_or_return!(expected_result(&ts, &["-x", SUB_DIR]));
+        let result_reference = unwrap_or_return!(expected_result(&ts, &["-x", "subdir/deeper"]));
         if result_reference.succeeded() {
             assert_eq!(result.stdout_str(), result_reference.stdout_str());
             return;
@@ -832,6 +841,14 @@ fn test_du_one_file_system() {
 #[cfg(not(target_os = "openbsd"))]
 fn test_du_threshold() {
     let ts = TestScenario::new(util_name!());
+    let at = &ts.fixtures;
+
+    // Create the directory structure explicitly for this test
+    at.mkdir_all("subdir/links");
+    at.mkdir_all("subdir/deeper/deeper_dir");
+    // Create files with specific sizes to test threshold
+    at.write("subdir/links/bigfile.txt", &"x".repeat(10000)); // ~10K file
+    at.write("subdir/deeper/deeper_dir/smallfile.txt", "small"); // small file
 
     let threshold = if cfg!(windows) { "7K" } else { "10K" };
 

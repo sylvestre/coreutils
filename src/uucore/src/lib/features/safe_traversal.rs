@@ -716,7 +716,7 @@ mod tests {
         let dir_fd = DirFd::open(temp_dir.path()).unwrap();
         let stat = dir_fd.stat_at(OsStr::new("test_file"), true).unwrap();
         let file_info = FileInfo::from_stat(&stat);
-
+        #[allow(clippy::unnecessary_cast)]
         assert_eq!(file_info.device(), stat.st_dev as u64);
         assert_eq!(file_info.inode(), stat.st_ino as u64);
     }
