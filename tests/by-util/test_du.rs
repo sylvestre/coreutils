@@ -853,12 +853,14 @@ fn test_du_threshold() {
     let threshold = if cfg!(windows) { "7K" } else { "10K" };
 
     ts.ucmd()
+        .arg("--apparent-size")
         .arg(format!("--threshold={threshold}"))
         .succeeds()
         .stdout_contains("links")
         .stdout_does_not_contain("deeper_dir");
 
     ts.ucmd()
+        .arg("--apparent-size")
         .arg(format!("--threshold=-{threshold}"))
         .succeeds()
         .stdout_does_not_contain("links")
