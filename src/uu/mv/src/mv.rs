@@ -1245,15 +1245,10 @@ fn copy_file_with_hardlinks_helper(
         // Preserve ownership (uid/gid) from the source
         let _ = preserve_ownership(from, to);
     } else {
-        // Copy a regular file.
-        fs::copy(from, to)?;
-        // Copy xattrs, ignoring ENOTSUP errors (filesystem doesn't support xattrs)
-        #[cfg(all(unix, not(any(target_os = "macos", target_os = "redox"))))]
-        {
-            let _ = fsxattr::copy_xattrs_ignore_unsupported(from, to);
-        }
-        // Preserve ownership (uid/gid) from the source
-        let _ = preserve_ownership(from, to);
+        // Copy a regular file through O_NOFOLLOW fds so a concurrent path-swap
+        // can't redirect the copy, chown, or chmod to a different inode, and so
+        // a mover-owned copy keeps no setuid/setgid bits it shouldn't.
+        safe_copy_regular_file(from, to)?;
     }
 
     Ok(())
@@ -1293,37 +1288,9 @@ fn rename_file_fallback(
         }
     }
 
-    // Open src/dst with O_NOFOLLOW and keep the fds alive across copy,
-    // chown, xattr, and chmod so a concurrent path-swap can't redirect any
-    // step to a different inode.
     #[cfg(unix)]
-    {
-        use std::fs::Permissions;
-        use std::os::unix::fs::{MetadataExt, PermissionsExt};
-        use uucore::safe_copy::{create_dest_restrictive, open_source};
-        let src_file = open_source(from, /* nofollow */ true)
-            .map_err(|err| io::Error::new(err.kind(), translate!("mv-error-permission-denied")))?;
-        let src_mode = src_file
-            .metadata()
-            .map_err(|err| io::Error::new(err.kind(), translate!("mv-error-permission-denied")))?
-            .mode()
-            & 0o7777;
-        let mut dst_file = create_dest_restrictive(to, /* nofollow */ true)
-            .map_err(|err| io::Error::new(err.kind(), translate!("mv-error-permission-denied")))?;
-        // copy_stream has fast-path for Linux
-        uucore::buf_copy::copy_stream(&mut &src_file, &mut dst_file)
-            .map_err(|err| io::Error::new(err.kind(), translate!("mv-error-permission-denied")))?;
-
-        #[cfg(not(any(target_os = "macos", target_os = "redox")))]
-        {
-            let _ = fsxattr::copy_xattrs_fd_ignore_unsupported(&src_file, &dst_file);
-        }
-
-        // chown before chmod: chown(2) clears setuid/setgid for non-root,
-        // so the final mode must be applied last to preserve those bits.
-        let _ = preserve_ownership(from, to);
-        let _ = dst_file.set_permissions(Permissions::from_mode(src_mode));
-    }
+    safe_copy_regular_file(from, to)
+        .map_err(|err| io::Error::new(err.kind(), translate!("mv-error-permission-denied")))?;
 
     #[cfg(not(unix))]
     {
@@ -1336,12 +1303,57 @@ fn rename_file_fallback(
     Ok(())
 }
 
+/// Copy a regular file's contents, xattrs, ownership and mode from `from`
+/// to `to` for the cross-device fallback.
+///
+/// Both ends are opened with `O_NOFOLLOW` and every step (copy, chown, chmod)
+/// goes through the fds rather than the paths, so a concurrent path-swap can't
+/// redirect any step to a different inode. The destination starts at the
+/// restrictive [`DEST_INITIAL_MODE`] and is only widened to the final mode once
+/// the content is written.
+///
+/// chown(2) clears setuid/setgid for non-root, so the final mode is applied
+/// last. If ownership could not be restored to the source (e.g. an unprivileged
+/// user moving a root-owned file across devices), setuid/setgid are dropped so
+/// the mover-owned destination keeps no elevated bits. Matches GNU mv and
+/// uutils cp.
+#[cfg(unix)]
+fn safe_copy_regular_file(from: &Path, to: &Path) -> io::Result<()> {
+    use std::fs::Permissions;
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use uucore::safe_copy::{create_dest_restrictive, open_source};
+
+    let src_file = open_source(from, /* nofollow */ true)?;
+    let src_mode = src_file.metadata()?.mode() & 0o7777;
+    let mut dst_file = create_dest_restrictive(to, /* nofollow */ true)?;
+    // copy_stream has a fast-path for Linux.
+    uucore::buf_copy::copy_stream(&mut &src_file, &mut dst_file)?;
+
+    #[cfg(not(any(target_os = "macos", target_os = "redox")))]
+    {
+        let _ = fsxattr::copy_xattrs_fd_ignore_unsupported(&src_file, &dst_file);
+    }
+
+    let final_mode = if preserve_ownership_fd(&src_file, &dst_file).unwrap_or(false) {
+        src_mode
+    } else {
+        src_mode & !0o6000
+    };
+    dst_file.set_permissions(Permissions::from_mode(final_mode))?;
+    Ok(())
+}
+
 /// Preserve ownership (uid/gid) from source to destination.
 /// Uses lchown so it works on symlinks without following them.
 /// Errors are silently ignored for non-root users who cannot chown.
+///
+/// Returns `true` if the destination ends up with the source's uid/gid (either
+/// it already matched or the chown succeeded), `false` if the chown failed.
+/// Callers use this to decide whether to drop setuid/setgid bits.
 #[cfg(unix)]
-fn preserve_ownership(from: &Path, to: &Path) -> io::Result<()> {
+fn preserve_ownership(from: &Path, to: &Path) -> io::Result<bool> {
     use std::os::unix::fs::MetadataExt;
+    use uucore::perms::{Verbosity, VerbosityLevel, wrap_chown};
 
     let source_meta = from.symlink_metadata()?;
     let uid = source_meta.uid();
@@ -1351,26 +1363,53 @@ fn preserve_ownership(from: &Path, to: &Path) -> io::Result<()> {
     let dest_uid = dest_meta.uid();
     let dest_gid = dest_meta.gid();
 
-    // Only chown if ownership actually differs
-    if uid != dest_uid || gid != dest_gid {
-        use uucore::perms::{Verbosity, VerbosityLevel, wrap_chown};
-        // Use follow=false so lchown is used (works on symlinks)
-        // Silently ignore errors: non-root users typically cannot chown to
-        // arbitrary uid, matching GNU mv behavior which also uses best-effort.
-        let _ = wrap_chown(
-            to,
-            &dest_meta,
-            Some(uid),
-            Some(gid),
-            false,
-            Verbosity {
-                groups_only: false,
-                level: VerbosityLevel::Silent,
-            },
-        );
+    // Already matches the source; nothing to do.
+    if uid == dest_uid && gid == dest_gid {
+        return Ok(true);
     }
 
-    Ok(())
+    // Use follow=false so lchown is used (works on symlinks).
+    // Non-root users typically cannot chown to an arbitrary uid; we report the
+    // failure rather than erroring out, matching GNU mv's best-effort behavior.
+    Ok(wrap_chown(
+        to,
+        &dest_meta,
+        Some(uid),
+        Some(gid),
+        false,
+        Verbosity {
+            groups_only: false,
+            level: VerbosityLevel::Silent,
+        },
+    )
+    .is_ok())
+}
+
+/// Like [`preserve_ownership`] but operates on already-open fds, so a concurrent
+/// path-swap cannot redirect the chown to a different inode.
+///
+/// Returns `true` if the destination ends up with the source's uid/gid (either
+/// it already matched or the fchown succeeded), `false` if the fchown failed.
+#[cfg(unix)]
+fn preserve_ownership_fd(src: &fs::File, dst: &fs::File) -> io::Result<bool> {
+    use std::os::unix::fs::MetadataExt;
+
+    let src_meta = src.metadata()?;
+    let (uid, gid) = (src_meta.uid(), src_meta.gid());
+
+    let dst_meta = dst.metadata()?;
+    if uid == dst_meta.uid() && gid == dst_meta.gid() {
+        return Ok(true);
+    }
+
+    // Non-root users typically cannot chown to an arbitrary uid; report the
+    // failure rather than erroring out, matching GNU mv's best-effort behavior.
+    Ok(rustix::fs::fchown(
+        dst,
+        Some(rustix::fs::Uid::from_raw(uid)),
+        Some(rustix::fs::Gid::from_raw(gid)),
+    )
+    .is_ok())
 }
 
 fn is_empty_dir(path: &Path) -> bool {
@@ -1478,4 +1517,31 @@ fn can_delete_file(_: &Path) -> bool {
     // rename() failing with errors other than EXDEV means the operation cannot
     // succeed even with a copy+delete approach (e.g. permission errors).
     false
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::rename_file_fallback;
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    // The cross-device copy fallback preserves setuid/setgid when ownership is
+    // preserved (here the mover already owns the source). The failure path —
+    // stripping setuid/setgid when the chown back to the source owner fails —
+    // needs a root-owned source moved by a non-root user across filesystems and
+    // is exercised by the PoC for GHSA-6c4j-6pgg-xgg8.
+    #[test]
+    fn fallback_keeps_setuid_when_owner_unchanged() {
+        let dir = tempfile::tempdir().unwrap();
+        let from = dir.path().join("src");
+        let to = dir.path().join("dst");
+        fs::write(&from, b"x").unwrap();
+        fs::set_permissions(&from, fs::Permissions::from_mode(0o6755)).unwrap();
+
+        rename_file_fallback(&from, &to, None, None).unwrap();
+
+        let mode = fs::metadata(&to).unwrap().permissions().mode() & 0o7777;
+        assert_eq!(mode, 0o6755, "got mode {mode:o}");
+        assert!(!from.exists());
+    }
 }
