@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-// spell-checker:ignore (ToDO) srcpath targetpath EEXIST
+// spell-checker:ignore (ToDO) srcpath targetpath EEXIST dirfd
 
 use clap::{Arg, ArgAction, Command};
 use std::io::{self, Write, stdout};
@@ -16,7 +16,7 @@ use uucore::{format_usage, prompt_yes, show_error};
 
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use thiserror::Error;
 
@@ -27,6 +27,8 @@ use std::os::windows::fs::{symlink_dir, symlink_file};
 use std::path::{Path, PathBuf};
 use uucore::backup_control::{self, BackupMode};
 use uucore::fs::{MissingHandling, ResolveMode, canonicalize};
+#[cfg(unix)]
+use uucore::safe_traversal::{DirFd, SymlinkBehavior};
 
 /// Public visibility allows other apps to integrate with our
 /// `ln` utility by calling `exec` directly with their `Settings`.
@@ -304,11 +306,29 @@ pub fn exec(files: &[PathBuf], settings: &Settings) -> LnResult<()> {
     link(&files[0], &files[1], settings)
 }
 
+/// The directory a link is being created in, held open so that replacing the
+/// directory after the `is_dir` check cannot redirect the link creation.
+///
+/// GNU opens NEWDIR once (`openat_safer`) and creates every link with
+/// `symlinkat`/`linkat` relative to that descriptor; only the two-operand form
+/// uses `AT_FDCWD`. This mirrors that. On non-unix targets there is no
+/// descriptor and every operation stays path-based, as before.
+#[cfg(unix)]
+type Anchor<'a> = Option<(&'a DirFd, &'a OsStr)>;
+#[cfg(not(unix))]
+type Anchor<'a> = Option<(&'a (), &'a OsStr)>;
+
 #[allow(clippy::cognitive_complexity)]
 fn link_files_in_dir(files: &[PathBuf], target_dir: &Path, settings: &Settings) -> LnResult<()> {
     if !target_dir.is_dir() {
         return Err(LnError::TargetIsNotADirectory(target_dir.to_owned()));
     }
+
+    // Opened once, before any link is created. A failure here is not fatal:
+    // the path-based fallback below still reports whatever the real error is,
+    // and keeps behaviour identical on platforms without openat.
+    #[cfg(unix)]
+    let dir_fd = DirFd::open(target_dir, SymlinkBehavior::Follow).ok();
     // remember the linked destinations for further usage
     let mut linked_destinations: HashSet<PathBuf> = HashSet::with_capacity(files.len());
 
@@ -353,6 +373,17 @@ fn link_files_in_dir(files: &[PathBuf], target_dir: &Path, settings: &Settings) 
             }
         };
 
+        // The --no-dereference branch above links over target_dir itself rather
+        // than into it, so it is not a name inside the anchored directory.
+        let target_is_dir_itself = targetpath == target_dir;
+        #[cfg(unix)]
+        let anchor: Anchor = match (&dir_fd, targetpath.file_name()) {
+            (Some(fd), Some(base)) if !target_is_dir_itself => Some((fd, base)),
+            _ => None,
+        };
+        #[cfg(not(unix))]
+        let anchor: Anchor = None;
+
         if linked_destinations.contains(&targetpath) {
             // If the target file was already created in this ln call, do not overwrite
             show_error!(
@@ -360,7 +391,7 @@ fn link_files_in_dir(files: &[PathBuf], target_dir: &Path, settings: &Settings) 
                 translate!("ln-error-will-not-overwrite", "target" => targetpath.quote(), "source" => srcpath.quote())
             );
             all_successful = false;
-        } else if let Err(e) = link(srcpath, &targetpath, settings) {
+        } else if let Err(e) = link_impl(srcpath, &targetpath, settings, anchor) {
             show_error!("{e}");
             all_successful = false;
         }
@@ -402,8 +433,21 @@ fn is_same_entry(src: &Path, dst: &Path) -> bool {
     }
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn link(src: &Path, dst: &Path, settings: &Settings) -> LnResult<()> {
+    link_impl(src, dst, settings, None)
+}
+
+/// Remove the destination, through the anchored directory when there is one.
+fn remove_dest(dst: &Path, anchor: Anchor) -> io::Result<()> {
+    match anchor {
+        #[cfg(unix)]
+        Some((fd, base)) => fd.unlink_at(base, false),
+        _ => fs::remove_file(dst),
+    }
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn link_impl(src: &Path, dst: &Path, settings: &Settings, anchor: Anchor) -> LnResult<()> {
     let mut backup_path = None;
     let source: Cow<'_, Path> = if settings.relative {
         relative_path(src, dst)
@@ -420,7 +464,12 @@ fn link(src: &Path, dst: &Path, settings: &Settings) -> LnResult<()> {
             }
         }
         if let Some(ref p) = backup_path {
-            fs::rename(dst, p).map_err(|e| {
+            let renamed = match (anchor, p.file_name()) {
+                #[cfg(unix)]
+                (Some((fd, base)), Some(backup_base)) => fd.rename_at(base, backup_base),
+                _ => fs::rename(dst, p),
+            };
+            renamed.map_err(|e| {
                 LnError::IoContext(
                     UIoError::from(e),
                     translate!("ln-cannot-backup", "file" => dst.quote()),
@@ -434,7 +483,7 @@ fn link(src: &Path, dst: &Path, settings: &Settings) -> LnResult<()> {
                     return Err(LnError::SomeLinksFailed);
                 }
 
-                let _ = fs::remove_file(dst);
+                let _ = remove_dest(dst, anchor);
                 // In case of error, don't do anything
             }
             OverwriteMode::Force => {
@@ -445,14 +494,19 @@ fn link(src: &Path, dst: &Path, settings: &Settings) -> LnResult<()> {
                     // Even in force overwrite mode, verify we are not targeting the same entry and return a SameFile error if so
                     return Err(LnError::SameFile(src.to_owned(), dst.to_owned()));
                 }
-                let _ = fs::remove_file(dst);
+                let _ = remove_dest(dst, anchor);
                 // In case of error, don't do anything
             }
         }
     }
 
     let res = if settings.symbolic {
-        symlink(&source, dst).map_err(|e| {
+        let created = match anchor {
+            #[cfg(unix)]
+            Some((fd, base)) => fd.symlink_at(&source, base),
+            _ => symlink(&source, dst),
+        };
+        created.map_err(|e| {
             LnError::IoContext(
                 UIoError::from(e),
                 translate!(
@@ -472,7 +526,12 @@ fn link(src: &Path, dst: &Path, settings: &Settings) -> LnResult<()> {
         } else {
             source.to_path_buf()
         };
-        match fs::hard_link(&p, dst) {
+        let created = match anchor {
+            #[cfg(unix)]
+            Some((fd, base)) => fd.link_at(&p, base),
+            _ => fs::hard_link(&p, dst),
+        };
+        match created {
             Ok(()) => Ok(()),
             Err(_) if p.is_dir() => Err(LnError::FailedToCreateHardLinkDir(source.to_path_buf())),
             Err(e) => Err(LnError::IoContext(
@@ -488,7 +547,12 @@ fn link(src: &Path, dst: &Path, settings: &Settings) -> LnResult<()> {
 
     if let Err(e) = res {
         if let Some(ref p) = backup_path {
-            fs::rename(p, dst).map_err(|e| {
+            let restored = match (anchor, p.file_name()) {
+                #[cfg(unix)]
+                (Some((fd, base)), Some(backup_base)) => fd.rename_at(backup_base, base),
+                _ => fs::rename(p, dst),
+            };
+            restored.map_err(|e| {
                 LnError::IoContext(
                     UIoError::from(e),
                     translate!("ln-cannot-backup", "file" => dst.quote()),

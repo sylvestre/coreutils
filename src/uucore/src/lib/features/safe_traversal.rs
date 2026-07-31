@@ -10,6 +10,7 @@
 //
 // spell-checker:ignore CLOEXEC RDONLY TOCTOU closedir dirp fdopendir fstatat openat REMOVEDIR unlinkat smallfile
 // spell-checker:ignore RAII dirfd fchownat fchown FchmodatFlags fchmodat fchmod mkdirat CREAT WRONLY ELOOP ENOTDIR
+// spell-checker:ignore linkat symlinkat renameat
 // spell-checker:ignore atimensec mtimensec ctimensec opath chmods
 
 #[cfg(test)]
@@ -25,10 +26,10 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use nix::dir::Dir;
-use nix::fcntl::{OFlag, openat};
+use nix::fcntl::{OFlag, openat, renameat};
 use nix::libc;
 use nix::sys::stat::{FchmodatFlags, FileStat, Mode, fchmodat, fstatat, mkdirat};
-use nix::unistd::{Gid, Uid, UnlinkatFlags, fchown, fchownat, unlinkat};
+use nix::unistd::{Gid, Uid, UnlinkatFlags, fchown, fchownat, linkat, symlinkat, unlinkat};
 use os_display::Quotable;
 
 use crate::translate;
@@ -93,6 +94,13 @@ pub enum SafeTraversalError {
         #[source]
         source: io::Error,
     },
+
+    #[error("{}", translate!("safe-traversal-error-link-failed", "path" => path.quote(), "source" => source))]
+    LinkFailed {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
 }
 
 impl From<SafeTraversalError> for io::Error {
@@ -105,7 +113,8 @@ impl From<SafeTraversalError> for io::Error {
             SafeTraversalError::OpenFailed { source, .. }
             | SafeTraversalError::StatFailed { source, .. }
             | SafeTraversalError::ReadDirFailed { source, .. }
-            | SafeTraversalError::UnlinkFailed { source, .. } => source,
+            | SafeTraversalError::UnlinkFailed { source, .. }
+            | SafeTraversalError::LinkFailed { source, .. } => source,
         }
     }
 }
@@ -244,6 +253,71 @@ impl DirFd {
         unlinkat(&self.fd, name_cstr.as_c_str(), flags).map_err(|e| {
             SafeTraversalError::UnlinkFailed {
                 path: name.into(),
+                source: io::Error::from_raw_os_error(e as i32),
+            }
+        })?;
+
+        Ok(())
+    }
+
+    /// Create a symbolic link named `name` in this directory, pointing at `target`
+    ///
+    /// `target` is stored verbatim and is never resolved here, so it may be
+    /// absolute, relative, or dangling - exactly as `symlink(2)` behaves.
+    pub fn symlink_at(&self, target: &Path, name: &OsStr) -> io::Result<()> {
+        let name_cstr =
+            CString::new(name.as_bytes()).map_err(|_| SafeTraversalError::PathContainsNull)?;
+        let target_cstr = CString::new(target.as_os_str().as_bytes())
+            .map_err(|_| SafeTraversalError::PathContainsNull)?;
+
+        symlinkat(target_cstr.as_c_str(), &self.fd, name_cstr.as_c_str()).map_err(|e| {
+            SafeTraversalError::LinkFailed {
+                path: name.into(),
+                source: io::Error::from_raw_os_error(e as i32),
+            }
+        })?;
+
+        Ok(())
+    }
+
+    /// Create a hard link named `name` in this directory, pointing at `existing`
+    ///
+    /// `existing` is resolved against the current working directory, matching
+    /// GNU's use of `AT_FDCWD` for the source side of `linkat(2)`. Symlinks in
+    /// `existing` are not followed.
+    pub fn link_at(&self, existing: &Path, name: &OsStr) -> io::Result<()> {
+        let name_cstr =
+            CString::new(name.as_bytes()).map_err(|_| SafeTraversalError::PathContainsNull)?;
+        let existing_cstr = CString::new(existing.as_os_str().as_bytes())
+            .map_err(|_| SafeTraversalError::PathContainsNull)?;
+
+        // AT_FDCWD for the source side, matching GNU's linkat() call in ln.c
+        let cwd = unsafe { BorrowedFd::borrow_raw(libc::AT_FDCWD) };
+        linkat(
+            cwd,
+            existing_cstr.as_c_str(),
+            &self.fd,
+            name_cstr.as_c_str(),
+            nix::fcntl::AtFlags::empty(),
+        )
+        .map_err(|e| SafeTraversalError::LinkFailed {
+            path: name.into(),
+            source: io::Error::from_raw_os_error(e as i32),
+        })?;
+
+        Ok(())
+    }
+
+    /// Rename `from` to `to`, both relative to this directory
+    pub fn rename_at(&self, from: &OsStr, to: &OsStr) -> io::Result<()> {
+        let from_cstr =
+            CString::new(from.as_bytes()).map_err(|_| SafeTraversalError::PathContainsNull)?;
+        let to_cstr =
+            CString::new(to.as_bytes()).map_err(|_| SafeTraversalError::PathContainsNull)?;
+
+        renameat(&self.fd, from_cstr.as_c_str(), &self.fd, to_cstr.as_c_str()).map_err(|e| {
+            SafeTraversalError::LinkFailed {
+                path: from.into(),
                 source: io::Error::from_raw_os_error(e as i32),
             }
         })?;

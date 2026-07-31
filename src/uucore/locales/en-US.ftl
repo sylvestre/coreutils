@@ -60,6 +60,7 @@ safe-traversal-error-open-failed = failed to open { $path }: { $source }
 safe-traversal-error-stat-failed = failed to stat { $path }: { $source }
 safe-traversal-error-read-dir-failed = failed to read directory { $path }: { $source }
 safe-traversal-error-unlink-failed = failed to unlink { $path }: { $source }
+safe-traversal-error-link-failed = failed to link { $path }: { $source }
 safe-traversal-error-invalid-fd = invalid file descriptor
 safe-traversal-current-directory = <current directory>
 safe-traversal-directory = <directory>
