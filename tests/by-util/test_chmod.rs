@@ -915,6 +915,39 @@ fn test_chmod_dereference_symlink() {
 }
 
 #[test]
+fn test_chmod_recursive_reference_does_not_follow_symlink() {
+    // A symlink met during recursion must be left alone whatever the mode source
+    // is. `--reference` used to bypass the no-dereference check and chmod(2) the
+    // referent, which is reachable outside the tree being walked.
+    for flag in [&["-P"][..], &["-H"][..], &[][..]] {
+        let scene = TestScenario::new(util_name!());
+        let at = &scene.fixtures;
+
+        at.mkdir("tree");
+        at.mkdir("offtree");
+        at.touch("offtree/victim");
+        set_permissions(at.plus("offtree/victim"), Permissions::from_mode(0o777)).unwrap();
+        at.touch("ref");
+        set_permissions(at.plus("ref"), Permissions::from_mode(0o700)).unwrap();
+        at.symlink_file("offtree/victim", "tree/link");
+
+        scene
+            .ucmd()
+            .arg("-R")
+            .args(flag)
+            .arg("--reference=ref")
+            .arg("tree")
+            .succeeds();
+
+        assert_eq!(
+            at.metadata("offtree/victim").permissions().mode(),
+            0o100_777,
+            "--reference followed the symlink with {flag:?}"
+        );
+    }
+}
+
+#[test]
 fn test_chmod_no_dereference_symlink() {
     let scene = TestScenario::new(util_name!());
     let at = &scene.fixtures;

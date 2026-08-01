@@ -769,24 +769,28 @@ impl Chmoder {
         let (new_mode, naively_expected_new_mode) =
             self.calculate_new_mode(fperm, file.is_dir())?;
 
+        // Special handling for symlinks when not dereferencing. This has to be
+        // decided before the mode source is chosen: `change_file` is path-based and
+        // so follows the link, and `--reference` would otherwise apply the reference
+        // mode to the referent, which recursion reaches outside the tree.
+        // TODO: On most Unix systems, symlink permissions are ignored by the kernel,
+        // so changing them has no effect. We skip this operation for compatibility.
+        // Note that "chmod without dereferencing" effectively does nothing on symlinks.
+        if file.is_symlink() && !dereference {
+            if self.verbose {
+                println!(
+                    "neither symbolic link {} nor referent has been changed",
+                    file.quote()
+                );
+            }
+            return Ok(());
+        }
+
         // Determine how to apply the permissions
         if let Some(mode) = self.fmode {
             self.change_file(fperm, mode, file)?;
         } else {
-            // Special handling for symlinks when not dereferencing
-            if file.is_symlink() && !dereference {
-                // TODO: On most Unix systems, symlink permissions are ignored by the kernel,
-                // so changing them has no effect. We skip this operation for compatibility.
-                // Note that "chmod without dereferencing" effectively does nothing on symlinks.
-                if self.verbose {
-                    println!(
-                        "neither symbolic link {} nor referent has been changed",
-                        file.quote()
-                    );
-                }
-            } else {
-                self.change_file(fperm, new_mode, file)?;
-            }
+            self.change_file(fperm, new_mode, file)?;
             // if a permission would have been removed if umask was 0, but it wasn't because umask was not 0, print an error and fail
             if (new_mode & !naively_expected_new_mode) != 0 {
                 return Err(ChmodError::NewPermissions(
