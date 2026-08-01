@@ -93,6 +93,9 @@ pub enum SafeTraversalError {
         #[source]
         source: io::Error,
     },
+
+    #[error("{}", translate!("safe-traversal-error-path-changed", "path" => path.quote()))]
+    PathChanged { path: PathBuf },
 }
 
 impl From<SafeTraversalError> for io::Error {
@@ -106,6 +109,7 @@ impl From<SafeTraversalError> for io::Error {
             | SafeTraversalError::StatFailed { source, .. }
             | SafeTraversalError::ReadDirFailed { source, .. }
             | SafeTraversalError::UnlinkFailed { source, .. } => source,
+            SafeTraversalError::PathChanged { .. } => Self::from_raw_os_error(libc::ELOOP),
         }
     }
 }
@@ -152,6 +156,36 @@ impl DirFd {
             }
         })?;
         Ok(Self { fd })
+    }
+
+    /// Open a directory and confirm it is the object the caller already classified.
+    ///
+    /// A walker decides whether to descend by stat'ing a path, then opens that same
+    /// path. Between the two, the name can be exchanged for a symlink pointing
+    /// anywhere the process can reach, and the open follows it: the whole traversal
+    /// then runs inside the attacker's target with the caller's privileges. Pinning
+    /// the descriptor to the `(dev, ino)` the decision was made on makes that
+    /// exchange fail closed instead of silently redirecting.
+    ///
+    /// # Arguments
+    /// * `path` - The directory to open
+    /// * `symlink_behavior` - Whether to follow symlinks when opening
+    /// * `expected` - The `(dev, ino)` the caller classified, from [`std::os::unix::fs::MetadataExt`]
+    pub fn open_checked(
+        path: &Path,
+        symlink_behavior: SymlinkBehavior,
+        expected: (u64, u64),
+    ) -> io::Result<Self> {
+        let dir_fd = Self::open(path, symlink_behavior)?;
+        let stat = dir_fd.fstat()?;
+        // dev_t and ino_t are not u64 on every Unix, so the casts are load-bearing
+        // where they are not no-ops.
+        #[allow(clippy::unnecessary_cast)]
+        let observed = (stat.st_dev as u64, stat.st_ino as u64);
+        if observed != expected {
+            return Err(SafeTraversalError::PathChanged { path: path.into() }.into());
+        }
+        Ok(dir_fd)
     }
 
     /// Open a subdirectory relative to this directory
@@ -942,6 +976,45 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let dir_fd = DirFd::open(temp_dir.path(), SymlinkBehavior::Follow).unwrap();
         assert!(dir_fd.as_raw_fd() >= 0);
+    }
+
+    #[test]
+    fn test_dirfd_open_checked_rejects_a_different_object() {
+        let temp_dir = TempDir::new().unwrap();
+        let wanted = temp_dir.path().join("wanted");
+        let other = temp_dir.path().join("other");
+        fs::create_dir(&wanted).unwrap();
+        fs::create_dir(&other).unwrap();
+
+        let meta = fs::metadata(&wanted).unwrap();
+        let expected = (meta.dev(), meta.ino());
+
+        // The same directory opens.
+        DirFd::open_checked(&wanted, SymlinkBehavior::Follow, expected).unwrap();
+
+        // A different directory under the same name does not: this is the
+        // exchange an attacker performs between classification and open.
+        fs::remove_dir(&wanted).unwrap();
+        fs::rename(&other, &wanted).unwrap();
+        assert!(DirFd::open_checked(&wanted, SymlinkBehavior::Follow, expected).is_err());
+    }
+
+    #[test]
+    fn test_dirfd_open_checked_nofollow_rejects_a_symlink() {
+        let temp_dir = TempDir::new().unwrap();
+        let real = temp_dir.path().join("real");
+        let elsewhere = temp_dir.path().join("elsewhere");
+        fs::create_dir(&real).unwrap();
+        fs::create_dir(&elsewhere).unwrap();
+
+        let meta = fs::metadata(&real).unwrap();
+        let expected = (meta.dev(), meta.ino());
+
+        // Swap the directory for a symlink pointing somewhere else. NoFollow has
+        // to refuse it in the kernel, before any identity check can be reached.
+        fs::remove_dir(&real).unwrap();
+        symlink(&elsewhere, &real).unwrap();
+        assert!(DirFd::open_checked(&real, SymlinkBehavior::NoFollow, expected).is_err());
     }
 
     #[test]

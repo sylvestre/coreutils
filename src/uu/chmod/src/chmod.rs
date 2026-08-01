@@ -537,9 +537,24 @@ impl Chmoder {
             TraverseSymlinks::None => false,
         };
 
+        // Classify once and reuse it to pin the descriptor below: a second path
+        // stat would let the name be exchanged for a symlink between the decision
+        // to descend and the open that acts on it, running the walk off-tree.
+        // When the operand must not be followed, O_NOFOLLOW is what enforces it -
+        // no test of the path can survive an exchange made just after it.
+        let behavior = if should_follow_symlink {
+            SymlinkBehavior::Follow
+        } else {
+            SymlinkBehavior::NoFollow
+        };
+        let follow_meta = fs::metadata(file_path).ok();
+
         // If the path is a directory (or we should follow symlinks), recurse into it using safe traversal
-        if (!file_path.is_symlink() || should_follow_symlink) && file_path.is_dir() {
-            match DirFd::open(file_path, SymlinkBehavior::Follow) {
+        if (!file_path.is_symlink() || should_follow_symlink)
+            && follow_meta.as_ref().is_some_and(fs::Metadata::is_dir)
+        {
+            let expected = follow_meta.map(|m| (m.dev(), m.ino())).unwrap_or_default();
+            match DirFd::open_checked(file_path, behavior, expected) {
                 Ok(dir_fd) => {
                     r = self.safe_traverse_dir(&dir_fd, file_path, ancestors).and(r);
                 }

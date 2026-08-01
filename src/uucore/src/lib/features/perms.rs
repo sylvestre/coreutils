@@ -328,8 +328,15 @@ impl ChownExecutor {
             #[cfg(target_os = "linux")]
             // We cannot check path.is_dir() here, as this would resolve symlinks
             let chown_result = if meta.is_dir() {
-                // For directories on Linux, use safe traversal from the start
-                match DirFd::open(path, SymlinkBehavior::Follow) {
+                // For directories on Linux, use safe traversal from the start.
+                // Pin the descriptor to the object `meta` describes: the operand
+                // name can be exchanged for a symlink between the stat above and
+                // this open, which would run the whole chown inside the target.
+                match DirFd::open_checked(
+                    path,
+                    self.operand_symlink_behavior(),
+                    (meta.dev(), meta.ino()),
+                ) {
                     Ok(dir_fd) => self
                         .safe_chown_dir(&dir_fd, path, &meta)
                         .map(|_| String::new()),
@@ -389,7 +396,7 @@ impl ChownExecutor {
         if self.recursive {
             #[cfg(target_os = "linux")]
             {
-                ret | self.safe_dive_into(&root)
+                ret | self.safe_dive_into(&root, &meta)
             }
             #[cfg(not(target_os = "linux"))]
             {
@@ -450,23 +457,27 @@ impl ChownExecutor {
     }
 
     #[cfg(target_os = "linux")]
-    fn safe_dive_into<P: AsRef<Path>>(&self, root: P) -> i32 {
+    fn safe_dive_into<P: AsRef<Path>>(&self, root: P, meta: &Metadata) -> i32 {
         let root = root.as_ref();
 
+        // Decide from the metadata the operand was already classified with, not a
+        // fresh path stat: re-resolving the name here would follow a symlink
+        // swapped in after the classification, running the descent off-tree.
+
         // Don't traverse into symlinks if configured not to
-        if self.traverse_symlinks == TraverseSymlinks::None && root.is_symlink() {
+        if self.traverse_symlinks == TraverseSymlinks::None && meta.is_symlink() {
             return 0;
         }
 
         // Only try to traverse if the root is actually a directory
         // This matches WalkDir's behavior with min_depth(1) - if root is not a directory,
         // there are no children to traverse, so we return early with success
-        if !root.is_dir() {
+        if !meta.is_dir() {
             return 0;
         }
 
-        // Open directory with safe traversal
-        let Some(dir_fd) = self.try_open_dir(root) else {
+        // Open directory with safe traversal, pinned to that same object.
+        let Some(dir_fd) = self.try_open_dir(root, (meta.dev(), meta.ino())) else {
             return 1;
         };
 
@@ -755,10 +766,24 @@ impl ChownExecutor {
         0
     }
 
+    /// How the command-line operand itself may be opened.
+    ///
+    /// When the dereference policy says not to follow it, `O_NOFOLLOW` is what
+    /// enforces that: any test of the path beforehand can be invalidated by an
+    /// exchange before the open, whereas the kernel check cannot.
+    #[cfg(target_os = "linux")]
+    fn operand_symlink_behavior(&self) -> SymlinkBehavior {
+        if self.dereference {
+            SymlinkBehavior::Follow
+        } else {
+            SymlinkBehavior::NoFollow
+        }
+    }
+
     /// Try to open directory with error reporting
     #[cfg(target_os = "linux")]
-    fn try_open_dir(&self, path: &Path) -> Option<DirFd> {
-        DirFd::open(path, SymlinkBehavior::Follow)
+    fn try_open_dir(&self, path: &Path, expected: (u64, u64)) -> Option<DirFd> {
+        DirFd::open_checked(path, self.operand_symlink_behavior(), expected)
             .map_err(|e| {
                 if self.verbosity.level != VerbosityLevel::Silent {
                     show_error!("cannot access {}: {}", path.quote(), strip_errno(&e));
