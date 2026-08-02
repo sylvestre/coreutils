@@ -3096,4 +3096,101 @@ fn test_sort_locale_punctuation() {
     }
 }
 
+mod diagnostics {
+    use super::*;
+
+    /// Column of the caret in a report header such as `,-[ sort:1:8 ]`.
+    fn caret_column(stderr: &str) -> Option<usize> {
+        let header = stderr.lines().find(|line| line.contains("sort:1:"))?;
+        let column = header.rsplit(':').next()?;
+        column.trim_end_matches(" ]").parse().ok()
+    }
+
+    #[test]
+    fn test_snippet_points_at_the_stray_character() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["-k2.3q", "/dev/null"])
+            .fails_with_code(2);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.contains("stray character in field spec"), "{stderr}");
+        // The key is echoed back inside the option it was glued to, and the
+        // caret falls on the `q` rather than on the whole `-k2.3q`.
+        assert!(stderr.contains("-k2.3q"), "{stderr}");
+        assert_eq!(caret_column(stderr), Some(11), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_points_inside_a_detached_key() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["-k", "1.4,2w", "/dev/null"])
+            .fails_with_code(2);
+        let stderr = result.stderr_str();
+
+        // `-k 1.4,2w` puts the key in its own argument; the caret still lands on
+        // the offending character.
+        assert_eq!(caret_column(stderr), Some(14), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_points_at_a_zero_character_offset() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["-k3.0", "/dev/null"])
+            .fails_with_code(2);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.contains("character offset is zero"), "{stderr}");
+        assert_eq!(caret_column(stderr), Some(10), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_points_at_a_missing_number() {
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["-kw", "/dev/null"])
+            .fails_with_code(2)
+            .stderr_contains("invalid number at field start")
+            .stderr_contains("-kw");
+    }
+
+    #[test]
+    fn test_snippet_reports_contradicting_ordering_options() {
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["-k1hV", "/dev/null"])
+            .fails_with_code(2)
+            .stderr_contains("are incompatible")
+            .stderr_contains("-k1hV");
+    }
+
+    #[test]
+    fn test_plain_message_when_disabled() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "0")
+            .args(&["-k2.3q", "/dev/null"])
+            .fails_with_code(2);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.starts_with("sort: "), "{stderr}");
+        assert!(!stderr.contains(",-["), "{stderr}");
+    }
+
+    #[test]
+    fn test_plain_message_when_stderr_is_not_a_terminal() {
+        // No UU_DIAG at all: the test harness pipes stderr, so the report must
+        // not appear.
+        let result = new_ucmd!()
+            .args(&["-k2.3q", "/dev/null"])
+            .fails_with_code(2);
+        assert!(
+            !result.stderr_str().contains(",-["),
+            "{}",
+            result.stderr_str()
+        );
+    }
+}
+
 /* spell-checker: enable */
