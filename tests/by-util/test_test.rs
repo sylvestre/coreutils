@@ -1069,3 +1069,62 @@ fn test_unary_op_as_literal_in_three_arg_form() {
     new_ucmd!().args(&["-f", "=", "a"]).fails_with_code(1);
     new_ucmd!().args(&["-f", "=", "a", "-o", "b"]).succeeds();
 }
+
+mod diagnostics {
+    use super::*;
+
+    #[test]
+    fn test_snippet_points_at_the_offending_argument() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["7", "-eq", "zap"])
+            .fails_with_code(2);
+        let stderr = result.stderr_str();
+
+        // The expression is echoed back, with the caret column matching `zap`.
+        assert!(stderr.contains("7 -eq zap"), "{stderr}");
+        assert!(stderr.contains("1:7"), "{stderr}");
+        assert!(stderr.contains("invalid integer 'zap'"), "{stderr}");
+        // The plain `test: ` prefix is replaced by the report header.
+        assert!(!stderr.starts_with("test: "), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_suggests_the_string_operators() {
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["7", "-eq", "zap"])
+            .fails_with_code(2)
+            .stderr_contains("compare integers");
+    }
+
+    #[test]
+    fn test_plain_message_is_the_default() {
+        new_ucmd!()
+            .args(&["7", "-eq", "zap"])
+            .fails_with_code(2)
+            .stderr_is("test: invalid integer 'zap'\n");
+    }
+
+    #[test]
+    fn test_extra_argument_points_past_the_expression() {
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["k", "!=", "m", "spare"])
+            .fails_with_code(2)
+            .stderr_contains("extra argument 'spare'")
+            .stderr_contains("k != m spare");
+    }
+
+    #[test]
+    fn test_bracket_form_reports_under_its_own_name() {
+        // The trailing `]` is dropped before the expression is echoed back.
+        TestScenario::new("[")
+            .ucmd()
+            .env("UU_DIAG", "1")
+            .args(&["7", "-eq", "zap", "]"])
+            .fails_with_code(2)
+            .stderr_contains("[:1:7")
+            .stderr_contains("7 -eq zap");
+    }
+}
