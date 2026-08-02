@@ -1668,3 +1668,89 @@ fn test_stdin_is_socket() {
         .succeeds()
         .stdout_is(";;");
 }
+
+mod diagnostics {
+    use super::*;
+
+    /// Column of the caret in a report header such as `,-[ tr:1:5 ]`.
+    fn caret_column(stderr: &str) -> Option<usize> {
+        let header = stderr.lines().find(|line| line.contains("tr:1:"))?;
+        let column = header.rsplit(':').next()?;
+        column.trim_end_matches(" ]").parse().ok()
+    }
+
+    #[test]
+    fn test_snippet_points_at_the_misspelled_class() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["w[:lowre:]w", "x"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.contains("invalid character class"), "{stderr}");
+        // The caret covers `[:lowre:]` only, not the whole set.
+        assert_eq!(caret_column(stderr), Some(5), "{stderr}");
+        // The valid class names are spelled out.
+        assert!(stderr.contains("xdigit"), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_points_at_the_backwards_range() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["qw[y-b]", "x"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.contains("in reverse collating sequence"), "{stderr}");
+        // `y-b` starts at the sixth column of `tr qw[y-b] x`.
+        assert_eq!(caret_column(stderr), Some(7), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_points_at_the_repeat_count() {
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["wxy", "[z*4k]"])
+            .fails_with_code(1)
+            .stderr_contains("invalid repeat count")
+            .stderr_contains("[z*4k]");
+    }
+
+    #[test]
+    fn test_snippet_underlines_the_whole_set_when_the_set_is_at_fault() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["w[q*]", "xyz"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        // Nothing inside the set is wrong on its own, so all of it is marked.
+        assert_eq!(caret_column(stderr), Some(4), "{stderr}");
+        assert!(stderr.contains("w[q*]"), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_points_into_the_second_set() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["[:lower:]", "q[=we=]"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        // The set at fault is the second operand, not the first.
+        assert_eq!(caret_column(stderr), Some(15), "{stderr}");
+    }
+
+    #[test]
+    fn test_plain_message_when_disabled() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "0")
+            .args(&["w[:lowre:]w", "x"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.starts_with("tr: "), "{stderr}");
+        assert!(!stderr.contains(",-["), "{stderr}");
+    }
+}
