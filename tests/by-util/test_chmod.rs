@@ -1480,3 +1480,99 @@ fn test_chmod_symlink_two_links_same_dir() {
         .stdout_contains("mode of 'base/link2/file'");
     // cSpell:enable
 }
+
+mod diagnostics {
+    use super::*;
+
+    /// Column of the caret in a report header such as `,-[ chmod:1:5 ]`.
+    fn caret_column(stderr: &str) -> Option<usize> {
+        let header = stderr.lines().find(|line| line.contains("chmod:1:"))?;
+        let column = header.rsplit(':').next()?;
+        column.trim_end_matches(" ]").parse().ok()
+    }
+
+    #[test]
+    fn test_snippet_points_at_the_bad_operator() {
+        let (at, mut ucmd) = at_and_ucmd!();
+        at.touch("probe");
+
+        let result = ucmd
+            .env("UU_DIAG", "1")
+            .args(&["g+rw?x", "probe"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.contains("invalid operator"), "{stderr}");
+        // The caret lands on `?`, the fifth character of the mode.
+        assert_eq!(caret_column(stderr), Some(5), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_points_into_the_second_clause() {
+        let (at, mut ucmd) = at_and_ucmd!();
+        at.touch("probe");
+
+        let result = ucmd
+            .env("UU_DIAG", "1")
+            .args(&["o=r,ug!w", "probe"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        // Clauses are parsed one at a time, but the caret is placed in the
+        // whole mode: `!` is its seventh character.
+        assert_eq!(caret_column(stderr), Some(7), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_marks_a_clause_with_no_operator() {
+        let (at, mut ucmd) = at_and_ucmd!();
+        at.touch("probe");
+
+        let result = ucmd
+            .env("UU_DIAG", "1")
+            .args(&["go", "probe"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.contains("invalid mode"), "{stderr}");
+        assert_eq!(caret_column(stderr), Some(1), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_marks_a_non_octal_mode() {
+        let (at, mut ucmd) = at_and_ucmd!();
+        at.touch("probe");
+
+        ucmd.env("UU_DIAG", "1")
+            .args(&["779", "probe"])
+            .fails_with_code(1)
+            .stderr_contains("779");
+    }
+
+    #[test]
+    fn test_plain_message_when_disabled() {
+        let (at, mut ucmd) = at_and_ucmd!();
+        at.touch("probe");
+
+        let result = ucmd
+            .env("UU_DIAG", "0")
+            .args(&["g+rw?x", "probe"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.starts_with("chmod: "), "{stderr}");
+        assert!(!stderr.contains(",-["), "{stderr}");
+    }
+
+    #[test]
+    fn test_quiet_stays_quiet() {
+        let (at, mut ucmd) = at_and_ucmd!();
+        at.touch("probe");
+
+        // -f suppresses the message entirely, report included.
+        ucmd.env("UU_DIAG", "1")
+            .args(&["-f", "g+rw?x", "probe"])
+            .fails_with_code(1)
+            .no_output();
+    }
+}

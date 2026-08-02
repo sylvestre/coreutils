@@ -46,6 +46,8 @@ enum ChmodError {
 
 impl UError for ChmodError {}
 
+mod diagnostics;
+
 mod options {
     pub const HELP: &str = "help";
     pub const CHANGES: &str = "changes";
@@ -117,6 +119,8 @@ fn extract_negative_modes(mut args: impl uucore::Args) -> (Option<String>, Vec<O
 #[uucore::main]
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let (parsed_cmode, args) = extract_negative_modes(args.skip(1)); // skip binary name
+    // Kept for the caret in mode diagnostics, which needs the mode as typed.
+    let mode_args = uucore::diagnostics::enabled().then(|| args.clone());
     let matches = uucore::clap_localization::handle_clap_result(uu_app(), args)?;
 
     let changes = matches.get_flag(options::CHANGES);
@@ -173,6 +177,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         cmode,
         traverse_symlinks,
         dereference,
+        args: mode_args,
     };
 
     chmoder.chmod(&files)
@@ -270,6 +275,8 @@ struct Chmoder {
     cmode: Option<String>,
     traverse_symlinks: TraverseSymlinks,
     dereference: bool,
+    /// The arguments as typed, kept only when a diagnostic may be rendered.
+    args: Option<Vec<OsString>>,
 }
 
 impl Chmoder {
@@ -283,7 +290,13 @@ impl Chmoder {
             let mut new_mode = current_mode;
             let mut naively_expected_new_mode = current_mode;
 
+            // Where the clause being parsed starts inside `cmode_unwrapped`, so
+            // that an error can be pointed back at it.
+            let mut offset = 0;
             for mode in cmode_unwrapped.split(',') {
+                let clause_start = offset;
+                offset += mode.len() + 1; // past the clause and its comma
+
                 let result = if mode.chars().any(|c| c.is_ascii_digit()) {
                     mode::parse_numeric(new_mode, mode, is_dir).map(|v| (v, v))
                 } else {
@@ -301,12 +314,17 @@ impl Chmoder {
                         new_mode = mode;
                         naively_expected_new_mode = naive_mode;
                     }
-                    Err(f) => {
-                        return if self.quiet {
-                            Err(ExitCode::new(1))
-                        } else {
-                            Err(USimpleError::new(1, f.to_string()))
-                        };
+                    Err(error) => {
+                        if self.quiet {
+                            return Err(ExitCode::new(1));
+                        }
+                        if let Some(args) = &self.args
+                            && diagnostics::render(args, &cmode_unwrapped, clause_start, &error)
+                        {
+                            // The diagnostic is already on stderr; exit quietly.
+                            return Err(ExitCode::new(1));
+                        }
+                        return Err(USimpleError::new(1, error.to_string()));
                     }
                 }
             }
