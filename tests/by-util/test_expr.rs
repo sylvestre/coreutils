@@ -2039,3 +2039,82 @@ fn test_emoji_operations() {
         .succeeds()
         .stdout_only("1\n");
 }
+
+mod diagnostics {
+    use super::*;
+
+    #[test]
+    fn test_snippet_points_at_the_unexpected_argument() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["6", "+", "7", "spare"])
+            .fails_with_code(2);
+        let stderr = result.stderr_str();
+
+        assert!(
+            stderr.contains("syntax error: unexpected argument 'spare'"),
+            "{stderr}"
+        );
+        // The expression is echoed back, with the caret column matching `spare`.
+        assert!(stderr.contains("6 + 7 spare"), "{stderr}");
+        assert!(stderr.contains("1:7"), "{stderr}");
+        // The plain `expr: ` prefix is replaced by the report header.
+        assert!(!stderr.starts_with("expr: "), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_points_at_the_dangling_operator() {
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["6", "*"])
+            .fails_with_code(2)
+            .stderr_contains("1:3")
+            .stderr_contains("6 *");
+    }
+
+    #[test]
+    fn test_snippet_points_at_the_non_integer_operand() {
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["oops", "+", "4"])
+            .fails_with_code(2)
+            .stderr_contains("non-integer argument")
+            .stderr_contains("1:1")
+            .stderr_contains("compare strings");
+    }
+
+    #[test]
+    fn test_unclosed_parenthesis_points_at_the_last_operand() {
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["(", "6", "+", "7"])
+            .fails_with_code(2)
+            .stderr_contains("expecting ')' after '7'")
+            .stderr_contains("1:7");
+    }
+
+    #[test]
+    fn test_errors_without_a_position_stay_plain() {
+        // Division by zero is raised once the expression is already parsed and
+        // carries no operand, so there is nothing to point at.
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["6", "/", "0"])
+            .fails_with_code(2)
+            .stderr_is("expr: division by zero\n");
+        // An empty expression keeps its usage hint.
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .fails_with_code(2)
+            .stderr_contains("missing operand")
+            .stderr_contains("for more information");
+    }
+
+    #[test]
+    fn test_plain_message_is_the_default() {
+        new_ucmd!()
+            .args(&["6", "+", "7", "spare"])
+            .fails_with_code(2)
+            .stderr_is("expr: syntax error: unexpected argument 'spare'\n");
+    }
+}
