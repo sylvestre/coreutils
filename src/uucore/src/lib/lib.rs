@@ -44,6 +44,8 @@ pub use crate::features::buf_copy;
 pub use crate::features::checksum;
 #[cfg(feature = "colors")]
 pub use crate::features::colors;
+#[cfg(feature = "diagnostics")]
+pub use crate::features::diagnostics;
 #[cfg(feature = "encoding")]
 pub use crate::features::encoding;
 #[cfg(feature = "extendedbigdecimal")]

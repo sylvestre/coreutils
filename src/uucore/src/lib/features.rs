@@ -16,6 +16,8 @@ pub mod buf_copy;
 pub mod checksum;
 #[cfg(feature = "colors")]
 pub mod colors;
+#[cfg(feature = "diagnostics")]
+pub mod diagnostics;
 #[cfg(feature = "encoding")]
 pub mod encoding;
 #[cfg(feature = "extendedbigdecimal")]
