@@ -1698,3 +1698,87 @@ fn test_header_detached() {
         .succeeds()
         .stdout_is("1\n2\n");
 }
+
+mod diagnostics {
+    use super::*;
+
+    /// Column of the caret in a report header such as `,-[ numfmt:1:18 ]`.
+    fn caret_column(stderr: &str) -> Option<usize> {
+        let header = stderr.lines().find(|line| line.contains("numfmt:1:"))?;
+        let column = header.rsplit(':').next()?;
+        column.trim_end_matches(" ]").parse().ok()
+    }
+
+    #[test]
+    fn test_snippet_points_at_the_bad_directive() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["--format=%q", "1000"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.contains("directive must be"), "{stderr}");
+        // `numfmt --format=%q` puts `q` in the eighteenth column.
+        assert_eq!(caret_column(stderr), Some(18), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_points_at_the_stray_percent() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["--format=%f%", "1000"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.contains("too many % directives"), "{stderr}");
+        assert_eq!(caret_column(stderr), Some(19), "{stderr}");
+    }
+
+    #[test]
+    fn test_snippet_underlines_the_oversized_precision() {
+        new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["--format=%.88888888888888888888f", "1000"])
+            .fails_with_code(1)
+            .stderr_contains("invalid precision")
+            .stderr_contains("88888888888888888888");
+    }
+
+    #[test]
+    fn test_snippet_marks_a_format_without_a_directive() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["--format=qwe", "1000"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        // Nothing inside is wrong on its own, so the whole format is marked.
+        assert_eq!(caret_column(stderr), Some(17), "{stderr}");
+    }
+
+    #[test]
+    fn test_other_option_errors_keep_their_plain_message() {
+        // The format is fine; the failure is elsewhere and must not be
+        // decorated with a caret into --format.
+        let result = new_ucmd!()
+            .env("UU_DIAG", "1")
+            .args(&["--format=%f", "--padding=0", "1000"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.starts_with("numfmt: "), "{stderr}");
+        assert!(!stderr.contains(",-["), "{stderr}");
+    }
+
+    #[test]
+    fn test_plain_message_when_disabled() {
+        let result = new_ucmd!()
+            .env("UU_DIAG", "0")
+            .args(&["--format=%q", "1000"])
+            .fails_with_code(1);
+        let stderr = result.stderr_str();
+
+        assert!(stderr.starts_with("numfmt: "), "{stderr}");
+        assert!(!stderr.contains(",-["), "{stderr}");
+    }
+}
