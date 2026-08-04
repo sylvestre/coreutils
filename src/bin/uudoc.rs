@@ -3,7 +3,8 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-// spell-checker:ignore mangen tldr mandoc uppercasing uppercased manpages DESTDIR
+// spell-checker:ignore mangen tldr mandoc uppercasing uppercased manpages DESTDIR roff
+// spell-checker:ignore (manpage markup) Bcat Btest
 
 use std::{
     collections::HashMap,
@@ -92,6 +93,50 @@ fn post_process_manpage(manpage: String, date: &str) -> String {
     result
 }
 
+/// Build the ROFF for a SYNOPSIS section from a utility's usage string.
+///
+/// `clap_mangen` derives the synopsis from the argument list, which collapses
+/// utilities documented with several invocation forms (such as `ln`) into a
+/// single line, contradicting the rest of the page. Rendering the usage string
+/// instead keeps every form visible.
+fn render_synopsis_section(utility: &str, usage: &str) -> String {
+    let mut section = String::from(".SH SYNOPSIS\n");
+
+    for (i, line) in usage
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .enumerate()
+    {
+        if i > 0 {
+            section.push_str(".br\n");
+        }
+
+        // In ROFF, a backslash starts an escape sequence and a dash is a
+        // hyphen rather than the minus sign expected in option names.
+        let line = line.replace('\\', "\\e").replace('-', "\\-");
+
+        match line.strip_prefix(utility) {
+            Some(rest) => section.push_str(&format!("\\fB{utility}\\fR{rest}\n")),
+            None => section.push_str(&format!("{line}\n")),
+        }
+    }
+
+    section
+}
+
+/// Replace the SYNOPSIS section of a generated manpage with `section`.
+fn replace_synopsis_section(manpage: &str, section: &str) -> String {
+    let Some(start) = manpage.find(".SH SYNOPSIS\n") else {
+        return manpage.to_string();
+    };
+    let end = manpage[start..]
+        .find("\n.SH ")
+        .map_or(manpage.len(), |offset| start + offset + 1);
+
+    format!("{}{section}{}", &manpage[..start], &manpage[end..])
+}
+
 /// Print usage information for uudoc
 fn usage<T: Args>(utils: &UtilityMap<T>) {
     println!("uudoc - Documentation generator for uutils coreutils");
@@ -160,13 +205,29 @@ fn gen_manpage<T: Args>(
         cmd
     };
 
+    // Take the usage from the localization directly: the one stored in the
+    // command went through `format_usage`, which expanded `{}` into the phrase
+    // used to run uudoc rather than the name of the utility.
+    let usage_key = format!("{utility}-usage");
+    let usage = match get_message(&usage_key) {
+        // `get_message` echoes the key back when there is no such message
+        missing if missing == usage_key => None,
+        usage => Some(usage.replace("{}", utility)),
+    };
+
     // Generate the manpage to a buffer first so we can post-process it
     let mut buffer = Vec::new();
     let man = Man::new(command);
     man.render(&mut buffer).expect("Man page generation failed");
 
     // Convert to string for processing
-    let manpage = String::from_utf8(buffer).expect("Invalid UTF-8 in manpage");
+    let mut manpage = String::from_utf8(buffer).expect("Invalid UTF-8 in manpage");
+
+    // Prefer the utility's own usage string over the synopsis derived from the
+    // argument list, so that multi-form utilities document each of their forms
+    if let Some(usage) = usage {
+        manpage = replace_synopsis_section(&manpage, &render_synopsis_section(utility, &usage));
+    }
 
     // Post-process the manpage to fix mandoc lint issues
     let date = Zoned::now().strftime("%Y-%m-%d").to_string();
@@ -860,5 +921,68 @@ mod tests {
 
         let result = post_process_manpage(input.to_string(), "2024-01-01");
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_render_synopsis_section_single_form() {
+        let result = render_synopsis_section("cat", "cat [OPTION]... [FILE]...");
+        assert_eq!(result, ".SH SYNOPSIS\n\\fBcat\\fR [OPTION]... [FILE]...\n");
+    }
+
+    #[test]
+    fn test_render_synopsis_section_multiple_forms() {
+        // Every form of a multi-form utility must show up, separated by .br
+        let usage = "ln [OPTION]... [-T] TARGET LINK_NAME\n       ln [OPTION]... TARGET\n";
+        let result = render_synopsis_section("ln", usage);
+        assert_eq!(
+            result,
+            ".SH SYNOPSIS\n\
+             \\fBln\\fR [OPTION]... [\\-T] TARGET LINK_NAME\n\
+             .br\n\
+             \\fBln\\fR [OPTION]... TARGET\n"
+        );
+    }
+
+    #[test]
+    fn test_render_synopsis_section_escapes_backslash() {
+        let result = render_synopsis_section("test", "test \\( EXPRESSION \\)");
+        assert_eq!(result, ".SH SYNOPSIS\n\\fBtest\\fR \\e( EXPRESSION \\e)\n");
+    }
+
+    #[test]
+    fn test_render_synopsis_section_form_without_utility_name() {
+        // `test` documents forms starting with `[`, which must not be bolded as
+        // if they were the utility name
+        let result = render_synopsis_section("test", "test EXPRESSION\n[ EXPRESSION ]");
+        assert_eq!(
+            result,
+            ".SH SYNOPSIS\n\\fBtest\\fR EXPRESSION\n.br\n[ EXPRESSION ]\n"
+        );
+    }
+
+    #[test]
+    fn test_replace_synopsis_section() {
+        let manpage = ".TH LN 1\n.SH NAME\nln \\- links\n.SH SYNOPSIS\n\\fBln\\fR <files>\n.SH DESCRIPTION\nMake links\n";
+        let result = replace_synopsis_section(manpage, ".SH SYNOPSIS\nnew synopsis\n");
+        assert_eq!(
+            result,
+            ".TH LN 1\n.SH NAME\nln \\- links\n.SH SYNOPSIS\nnew synopsis\n.SH DESCRIPTION\nMake links\n"
+        );
+    }
+
+    #[test]
+    fn test_replace_synopsis_section_last_section() {
+        let manpage = ".TH LN 1\n.SH SYNOPSIS\n\\fBln\\fR <files>\n";
+        let result = replace_synopsis_section(manpage, ".SH SYNOPSIS\nnew synopsis\n");
+        assert_eq!(result, ".TH LN 1\n.SH SYNOPSIS\nnew synopsis\n");
+    }
+
+    #[test]
+    fn test_replace_synopsis_section_without_synopsis() {
+        let manpage = ".TH LN 1\n.SH NAME\nln \\- links\n";
+        assert_eq!(
+            replace_synopsis_section(manpage, ".SH SYNOPSIS\nnew\n"),
+            manpage
+        );
     }
 }
