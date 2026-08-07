@@ -292,7 +292,8 @@ sed -i -e "s/\$prog: multiple field specifications/error: the argument '--field 
 sed -i -e "s/Try 'mv --help' for more information/For more information, try '--help'/g" -e "s/mv: missing file operand/error: the following required arguments were not provided:\n  <files>...\n\nUsage: mv [OPTION]... [-T] SOURCE DEST\n       mv [OPTION]... SOURCE... DIRECTORY\n       mv [OPTION]... -t DIRECTORY SOURCE...\n/g" -e "s/mv: missing destination file operand after 'no-file'/error: The argument '<files>...' requires at least 2 values, but only 1 was provided\n\nUsage: mv [OPTION]... [-T] SOURCE DEST\n       mv [OPTION]... SOURCE... DIRECTORY\n       mv [OPTION]... -t DIRECTORY SOURCE...\n/g" tests/mv/diag.sh
 
 # our error message is better
-sed -i -e "s|mv: cannot overwrite 'a/t': Directory not empty|mv: cannot move 'b/t' to 'a/t': Directory not empty|" tests/mv/dir2dir.sh
+# The expected message is built from the ENOTEMPTY variable, so match it literally.
+sed -i -e "s|mv: cannot overwrite 'a/t': \$ENOTEMPTY|mv: cannot move 'b/t' to 'a/t': \$ENOTEMPTY|" tests/mv/dir2dir.sh
 
 # GNU doesn't support width > INT_MAX
 # disable these test cases
