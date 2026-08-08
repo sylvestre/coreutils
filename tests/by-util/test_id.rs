@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-// spell-checker:ignore (ToDO) coreutil euid rgid
+// spell-checker:ignore (ToDO) coreutil euid egid rgid
 
 use std::process::{Command, Stdio};
 use uutests::new_ucmd;
@@ -552,4 +552,39 @@ fn test_id_digital_username() {
     }
 
     new_ucmd!().arg("200").succeeds();
+}
+
+/// Test that `id` uses the effective GID (egid) rather than the real GID (gid)
+/// when building the groups list, matching GNU coreutils behaviour.
+///
+/// Regression test for https://github.com/uutils/coreutils/issues/10006
+/// Fixed by https://github.com/uutils/coreutils/pull/10706
+///
+/// When a process has a different real GID and effective GID (e.g. via setpriv
+/// or a setgid binary), GNU id includes the egid in the groups list, not the
+/// real gid. This test verifies that the `groups=` field in the default output
+/// contains the effective GID.
+#[test]
+#[cfg(unix)]
+fn test_id_groups_uses_effective_gid() {
+    let egid = rustix::process::getegid().as_raw();
+    let output = new_ucmd!().succeeds();
+    let stdout = output.stdout_str();
+
+    // The groups= field must contain the effective GID.
+    // Example output: uid=1000(user) gid=1000(user) groups=1000(user),4(adm)
+    let groups_part = stdout
+        .split("groups=")
+        .nth(1)
+        .expect("output should contain 'groups='");
+
+    let group_ids: Vec<u32> = groups_part
+        .split(',')
+        .filter_map(|g| g.split('(').next()?.trim().parse().ok())
+        .collect();
+
+    assert!(
+        group_ids.contains(&egid),
+        "groups list {groups_part:?} should contain the effective GID {egid}"
+    );
 }
