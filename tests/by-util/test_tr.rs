@@ -1584,6 +1584,21 @@ fn test_multibyte_octal_sequence() {
 }
 
 #[test]
+fn test_octal_warning_still_fires_after_a_bad_sequence() {
+    // The set fails on the character class, but the ambiguous octal escape
+    // after it must still be warned about: the whole set is parsed even when
+    // an earlier sequence is bad.
+    new_ucmd!()
+        .args(&[r"[:foo:]\400", "y"])
+        .pipe_in("x")
+        .fails()
+        .stderr_is(
+            "tr: warning: the ambiguous octal escape \\400 is being interpreted as the 2-byte sequence \\040, 0\n\
+             tr: invalid character class 'foo'\n",
+        );
+}
+
+#[test]
 fn test_backwards_range() {
     new_ucmd!()
         .args(&["-d", r"\046-\048"])
