@@ -2040,6 +2040,7 @@ fn test_emoji_operations() {
         .stdout_only("1\n");
 }
 
+#[cfg(feature = "feat_diagnostics")]
 mod diagnostics {
     use super::*;
     #[cfg(unix)]

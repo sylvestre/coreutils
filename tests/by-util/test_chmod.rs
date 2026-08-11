@@ -1691,6 +1691,7 @@ fn test_chmod_symlink_two_links_same_dir() {
     // cSpell:enable
 }
 
+#[cfg(feature = "feat_diagnostics")]
 mod diagnostics {
     use super::*;
     #[cfg(unix)]

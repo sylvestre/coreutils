@@ -19,7 +19,6 @@ doctest = false
 [dependencies]
 clap = { workspace = true }
 uucore = { workspace = true, features = [
-  "diagnostics",
   "fs",
   "fsxattr",
   "mode",
@@ -30,6 +29,7 @@ fluent = { workspace = true }
 rustix = { workspace = true, features = ["process", "fs"] }
 
 [features]
+diagnostics = ["uucore/diagnostics"]
 selinux = ["uucore/selinux"]
 smack = ["uucore/smack"]
 

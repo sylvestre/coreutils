@@ -1586,6 +1586,7 @@ fn test_empty_output_succeeds_on_full_device() {
         .no_output();
 }
 
+#[cfg(feature = "feat_diagnostics")]
 mod diagnostics {
     use uutests::new_ucmd;
 

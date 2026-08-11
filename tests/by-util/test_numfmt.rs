@@ -1698,6 +1698,7 @@ fn test_header_detached() {
         .stdout_is("1\n2\n");
 }
 
+#[cfg(feature = "feat_diagnostics")]
 mod diagnostics {
     use super::*;
 

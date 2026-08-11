@@ -3073,6 +3073,7 @@ fn test_install_backup_custom_suffix_refuses() {
 
 // The mode is only parsed where a mode means something.
 #[cfg(unix)]
+#[cfg(feature = "feat_diagnostics")]
 mod diagnostics {
     use super::*;
     #[test]

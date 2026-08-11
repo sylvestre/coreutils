@@ -1685,6 +1685,7 @@ fn test_stdin_is_socket() {
         .stdout_is(";;");
 }
 
+#[cfg(feature = "feat_diagnostics")]
 mod diagnostics {
     use super::*;
 

@@ -22,7 +22,6 @@ thiserror = { workspace = true }
 uucore = { workspace = true, default-features = true, features = [
   "backup-control",
   "buf-copy",
-  "diagnostics",
   "fs",
   "mode",
   "perms",
@@ -36,6 +35,7 @@ rustix = { workspace = true }
 selinux = { workspace = true, optional = true }
 
 [features]
+diagnostics = ["uucore/diagnostics"]
 selinux = ["dep:selinux", "uucore/selinux"]
 
 [lints]

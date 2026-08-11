@@ -3190,6 +3190,7 @@ fn test_sort_locale_punctuation() {
     }
 }
 
+#[cfg(feature = "feat_diagnostics")]
 mod diagnostics {
     use super::*;
 
