@@ -100,7 +100,7 @@ format-error-write = erreur d'écriture : { $error }
 format-error-no-more-arguments = plus d'arguments
 format-error-invalid-argument = argument invalide
 format-error-missing-hex = nombre hexadécimal manquant dans l'échappement
-format-error-invalid-universal-character = nom de caractère universel invalide \{ $escape }{ $digits }
+format-error-invalid-universal-character = nom de caractère universel invalide {"\\"}{ $escape }{ $digits }
 
 # Le mot en tête de la ligne de conseil d'un rapport avec caret
 diagnostics-help-label = Aide{" "}

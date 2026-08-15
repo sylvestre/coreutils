@@ -146,7 +146,7 @@ impl UError for BadSequence {}
 /// A [`BadSequence`] together with where it was written.
 ///
 /// A set is a small language of its own, so naming the set and the sequence
-/// inside it says far more than the message alone: `[:alpah:]` and `[a-Z]` are
+/// inside it says far more than the message alone: `[:alpha:]` and `[a-Z]` are
 /// both "in SET1", but only one character of each is actually wrong.
 #[derive(Debug, Clone)]
 pub struct SequenceError {

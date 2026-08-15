@@ -106,7 +106,7 @@ format-error-write = write error: { $error }
 format-error-no-more-arguments = no more arguments
 format-error-invalid-argument = invalid argument
 format-error-missing-hex = missing hexadecimal number in escape
-format-error-invalid-universal-character = invalid universal character name \{ $escape }{ $digits }
+format-error-invalid-universal-character = invalid universal character name {"\\"}{ $escape }{ $digits }
 
 # The word ariadne heads the advice line of a caret report with
 diagnostics-help-label = Help
