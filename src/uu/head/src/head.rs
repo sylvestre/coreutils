@@ -83,8 +83,8 @@ impl Default for Mode {
 /// The message is built where it always was; the rest is what a caret needs:
 /// the value as typed, the option it was given to, and what the size parser
 /// made of it.
-pub struct SizeError {
-    pub message: String,
+pub(crate) struct SizeError {
+    pub(crate) message: String,
     value: String,
     short: char,
     long: &'static str,
