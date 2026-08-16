@@ -301,7 +301,6 @@ fn test_random_source_dir() {
 
 #[test]
 fn test_shred_rename_exhaustion() {
-    // GNU: tests/shred/shred-remove.sh
     let scene = TestScenario::new(util_name!());
     let at = &scene.fixtures;
 

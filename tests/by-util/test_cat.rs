@@ -650,9 +650,8 @@ fn test_write_to_self() {
     );
 }
 
-/// Test derived from the following GNU test in `tests/cat/cat-self.sh`:
-///
-/// `cat fxy2 fy 1<>fxy2`
+/// When a file is opened read-write as stdout and also listed as an input,
+/// cat should merge the contents correctly without detecting a self-conflict.
 // TODO: make this work on windows
 #[test]
 #[cfg(unix)]
@@ -675,9 +674,8 @@ fn test_successful_write_to_read_write_self() {
     assert_eq!(fxy2_contents, "xy");
 }
 
-/// Test derived from the following GNU test in `tests/cat/cat-self.sh`:
-///
-/// `cat fx fx3 1<>fx3`
+/// When a file is opened read-write as stdout and listed as a later input argument,
+/// cat should detect the input/output conflict and report an error.
 #[test]
 fn test_failed_write_to_read_write_self() {
     let (at, mut ucmd) = at_and_ucmd!();

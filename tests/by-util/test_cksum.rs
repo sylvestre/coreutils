@@ -2195,8 +2195,8 @@ fn test_check_incorrectly_formatted_checksum_keeps_processing_hex() {
         .stderr_contains("cksum: WARNING: 1 line is improperly formatted");
 }
 
-/// This module reimplements the cksum-base64.pl GNU test.
-mod gnu_cksum_base64 {
+/// Tests for cksum base64 encoding behavior.
+mod cksum_base64 {
     use super::*;
     use uutests::util::log_info;
 
@@ -2342,8 +2342,8 @@ mod gnu_cksum_base64 {
     }
 }
 
-/// This module reimplements the cksum-base64-untagged.sh GNU test.
-mod gnu_cksum_base64_untagged {
+/// Tests for cksum base64 output without algorithm tags.
+mod cksum_base64_untagged {
     use super::*;
 
     macro_rules! decl_sha_test {
@@ -2455,8 +2455,8 @@ mod gnu_cksum_base64_untagged {
     decl_blake_test!(blake2b_504, 504);
     decl_blake_test!(blake2b_512, 512);
 }
-/// This module reimplements the cksum-c.sh GNU test.
-mod gnu_cksum_c {
+/// Tests for cksum check-mode (-c) behavior.
+mod cksum_check {
     use super::*;
 
     const INVALID_SUM: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaafdb57c725157cb40b5aee8d937b8351477e";

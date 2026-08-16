@@ -1136,8 +1136,8 @@ fn test_rm_recursive_long_path_safe_traversal() {
 #[cfg(all(not(windows), feature = "chmod"))]
 #[test]
 fn test_rm_directory_not_executable() {
-    // Test from GNU rm/rm2.sh
-    // Exercise code paths when directories have no execute permission
+    // Removing a directory tree when a subdirectory has no execute permission
+    // should fail for inaccessible paths but succeed for others.
     let scene = TestScenario::new(util_name!());
     let at = &scene.fixtures;
 
@@ -1176,8 +1176,8 @@ fn test_rm_directory_not_executable() {
 #[cfg(all(not(windows), feature = "chmod"))]
 #[test]
 fn test_rm_directory_not_writable() {
-    // Test from GNU rm/rm1.sh
-    // Exercise code paths when directories have no write permission
+    // Removing a directory tree when a subdirectory has no write permission
+    // should fail for inaccessible paths and not produce spurious extra errors.
     let scene = TestScenario::new(util_name!());
     let at = &scene.fixtures;
 

@@ -1146,7 +1146,7 @@ fn test_invalid_utf8_suffix() {
     let (at, mut ucmd) = at_and_ucmd!();
 
     // Create invalid UTF-8 bytes for suffix
-    // This mimics the GNU test which tests mktemp with bad unicode characters
+    // Test mktemp with non-UTF-8 byte sequences in the suffix.
     let invalid_utf8 = std::ffi::OsStr::from_bytes(b"\xC3|\xED\xBA\xAD");
 
     // Test that mktemp handles invalid UTF-8 in suffix gracefully

@@ -1593,7 +1593,6 @@ fn test_install_missing_destination() {
 
 #[test]
 fn test_install_dir_dot() {
-    // To match tests/install/d-slashdot.sh
     let scene = TestScenario::new(util_name!());
 
     scene.ucmd().arg("-d").arg("dir1/.").succeeds();

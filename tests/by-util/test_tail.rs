@@ -169,8 +169,6 @@ fn test_stdin_redirect_file_follow() {
 #[test]
 #[cfg(not(target_vendor = "apple"))] // FIXME: for currently not working platforms
 fn test_stdin_redirect_offset() {
-    // inspired by: "gnu/tests/tail-2/start-middle.sh"
-
     let (at, mut ucmd) = at_and_ucmd!();
 
     at.write("k", "1\n2\n");
@@ -468,7 +466,6 @@ fn test_follow_stdin_name_retry() {
 #[test]
 fn test_follow_bad_fd() {
     // Provoke a "bad file descriptor" error by closing the fd
-    // inspired by: "gnu/tests/tail-2/follow-stdin.sh"
 
     // `$ tail -f <&-` OR `$ tail -f - <&-`
     // tail: cannot fstat 'standard input': Bad file descriptor
@@ -1301,7 +1298,6 @@ fn test_num_with_undocumented_sign_bytes() {
 #[test]
 #[cfg(unix)]
 fn test_bytes_for_funny_unix_files() {
-    // inspired by: gnu/tests/tail-2/tail-c.sh
     let ts = TestScenario::new(util_name!());
     let at = &ts.fixtures;
     for file in ["/proc/version", "/sys/kernel/profiling"] {
@@ -1319,7 +1315,6 @@ fn test_bytes_for_funny_unix_files() {
 
 #[test]
 fn test_retry1() {
-    // inspired by: gnu/tests/tail-2/retry.sh
     // Ensure --retry without --follow results in a warning.
 
     let ts = TestScenario::new(util_name!());
@@ -1337,7 +1332,6 @@ fn test_retry1() {
 
 #[test]
 fn test_retry2() {
-    // inspired by: gnu/tests/tail-2/retry.sh
     // The same as test_retry2 with a missing file: expect error message and exit 1.
 
     let ts = TestScenario::new(util_name!());
@@ -1362,7 +1356,6 @@ fn test_retry2() {
     not(target_os = "openbsd")
 ))] // FIXME: for currently not working platforms
 fn test_retry3() {
-    // inspired by: gnu/tests/tail-2/retry.sh
     // Ensure that `tail --retry --follow=name` waits for the file to appear.
 
     let ts = TestScenario::new(util_name!());
@@ -1407,7 +1400,6 @@ fn test_retry3() {
     not(target_os = "openbsd")
 ))] // FIXME: for currently not working platforms
 fn test_retry4() {
-    // inspired by: gnu/tests/tail-2/retry.sh
     // Ensure that `tail --retry --follow=descriptor` waits for the file to appear.
     // Ensure truncation is detected.
 
@@ -1465,7 +1457,6 @@ fn test_retry4() {
     not(target_os = "openbsd")
 ))] // FIXME: for currently not working platforms
 fn test_retry5() {
-    // inspired by: gnu/tests/tail-2/retry.sh
     // Ensure that `tail --follow=descriptor --retry` exits when the file appears untailable.
 
     let ts = TestScenario::new(util_name!());
@@ -1506,7 +1497,6 @@ fn test_retry5() {
 #[test]
 #[cfg(all(not(target_os = "windows"), not(target_os = "android")))] // FIXME: for currently not working platforms
 fn test_retry6() {
-    // inspired by: gnu/tests/tail-2/retry.sh
     // Ensure that --follow=descriptor (without --retry) does *not* try
     // to open a file after an initial fail, even when there are other tailable files.
 
@@ -1555,7 +1545,6 @@ fn test_retry6() {
     not(target_os = "openbsd")
 ))] // FIXME: for currently not working platforms
 fn test_retry7() {
-    // inspired by: gnu/tests/tail-2/retry.sh
     // Ensure that `tail -F` retries when the file is initially untailable.
 
     let ts = TestScenario::new(util_name!());
@@ -1699,7 +1688,6 @@ fn test_retry8() {
     not(target_os = "openbsd")
 ))] // FIXME: for currently not working platforms
 fn test_retry9() {
-    // inspired by: gnu/tests/tail-2/inotify-dir-recreate.sh
     // Ensure that inotify will switch to polling mode if directory
     // of the watched file was removed and recreated.
 
@@ -1781,7 +1769,6 @@ fn test_retry9() {
     not(target_os = "openbsd")
 ))] // FIXME: for currently not working platforms
 fn test_follow_descriptor_vs_rename1() {
-    // inspired by: gnu/tests/tail-2/descriptor-vs-rename.sh
     // $ ((rm -f A && touch A && sleep 1 && echo -n "A\n" >> A && sleep 1 && \
     // mv A B && sleep 1 && echo -n "B\n" >> B &)>/dev/null 2>&1 &) ; \
     // sleep 1 && target/debug/tail --follow=descriptor A ---disable-inotify
@@ -1898,7 +1885,6 @@ fn test_follow_descriptor_vs_rename2() {
     not(target_os = "openbsd")
 ))] // FIXME: for currently not working platforms
 fn test_follow_name_retry_headers() {
-    // inspired by: "gnu/tests/tail-2/F-headers.sh"
     // Ensure tail -F distinguishes output with the
     // correct headers for created/renamed files
 
@@ -2183,7 +2169,6 @@ fn test_follow_name_truncate4() {
 #[test]
 #[cfg(not(target_os = "windows"))] // FIXME: for currently not working platforms
 fn test_follow_truncate_fast() {
-    // inspired by: "gnu/tests/tail-2/truncate.sh"
     // Ensure all logs are output upon file truncation
 
     // This is similar to `test_follow_name_truncate1-3` but uses very short delays
@@ -2293,7 +2278,6 @@ fn test_follow_name_move_create1() {
     not(target_os = "openbsd")
 ))] // FIXME: for currently not working platforms
 fn test_follow_name_move_create2() {
-    // inspired by: "gnu/tests/tail-2/inotify-hash-abuse.sh"
     // Exercise an abort-inducing flaw in inotify-enabled tail -F
 
     let ts = TestScenario::new(util_name!());
@@ -2334,7 +2318,6 @@ fn test_follow_name_move_create2() {
         at.truncate("1", "a\n");
         p.delay(delay);
 
-        // NOTE: Because "gnu/tests/tail-2/inotify-hash-abuse.sh" 'forgets' to clear the files used
         // during the first loop iteration, we also don't clear them to get the same side-effects.
         // Side-effects are truncating a file with the same content, see: test_follow_name_truncate4
         // at.remove("1");
@@ -2583,7 +2566,6 @@ fn test_follow_name_move_retry1() {
     not(target_os = "openbsd")
 ))] // FIXME: for currently not working platforms
 fn test_follow_name_move_retry2() {
-    // inspired by: "gnu/tests/tail-2/F-vs-rename.sh"
     // Similar to test_follow_name_move2 (move to a name that's already monitored)
     // but with `--retry` (`-F`)
 
@@ -2683,7 +2665,6 @@ fn test_follow_name_move_retry2() {
 #[test]
 #[cfg(not(target_os = "windows"))] // FIXME: for currently not working platforms
 fn test_follow_inotify_only_regular() {
-    // The GNU test inotify-only-regular.sh uses strace to ensure that `tail -f`
     // doesn't make inotify syscalls and only uses inotify for regular files or fifos.
     // We just check if tailing a character device has the same behavior as GNU's tail.
 

@@ -1665,7 +1665,6 @@ fn test_failed_write_is_reported() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort.pl "o2"
 fn test_multiple_output_files() {
     new_ucmd!()
         .args(&["-o", "foo", "-o", "bar"])
@@ -1674,7 +1673,6 @@ fn test_multiple_output_files() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort.pl "o3"
 fn test_duplicate_output_files_allowed() {
     new_ucmd!()
         .args(&["-o", "foo", "-o", "foo"])
@@ -1707,7 +1705,6 @@ fn test_output_file_with_leading_dash() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "f-extra-arg"
 fn test_files0_from_extra_arg() {
     new_ucmd!()
         .args(&["--files0-from", "-", "foo"])
@@ -1719,7 +1716,6 @@ fn test_files0_from_extra_arg() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "missing"
 fn test_files0_from_missing() {
     new_ucmd!()
         .args(&["--files0-from", "missing_file"])
@@ -1733,7 +1729,6 @@ fn test_files0_from_missing() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "minus-in-stdin"
 fn test_files0_from_minus_in_stdin() {
     new_ucmd!()
         .args(&["--files0-from", "-"])
@@ -1745,7 +1740,6 @@ fn test_files0_from_minus_in_stdin() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "empty"
 fn test_files0_from_empty() {
     let (at, mut ucmd) = at_and_ucmd!();
 
@@ -1767,7 +1761,6 @@ fn test_files0_read_error() {
 
 #[cfg(target_os = "linux")]
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "empty-non-regular"
 fn test_files0_from_empty_non_regular() {
     new_ucmd!()
         .args(&["--files0-from", "/dev/null"])
@@ -1776,7 +1769,6 @@ fn test_files0_from_empty_non_regular() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "nul-1"
 fn test_files0_from_nul() {
     new_ucmd!()
         .args(&["--files0-from", "-"])
@@ -1786,7 +1778,6 @@ fn test_files0_from_nul() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "nul-2"
 fn test_files0_from_nul2() {
     new_ucmd!()
         .args(&["--files0-from", "-"])
@@ -1796,7 +1787,6 @@ fn test_files0_from_nul2() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "1"
 fn test_files0_from_1() {
     let (at, mut ucmd) = at_and_ucmd!();
 
@@ -1810,7 +1800,6 @@ fn test_files0_from_1() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "1a"
 fn test_files0_from_1a() {
     let (at, mut ucmd) = at_and_ucmd!();
 
@@ -1824,7 +1813,6 @@ fn test_files0_from_1a() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "2"
 fn test_files0_from_2() {
     let (at, mut ucmd) = at_and_ucmd!();
 
@@ -1838,7 +1826,6 @@ fn test_files0_from_2() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "2a"
 fn test_files0_from_2a() {
     let (at, mut ucmd) = at_and_ucmd!();
 
@@ -1852,7 +1839,6 @@ fn test_files0_from_2a() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-files0-from.pl "zero-len"
 fn test_files0_from_zero_length() {
     new_ucmd!()
         .args(&["--files0-from", "-"])
@@ -1862,7 +1848,6 @@ fn test_files0_from_zero_length() {
 }
 
 #[test]
-// Test for GNU tests/sort/sort-float.sh
 fn test_g_float() {
     let input = "0\n-3.3621031431120935063e-4932\n3.3621031431120935063e-4932\n";
     let output = "-3.3621031431120935063e-4932\n0\n3.3621031431120935063e-4932\n";

@@ -2196,7 +2196,7 @@ mod inter_partition_copying {
         );
     }
 
-    // Test the exact GNU test scenario: hardlinks within directories being moved
+    // Moving a directory containing hardlinks should preserve them correctly.
     #[test]
     #[cfg(unix)]
     pub(crate) fn test_mv_preserves_hardlinks_in_directories_across_partitions() {
@@ -2596,7 +2596,7 @@ fn test_special_file_different_filesystem() {
 }
 
 /// Test cross-device move with permission denied error
-/// This test mimics the scenario from the GNU part-fail test where
+/// When a rename fails partway through a multi-file move, already-moved
 /// Cross-device move into a read-only destination directory must fail when
 /// creating a new destination file there. (mv into an existing writable file
 /// in a read-only dir now succeeds in place — matching GNU — because #10015

@@ -1880,7 +1880,7 @@ fn test_date_input_hhmm_ampm() {
 #[ignore = "https://github.com/uutils/parse_datetime/issues/281 — GNU date re-zones input with trailing TZ abbreviation (e.g. `2024-01-01 EST`) into the local TZ; uutils keeps the input TZ on output."]
 fn test_date_input_trailing_tz_abbrev_rezones() {
     // `TZ=UTC+1 date -d '2024-01-01 EST'` should display the instant in UTC+1
-    // (GNU: 04:00:00 UTC), not leave it in EST (uutils: 00:00:00 -05).
+    // Expected: 04:00:00 UTC (convert EST to UTC), not leave it in EST.
     new_ucmd!()
         .env("LC_ALL", "C")
         .env("TZ", "UTC+1")
@@ -1917,7 +1917,7 @@ fn test_date_strftime_n_width_and_flags() {
         .succeeds()
         .stdout_is("0  \n");
     // `%-N` (no-padding flag) should still output the full 9-digit default.
-    // GNU: `000000000`; uutils: `0`.
+    // Expected nanoseconds: "000000000" (zero-padded).
     new_ucmd!()
         .env("LC_ALL", "C")
         .env("TZ", "UTC")
@@ -1961,7 +1961,7 @@ fn test_date_strftime_o_modifier() {
 #[test]
 #[ignore = "https://github.com/uutils/parse_datetime/issues/280 — GNU date accepts bare timezone abbreviations (UT, GMT, ...) meaning `now in that TZ`; parse_datetime rejects them."]
 fn test_date_bare_timezone_abbreviation() {
-    // GNU: `date -d ut`, `date -d UT`, `date -d gmt` → current time in UTC.
+    // "ut", "UT", "gmt" should all be interpreted as UTC timezone aliases.
     // uutils: "invalid date" error.
     for input in ["ut", "UT", "gmt", "GMT"] {
         new_ucmd!()
@@ -2369,11 +2369,11 @@ fn test_date_write_error_dev_full() {
         .stderr_contains("write error");
 }
 
-// Tests for GNU test leap-1: leap year overflow in date arithmetic
+// Leap year arithmetic: adding years to Feb 29 overflows to March 1
+// when the target year has no leap day.
 #[test]
-fn test_date_leap1_leap_year_overflow() {
-    // GNU test leap-1: Adding years to Feb 29 should overflow to March 1
-    // if target year is not a leap year
+fn test_date_leap_year_overflow() {
+    // Feb 29 + 1 year: target 1997 is not a leap year, overflows to March 1
     new_ucmd!()
         .args(&["--date", "02/29/1996 1 year", "+%Y-%m-%d"])
         .succeeds()
@@ -2392,10 +2392,10 @@ fn test_date_leap1_leap_year_overflow() {
         .stdout_is("2000-02-29\n");
 }
 
-// Tests for GNU test rel-2b: month arithmetic precision
+// Month arithmetic: subtracting months should maintain the same day of month.
 #[test]
-fn test_date_rel2b_month_arithmetic() {
-    // GNU test rel-2b: Subtracting months should maintain same day of month
+fn test_date_month_arithmetic() {
+    // 7 months before 1997-01-19 should be 1996-06-19
     new_ucmd!()
         .args(&[
             "--date",
@@ -2412,11 +2412,11 @@ fn test_date_rel2b_month_arithmetic() {
         .stdout_is("1996-03-02\n");
 }
 
-// Tests for GNU test cross-TZ-mishandled: embedded timezone parsing
+// Embedded timezone: TZ=EST5 prefix in date string is interpreted in that
+// zone, then the result is converted to the environment timezone (PST8).
 #[test]
-fn test_date_cross_tz_mishandled() {
-    // GNU test cross-TZ-mishandled: Parse date with embedded timezone
-    // Date should be interpreted in embedded TZ, then displayed in environment TZ
+fn test_date_embedded_timezone() {
+    // 1970-01-01 00:00 EST5 = 1969-12-31 21:00 PST8
     new_ucmd!()
         .env("TZ", "PST8")
         .env("LC_ALL", "C")
@@ -2427,14 +2427,14 @@ fn test_date_cross_tz_mishandled() {
         .stdout_contains("1969");
 }
 
-// Tests for GNU test invalid-high-bit-set: invalid UTF-8 in date string
+// Non-UTF-8 bytes in date strings should be rejected with an octal-escaped
+// representation of the offending byte in the error message.
 #[test]
 #[cfg(unix)]
-fn test_date_invalid_high_bit_set() {
+fn test_date_invalid_non_utf8_byte() {
     use std::os::unix::ffi::OsStrExt;
 
-    // GNU test invalid-high-bit-set: Invalid UTF-8 byte (0xb0) should produce
-    // GNU-compatible error message with octal escape sequence
+    // Byte 0xb0 is invalid UTF-8; error should show the octal escape °
     let invalid_bytes = b"\xb0";
     let invalid_arg = std::ffi::OsStr::from_bytes(invalid_bytes);
 

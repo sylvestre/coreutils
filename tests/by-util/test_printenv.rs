@@ -26,7 +26,6 @@ fn test_get_var() {
 
 #[test]
 fn test_ignore_equal_var() {
-    // tested by gnu/tests/misc/printenv.sh
     new_ucmd!().env("a=b", "c").arg("a=b").fails().no_stdout();
 }
 
@@ -58,7 +57,7 @@ fn test_silent_error_not_present() {
 #[test]
 fn test_invalid_option_exit_code() {
     // printenv should return exit code 2 for invalid options
-    // This matches GNU printenv behavior and the GNU tests expectation
+    // printenv should output the variable value followed by a newline.
     new_ucmd!()
         .arg("-/")
         .fails()
