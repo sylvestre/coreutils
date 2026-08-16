@@ -426,11 +426,18 @@ pub fn get_backup_path<S: AsRef<OsStr>>(
     backup_path: &Path,
     suffix: S,
 ) -> Option<PathBuf> {
+    // GNU fallback: empty suffix behaves like the default '~' for simple backups
+    let suffix = suffix.as_ref();
+    let effective_suffix: &OsStr = if suffix.is_empty() {
+        OsStr::new(DEFAULT_BACKUP_SUFFIX)
+    } else {
+        suffix
+    };
     match backup_mode {
         BackupMode::None => None,
-        BackupMode::Simple => Some(simple_backup_path(backup_path, suffix.as_ref())),
+        BackupMode::Simple => Some(simple_backup_path(backup_path, effective_suffix)),
         BackupMode::Numbered => Some(numbered_backup_path(backup_path)),
-        BackupMode::Existing => Some(existing_backup_path(backup_path, suffix.as_ref())),
+        BackupMode::Existing => Some(existing_backup_path(backup_path, effective_suffix)),
     }
 }
 
@@ -730,6 +737,21 @@ mod tests {
             simple_backup_path(Path::new("/hello/world/"), ".bak"),
             PathBuf::from("/hello/world.bak")
         );
+    }
+
+    #[test]
+    fn test_get_backup_path_empty_suffix_fallback() {
+        // GNU behavior: empty suffix falls back to DEFAULT_BACKUP_SUFFIX (~)
+        let path = Path::new("/tmp/file");
+        let result = get_backup_path(BackupMode::Simple, path, "");
+        assert_eq!(result, Some(PathBuf::from("/tmp/file~")));
+
+        let result = get_backup_path(BackupMode::Existing, path, "");
+        assert_eq!(result, Some(PathBuf::from("/tmp/file~")));
+
+        // Non-empty suffix should still work as before
+        let result = get_backup_path(BackupMode::Simple, path, ".bak");
+        assert_eq!(result, Some(PathBuf::from("/tmp/file.bak")));
     }
 
     #[test]
