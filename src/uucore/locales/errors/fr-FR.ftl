@@ -54,3 +54,6 @@ size-diag-help-syntax = une taille est un nombre suivi d'une unité facultative 
 # compte, donc chaque utilitaire le dit avec ses propres mots.
 range-diag-label-too-large = ce nombre est trop grand
 range-diag-label-inverted = cet intervalle se termine avant de commencer
+
+# Rappel de syntaxe partagé pour les listes. Chaque utilitaire ajoute son propre exemple.
+range-diag-help-list-syntax = une liste s'écrit N, N-M, N- ou -M, séparés par des virgules

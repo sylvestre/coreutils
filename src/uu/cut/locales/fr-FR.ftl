@@ -126,4 +126,4 @@ cut-error-position-too-large = le décalage d'octet/caractère { $value } est tr
 
 # Étiquettes de diagnostic : ce que le caret désigne dans une liste d'intervalles
 cut-diag-label-zero-bound = le décompte commence à 1
-cut-diag-help-list-syntax = une liste s'écrit N, N-M, N- ou -M, séparés par des virgules, comme -f1,4-6,9-
+cut-diag-help-list-syntax = { range-diag-help-list-syntax }, comme -f1,4-6,9-

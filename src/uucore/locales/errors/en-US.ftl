@@ -54,3 +54,6 @@ size-diag-help-syntax = a size is a number and an optional unit: K, M, G and so 
 # in its own words.
 range-diag-label-too-large = this number is too large
 range-diag-label-inverted = this range ends before it starts
+
+# Shared syntax reminder for range lists. Each utility appends its own example.
+range-diag-help-list-syntax = a list is N, N-M, N- or -M, separated by commas
