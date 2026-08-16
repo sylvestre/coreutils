@@ -126,4 +126,5 @@ cut-error-position-too-large = byte/character offset { $value } is too large
 
 # Diagnostic labels: what the caret points at in a list of ranges
 cut-diag-label-zero-bound = counting starts at 1
-cut-diag-help-list-syntax = { range-diag-help-list-syntax }, as in -f1,4-6,9-
+# Intentionally mirrors range-diag-help-list-syntax in uucore/locales/errors.
+cut-diag-help-list-syntax = a list is N, N-M, N- or -M, separated by commas, as in -f1,4-6,9-
