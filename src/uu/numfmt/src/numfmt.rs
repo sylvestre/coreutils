@@ -408,12 +408,18 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         }
         // As for a format, a field list knows which of its ranges is at fault.
         Err(ParseError::Field(error)) => {
-            let reported = format_args
-                .as_ref()
-                .zip(matches.get_one::<String>(FIELD))
-                .is_some_and(|(args, fields)| diagnostics::render_field(args, fields, &error));
-            return Err(quiet_if_reported(
-                reported,
+            let diag_args = format_args.as_deref();
+            let fields = matches
+                .get_one::<String>(FIELD)
+                .map(String::as_str)
+                .unwrap_or_default();
+            return Err(error.clone().range_value_error(
+                diag_args,
+                fields,
+                None,
+                Some(FIELD),
+                &translate!("numfmt-diag-label-zero-field"),
+                &translate!("numfmt-diag-help-field-syntax"),
                 NumfmtError::IllegalArgument(error.message),
             ));
         }

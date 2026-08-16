@@ -137,6 +137,33 @@ impl RangeError {
             Some(help),
         )
     }
+
+    /// Render a caret diagnostic and wrap the fallback error in one step.
+    ///
+    /// Combines [] with
+    /// [] the same way
+    /// []
+    /// does for size errors, so callers do not repeat the pattern.
+    ///
+    /// # Returns
+    ///
+    /// A boxed [] that is silent when the caret was drawn
+    /// and carries  otherwise.
+    pub fn range_value_error(
+        &self,
+        diag_args: Option<&[std::ffi::OsString]>,
+        list: &str,
+        short: Option<char>,
+        long: Option<&str>,
+        zero_bound: &str,
+        help: &str,
+        error: impl Into<Box<dyn crate::error::UError>>,
+    ) -> Box<dyn crate::error::UError> {
+        let reported = diag_args.is_some_and(|args| {
+            self.render_option_value(args, list, short, long, zero_bound, help)
+        });
+        crate::error::quiet_if_reported(reported, error)
+    }
 }
 
 /// One range that does not parse, located inside the item it was read from.
