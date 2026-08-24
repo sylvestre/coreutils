@@ -7107,6 +7107,46 @@ fn test_cp_preserve_xattr_readonly_source() {
     );
 }
 
+/// A destination we cannot read must still be copyable with `--preserve=xattr`:
+/// the descriptor we pin it with is only there to keep chmod(2) off the path.
+#[test]
+#[cfg(all(unix, not(target_os = "android")))]
+fn test_cp_preserve_xattr_write_only_dest() {
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    at.write("src", "new");
+    at.write("dst", "old");
+    at.set_mode("dst", 0o200);
+
+    ucmd.args(&["--preserve=xattr", "src", "dst"])
+        .succeeds()
+        .no_output();
+
+    at.set_mode("dst", 0o600);
+    assert_eq!(at.read("dst"), "new");
+}
+
+/// Preserving xattrs must not reopen a FIFO source: the contents have already
+/// been copied, so a second blocking open(2) would hang until a new writer
+/// appeared.
+#[test]
+#[cfg(all(unix, not(target_os = "android")))]
+fn test_cp_preserve_xattr_fifo_source() {
+    let scenario = TestScenario::new(util_name!());
+    let at = &scenario.fixtures;
+
+    at.mkfifo("fifo");
+    let child = scenario
+        .ucmd()
+        .args(&["--copy-contents", "--preserve=xattr", "fifo", "outfile"])
+        .run_no_wait();
+
+    std::fs::write(at.plus("fifo"), "foo").unwrap();
+
+    child.wait().unwrap().no_output().success();
+    assert_eq!(at.read("outfile"), "foo");
+}
+
 #[test]
 #[cfg(unix)]
 fn test_cp_archive_preserves_directory_permissions() {

@@ -88,6 +88,23 @@ pub fn copy_xattrs_skip_selinux<P: AsRef<Path>>(source: P, dest: P) -> std::io::
     Ok(())
 }
 
+/// Like [`copy_xattrs_fd`], but skips the security.selinux attribute.
+#[cfg(unix)]
+pub fn copy_xattrs_fd_skip_selinux(
+    source: &std::fs::File,
+    dest: &std::fs::File,
+) -> std::io::Result<()> {
+    use xattr::FileExt;
+    for attr_name in source.list_xattr()? {
+        if attr_name.as_bytes() != b"security.selinux"
+            && let Some(value) = source.get_xattr(&attr_name)?
+        {
+            dest.set_xattr(&attr_name, &value)?;
+        }
+    }
+    Ok(())
+}
+
 /// Copies only the POSIX ACL xattrs (`system.posix_acl_access` and
 /// `system.posix_acl_default`) from `source` to `dest`.
 ///

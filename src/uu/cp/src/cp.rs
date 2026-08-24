@@ -17,7 +17,9 @@ use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf, StripPrefixError};
 use std::{fmt, io};
 #[cfg(all(unix, not(target_os = "android")))]
-use uucore::fsxattr::{copy_acls, copy_xattrs_fd, copy_xattrs_skip_selinux};
+use uucore::fsxattr::{
+    copy_acls, copy_xattrs_fd, copy_xattrs_fd_skip_selinux, copy_xattrs_skip_selinux,
+};
 use uucore::translate;
 
 use clap::{Arg, ArgAction, ArgMatches, Command, builder::ValueParser, value_parser};
@@ -1741,9 +1743,55 @@ pub(crate) fn set_selinux_context(path: &Path, context: Option<&String>) -> Copy
 /// Uses file descriptor-based operations to avoid TOCTOU races during xattr copying.
 #[cfg(all(unix, not(target_os = "android")))]
 fn copy_extended_attrs(source: &Path, dest: &Path, skip_selinux: bool) -> CopyResult<()> {
-    use std::fs::File;
+    use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
     use uucore::fsxattr::copy_xattrs;
     let metadata = fs::symlink_metadata(dest)?;
+
+    // Pin the destination before touching its mode. `fs::set_permissions` is a
+    // path-based chmod(2) and follows symlinks, so an attacker able to write to
+    // the destination directory can swap a symlink in after the lstat above and
+    // have us OR 0o222 into a file of their choosing. fchmod(2) on a descriptor
+    // we already hold cannot be redirected, and O_NOFOLLOW refuses the swap.
+    // O_NONBLOCK keeps a FIFO from parking us until a peer shows up. Read
+    // access is preferred but not required: a write-only destination must stay
+    // copyable, and fsetxattr(2) checks the inode, not the descriptor's mode.
+    let pinned =
+        (metadata.is_file() || metadata.is_dir() || metadata.file_type().is_fifo()).then(|| {
+            let open = |opts: &mut OpenOptions| {
+                opts.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+                    .open(dest)
+            };
+            open(OpenOptions::new().read(true)).or_else(|_| open(OpenOptions::new().write(true)))
+        });
+    let dest_file = match pinned {
+        Some(Ok(file)) => {
+            // O_NOFOLLOW refuses a symlink but not a rename that swaps in a
+            // hardlink to someone else's file, so reconcile the descriptor
+            // against the inode we lstat'd before trusting it.
+            let opened = file.metadata()?;
+            if (opened.dev(), opened.ino()) != (metadata.dev(), metadata.ino()) {
+                return Err(io::Error::other(
+                    "destination changed while preserving extended attributes",
+                )
+                .into());
+            }
+            Some(file)
+        }
+        // O_NOFOLLOW did its job: what we lstat'd is now a symlink. Falling back
+        // to the path-based chmod here would hand over exactly the primitive the
+        // pin exists to deny, so fail the copy instead.
+        Some(Err(e)) if matches!(e.raw_os_error(), Some(libc::ELOOP | libc::ENOTDIR)) => {
+            return Err(e.into());
+        }
+        // Anything else we cannot open -- a socket, a mode-0000 file its owner
+        // may still chmod by path -- keeps the path-based route rather than
+        // failing the copy.
+        _ => None,
+    };
+    let set_perms = |perms| match &dest_file {
+        Some(file) => file.set_permissions(perms),
+        None => fs::set_permissions(dest, perms),
+    };
 
     // Check if the destination file is currently read-only for the user.
     let mut perms = metadata.permissions();
@@ -1753,31 +1801,46 @@ fn copy_extended_attrs(source: &Path, dest: &Path, skip_selinux: bool) -> CopyRe
     if was_readonly {
         #[allow(clippy::permissions_set_readonly_false)]
         perms.set_readonly(false);
-        fs::set_permissions(dest, perms)?;
+        set_perms(perms)?;
     }
 
     // Perform the xattr copy and capture any potential error,
     // so we can restore permissions before returning.
-    let copy_xattrs_result = if skip_selinux {
-        // When -Z is used, skip copying security.selinux xattr so that
-        // the default context can be set instead of preserving from source
+    // `-Z` means skip copying security.selinux so the default context can be set
+    // instead of preserving the source's. The pinned descriptor is preferred in
+    // either case: `xattr::set` on a path follows symlinks, so a swap between the
+    // chmod above and the setxattr would land the source's xattrs elsewhere.
+    // Directories cannot be opened for writing and dangling symlinks cannot be
+    // opened at all, hence the path-based fallback.
+    let copy_xattrs_result = if let (true, Some(dest_file)) = (metadata.is_file(), &dest_file) {
+        // O_NONBLOCK: the source may be a FIFO (or another special file) whose
+        // content we have already copied, and opening it again would park us in
+        // open(2) until a peer shows up.
+        OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(source)
+            .and_then(|source_file| {
+                if skip_selinux {
+                    copy_xattrs_fd_skip_selinux(&source_file, dest_file)
+                } else {
+                    copy_xattrs_fd(&source_file, dest_file)
+                }
+            })
+    } else if skip_selinux {
         copy_xattrs_skip_selinux(source, dest)
-    } else if metadata.is_file() {
-        // Use file descriptor-based operations for regular files to avoid TOCTOU races.
-        // Directories cannot be opened with write mode for xattr operations
-        // Symlinks (especially dangling ones) cannot be opened via File::open
-        let source_file = File::open(source)?;
-        let dest_file = OpenOptions::new().write(true).open(dest)?;
-        copy_xattrs_fd(&source_file, &dest_file)
     } else {
         copy_xattrs(source, dest)
     };
 
     // Restore read-only if we changed it.
     if was_readonly {
-        let mut revert_perms = fs::symlink_metadata(dest)?.permissions();
+        let mut revert_perms = match &dest_file {
+            Some(file) => file.metadata()?.permissions(),
+            None => fs::symlink_metadata(dest)?.permissions(),
+        };
         revert_perms.set_readonly(true);
-        fs::set_permissions(dest, revert_perms)?;
+        set_perms(revert_perms)?;
     }
 
     // If copying xattrs failed, propagate that error now with context.
