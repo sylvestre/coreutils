@@ -28,7 +28,7 @@ use walkdir::WalkDir;
 #[cfg(target_os = "linux")]
 use crate::features::fs::FileInformation;
 #[cfg(target_os = "linux")]
-use crate::features::safe_traversal::{DirFd, SymlinkBehavior};
+use crate::features::safe_traversal::{DirFd, FileInfo, SymlinkBehavior};
 
 use std::ffi::CString;
 use std::fs::Metadata;
@@ -276,6 +276,16 @@ fn is_root(path: &Path, would_traverse_symlink: bool) -> bool {
     false
 }
 
+/// Whether `dir_fd` refers to the very object `meta` describes.
+///
+/// The pathname may have been re-pointed between the stat and the open, so compare
+/// (device, inode) to catch a swap.
+#[cfg(target_os = "linux")]
+fn fd_is(dir_fd: &DirFd, meta: &Metadata) -> IOResult<bool> {
+    let opened = FileInfo::from_stat(&dir_fd.fstat()?);
+    Ok(opened == FileInfo::new(meta.dev(), meta.ino()))
+}
+
 pub fn get_metadata(file: &Path, follow: bool) -> std::io::Result<Metadata> {
     if follow {
         file.metadata()
@@ -323,21 +333,22 @@ impl ChownExecutor {
             return 1;
         }
 
+        #[cfg(target_os = "linux")]
+        let operand_fd = match self.open_verified_operand(path, &meta) {
+            Ok(fd) => fd,
+            Err(code) => return code,
+        };
+
         let ret = if self.matched(meta.uid(), meta.gid()) {
             // Use safe syscalls for root directory to prevent TOCTOU attacks on Linux
             #[cfg(target_os = "linux")]
-            // We cannot check path.is_dir() here, as this would resolve symlinks
             let chown_result = if meta.is_dir() {
-                // For directories on Linux, use safe traversal from the start
-                match DirFd::open(path, SymlinkBehavior::Follow) {
-                    Ok(dir_fd) => self
-                        .safe_chown_dir(&dir_fd, path, &meta)
+                match operand_fd.as_ref() {
+                    Some(dir_fd) => self
+                        .safe_chown_dir(dir_fd, path, &meta)
                         .map(|_| String::new()),
-                    Err(_e) => {
-                        // Don't show error here - let safe_dive_into handle directory traversal errors
-                        // This prevents duplicate error messages
-                        Ok(String::new())
-                    }
+                    // The open failed; safe_dive_into reports it.
+                    None => Ok(String::new()),
                 }
             } else {
                 // For non-directories (files, symlinks), use the regular wrap_chown method
@@ -389,7 +400,7 @@ impl ChownExecutor {
         if self.recursive {
             #[cfg(target_os = "linux")]
             {
-                ret | self.safe_dive_into(&root)
+                ret | self.safe_dive_into(&root, &meta, operand_fd)
             }
             #[cfg(not(target_os = "linux"))]
             {
@@ -397,6 +408,46 @@ impl ChownExecutor {
             }
         } else {
             ret
+        }
+    }
+
+    /// Open the operand and confirm the descriptor is the object `meta` describes.
+    ///
+    /// `meta` is what `--from`, `--preserve-root` and the dir-vs-file classification were
+    /// decided on; a rename in the parent could swap the checked directory for a symlink
+    /// before the open, so a dev/ino mismatch is rejected. The descent reuses this fd.
+    ///
+    /// `Ok(None)` means a non-directory or a failed open (reported later by
+    /// `safe_dive_into`); `Err(code)` is the exit code the caller should return.
+    #[cfg(target_os = "linux")]
+    fn open_verified_operand(&self, path: &Path, meta: &Metadata) -> Result<Option<DirFd>, i32> {
+        // We cannot check path.is_dir() here, as this would resolve symlinks.
+        if !meta.is_dir() {
+            return Ok(None);
+        }
+        let dir_fd = match DirFd::open(path, SymlinkBehavior::Follow) {
+            Ok(dir_fd) => dir_fd,
+            // Don't show error here - let safe_dive_into handle directory traversal
+            // errors. This prevents duplicate error messages.
+            Err(_e) => return Ok(None),
+        };
+        match fd_is(&dir_fd, meta) {
+            Ok(true) => Ok(Some(dir_fd)),
+            Ok(false) => {
+                if self.verbosity.level != VerbosityLevel::Silent {
+                    show_error!(
+                        "cannot access {}: replaced while it was being processed",
+                        path.quote()
+                    );
+                }
+                Err(1)
+            }
+            Err(e) => {
+                if self.verbosity.level != VerbosityLevel::Silent {
+                    show_error!("cannot access {}: {}", path.quote(), strip_errno(&e));
+                }
+                Err(1)
+            }
         }
     }
 
@@ -449,25 +500,42 @@ impl ChownExecutor {
         Ok(())
     }
 
+    /// `operand_fd` is the verified descriptor from `traverse`, reused so the pathname is
+    /// not resolved a second time.
     #[cfg(target_os = "linux")]
-    fn safe_dive_into<P: AsRef<Path>>(&self, root: P) -> i32 {
+    fn safe_dive_into<P: AsRef<Path>>(
+        &self,
+        root: P,
+        meta: &Metadata,
+        operand_fd: Option<DirFd>,
+    ) -> i32 {
         let root = root.as_ref();
 
-        // Don't traverse into symlinks if configured not to
-        if self.traverse_symlinks == TraverseSymlinks::None && root.is_symlink() {
+        // Decide from `meta` (classified per the dereference policy), not a fresh lookup:
+        // re-stat'ing the pathname is what would let an attacker swap the operand between
+        // the classification and the descent. A `-P` symlink is already not a dir here.
+        if !meta.is_dir() {
+            // No children to visit; matches WalkDir's min_depth(1) behavior.
             return 0;
         }
 
-        // Only try to traverse if the root is actually a directory
-        // This matches WalkDir's behavior with min_depth(1) - if root is not a directory,
-        // there are no children to traverse, so we return early with success
-        if !root.is_dir() {
-            return 0;
-        }
-
-        // Open directory with safe traversal
-        let Some(dir_fd) = self.try_open_dir(root) else {
-            return 1;
+        let dir_fd = if let Some(dir_fd) = operand_fd {
+            dir_fd
+        } else {
+            // The open in `traverse` failed; report it here, once.
+            let Some(dir_fd) = self.try_open_dir(root) else {
+                return 1;
+            };
+            if !fd_is(&dir_fd, meta).unwrap_or(false) {
+                if self.verbosity.level != VerbosityLevel::Silent {
+                    show_error!(
+                        "cannot access {}: replaced while it was being processed",
+                        root.quote()
+                    );
+                }
+                return 1;
+            }
+            dir_fd
         };
 
         let mut ancestors = HashSet::new();
@@ -1045,6 +1113,30 @@ mod tests {
     use std::path::{Component, PathBuf};
     #[cfg(unix)]
     use tempfile::tempdir;
+
+    /// `fd_is` must accept the descriptor of the stat'd directory and reject any other.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_fd_is_identifies_the_stated_directory() {
+        let temp_dir = tempdir().unwrap();
+        let dir = temp_dir.path().join("dir");
+        let other = temp_dir.path().join("other");
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::create_dir(&other).unwrap();
+
+        let meta = std::fs::metadata(&dir).unwrap();
+        let dir_fd = DirFd::open(&dir, SymlinkBehavior::Follow).unwrap();
+        assert!(fd_is(&dir_fd, &meta).unwrap());
+
+        // Different object under a different pathname: must not match.
+        let other_fd = DirFd::open(&other, SymlinkBehavior::Follow).unwrap();
+        assert!(!fd_is(&other_fd, &meta).unwrap());
+
+        // A symlink resolving to the same object must match.
+        unix::fs::symlink(&dir, temp_dir.path().join("link")).unwrap();
+        let link_fd = DirFd::open(&temp_dir.path().join("link"), SymlinkBehavior::Follow).unwrap();
+        assert!(fd_is(&link_fd, &meta).unwrap());
+    }
 
     #[test]
     fn test_empty_string() {
