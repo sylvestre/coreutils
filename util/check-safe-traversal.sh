@@ -150,6 +150,40 @@ assert_descent_nofollow() {
     echo "✓ $util descent opens use O_NOFOLLOW"
 }
 
+# The command-line operand itself must honor -P, the same way the descent does:
+# a symlink-to-directory passed as the operand must not be followed. The
+# recursive-descent hardening left the operand open untouched (GHSA-rx4q), so it
+# is guarded separately here. Deterministic and race-free: under -P the operand
+# symlink is never opened as a directory, and the -L positive control -- which
+# must follow it -- keeps the assertion from passing vacuously.
+assert_operand_not_followed_under_p() {
+    local util="$1"
+    local mode_arg="$2"   # 755, or "$USER_ID:$GROUP_ID", or "$GROUP_ID"
+    local cmd
+    cmd=$(util_cmd "$util") || fail_immediately "$util binary not found in $BIN_DIR"
+
+    rm -rf operand_realdir operand_link
+    mkdir -p operand_realdir/sub
+    echo payload > operand_realdir/sub/f
+    ln -s operand_realdir operand_link
+
+    strace -f -e trace=openat -o "strace_${util}_operand_P.log" \
+        $cmd -R -P $mode_arg operand_link 2>/dev/null || true
+    if grep -qE 'openat\(AT_FDCWD, "operand_link",[^)]*O_DIRECTORY' "strace_${util}_operand_P.log"; then
+        cat "strace_${util}_operand_P.log"
+        fail_immediately "$util -R -P followed a symlink operand (operand TOCTOU / GNU divergence)"
+    fi
+
+    strace -f -e trace=openat -o "strace_${util}_operand_L.log" \
+        $cmd -R -L $mode_arg operand_link 2>/dev/null || true
+    if ! grep -qE 'openat\(AT_FDCWD, "operand_link",[^)]*O_DIRECTORY' "strace_${util}_operand_L.log"; then
+        cat "strace_${util}_operand_L.log"
+        fail_immediately "$util -R -L did not follow a symlink operand -- operand-follow check is broken"
+    fi
+    echo "✓ $util does not follow a symlink operand under -P (follows under -L)"
+    rm -rf operand_realdir operand_link
+}
+
 # Test rm - should use openat, unlinkat, newfstatat
 if have_util rm; then
     cp -r test_dir test_rm
@@ -175,6 +209,7 @@ if have_util chmod; then
         fail_immediately "chmod recursed using AT_FDCWD with a multi-component path; expected dirfd-relative openat"
     fi
     assert_descent_nofollow "chmod" strace_chmod_recursive_chmod.log
+    assert_operand_not_followed_under_p "chmod" 755
 fi
 
 # Test chown - should use openat, fchownat, newfstatat
@@ -184,6 +219,7 @@ if have_util chown; then
     GROUP_ID=$(id -g)
     check_utility "chown" "openat,fchownat,newfstatat,chown,lchown" "openat fchownat" "-R $USER_ID:$GROUP_ID test_chown" "recursive_chown"
     assert_descent_nofollow "chown" strace_chown_recursive_chown.log
+    assert_operand_not_followed_under_p "chown" "$USER_ID:$GROUP_ID"
 fi
 
 # Test chgrp - should use openat, fchownat, newfstatat
@@ -191,6 +227,7 @@ if have_util chgrp; then
     cp -r test_dir test_chgrp
     check_utility "chgrp" "openat,fchownat,newfstatat,chown,lchown" "openat fchownat" "-R $GROUP_ID test_chgrp" "recursive_chgrp"
     assert_descent_nofollow "chgrp" strace_chgrp_recursive_chgrp.log
+    assert_operand_not_followed_under_p "chgrp" "$GROUP_ID"
 fi
 
 # chcon recursive relabel must resolve each target relative to the traversal
