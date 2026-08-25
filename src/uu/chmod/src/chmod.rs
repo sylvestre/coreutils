@@ -646,9 +646,12 @@ impl Chmoder {
             TraverseSymlinks::None => false,
         };
 
-        // If the path is a directory (or we should follow symlinks), recurse into it using safe traversal
+        // Recurse into a directory using safe traversal, opening with the same symlink
+        // policy the checks above were made under. This re-resolves the pathname, so under
+        // `-P` (and the `-R` default) O_NOFOLLOW makes the open fail rather than follow a
+        // symlink swapped in by a rename in the parent; `-H`/`-L` follow as asked.
         if (!file_path.is_symlink() || should_follow_symlink) && file_path.is_dir() {
-            match DirFd::open(file_path, SymlinkBehavior::Follow) {
+            match DirFd::open(file_path, should_follow_symlink.into()) {
                 Ok(dir_fd) => {
                     r = self.safe_traverse_dir(&dir_fd, file_path, ancestors).and(r);
                 }
