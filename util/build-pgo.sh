@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# spell-checker:ignore (jargon) profdata profraw sysroot rustlib nullglob aeiou nocheck CGU mktemp Cprofile
+# spell-checker:ignore (jargon) profdata profraw sysroot rustlib nullglob aeiou nocheck CGU mktemp Cprofile awk
 #
 # Build uutils coreutils with Profile-Guided Optimization.
 #
@@ -194,6 +194,19 @@ fi
 echo "Merging ${#RAW[@]} profile(s)..."
 "$LLVM_PROFDATA" merge -sparse "${RAW[@]}" -o "$MERGED"
 echo "Merged profile: ${MERGED}"
+
+# A profile that covers almost nothing still builds fine and silently produces a
+# barely-optimized binary, so fail loudly instead: every workload in step 3 is
+# allowed to fail individually, and without this a broken corpus would ship.
+"$LLVM_PROFDATA" show "$MERGED" | head -6
+COVERED="$("$LLVM_PROFDATA" show "$MERGED" | awk '/^Total functions:/ { print $3 }')"
+MIN_FUNCTIONS=500
+if [ -z "$COVERED" ] || [ "$COVERED" -lt "$MIN_FUNCTIONS" ]; then
+    echo "profile covers only ${COVERED:-0} functions (expected >= ${MIN_FUNCTIONS})" >&2
+    echo "the training workloads probably did not run; refusing to ship this profile" >&2
+    exit 1
+fi
+echo "Profile covers ${COVERED} functions."
 
 if [ "$TRAIN_ONLY" -eq 1 ]; then
     echo

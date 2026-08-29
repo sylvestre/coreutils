@@ -654,6 +654,21 @@ jobs:
           --features "${{ matrix.job.features }}" \
           --train-only
         echo "RUSTFLAGS=${RUSTFLAGS:+${RUSTFLAGS} }-Cprofile-use=${{ github.workspace }}/target/coreutils-pgo/coreutils.profdata" >> "$GITHUB_ENV"
+    - name: Verify PGO is applied to the published build
+      if: |
+        matrix.job.skip-publish != true && matrix.job.check-only != true &&
+        matrix.job.use-cross != 'use-cross' &&
+        (matrix.job.target == 'x86_64-unknown-linux-gnu' || matrix.job.target == 'aarch64-unknown-linux-gnu')
+      shell: bash
+      run: |
+        ## The release artifact must be the PGO build: if RUSTFLAGS did not
+        ## survive GITHUB_ENV we would silently publish an unoptimized binary.
+        echo "RUSTFLAGS=${RUSTFLAGS}"
+        case "${RUSTFLAGS}" in
+          *-Cprofile-use=*) ;;
+          *) echo "::error::-Cprofile-use missing from RUSTFLAGS" ; exit 1 ;;
+        esac
+        test -s "${{ github.workspace }}/target/coreutils-pgo/coreutils.profdata"
     - name: Build coreutils
       shell: bash
       if: matrix.job.skip-publish != true && matrix.job.check-only != true && matrix.job.target != 'x86_64-pc-windows-msvc'
