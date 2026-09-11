@@ -13,12 +13,28 @@ use std::{
     sync::{Arc, LazyLock, Mutex},
 };
 
+#[cfg(unix)]
+use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+
 use tempfile::TempDir;
 use uucore::error::UResult;
 #[cfg(not(any(target_os = "redox", target_os = "wasi")))]
 use uucore::{error::USimpleError, show_error, translate};
 
 use crate::SortError;
+
+/// Create a chunk file only its owner can read. `nofollow` because nothing
+/// should exist at the path yet: a symlink there is hostile, not something to
+/// write through.
+#[cfg(unix)]
+fn create_tmp_file(path: &PathBuf) -> std::io::Result<File> {
+    uucore::safe_copy::create_dest_restrictive(path, true)
+}
+
+#[cfg(not(unix))]
+fn create_tmp_file(path: &PathBuf) -> std::io::Result<File> {
+    File::create(path)
+}
 
 /// A wrapper around [`TempDir`] that may only exist once in a process.
 ///
@@ -112,14 +128,17 @@ impl TmpDirWrapper {
     fn init_tmp_dir(&mut self) -> UResult<()> {
         assert!(self.temp_dir.is_none());
         assert_eq!(self.size, 0);
-        self.temp_dir = Some(
-            tempfile::Builder::new()
-                .prefix("uutils_sort")
-                .tempdir_in(&self.parent_path)
-                .map_err(|_| SortError::TmpFileCreationFailed {
-                    path: self.parent_path.clone(),
-                })?,
-        );
+        // The chunks hold the whole input, so keep them out of reach of other
+        // local users instead of leaving the mode to the umask, as GNU sort does.
+        let mut builder = tempfile::Builder::new();
+        builder.prefix("uutils_sort");
+        #[cfg(unix)]
+        builder.permissions(Permissions::from_mode(0o700));
+        self.temp_dir = Some(builder.tempdir_in(&self.parent_path).map_err(|_| {
+            SortError::TmpFileCreationFailed {
+                path: self.parent_path.clone(),
+            }
+        })?);
 
         let path = self.temp_dir.as_ref().unwrap().path().to_owned();
         let state = HANDLER_STATE.clone();
@@ -146,7 +165,7 @@ impl TmpDirWrapper {
         self.size += 1;
         let path = self.temp_dir.as_ref().unwrap().path().join(file_name);
         Ok((
-            File::create(&path).map_err(|error| SortError::OpenTmpFileFailed { error })?,
+            create_tmp_file(&path).map_err(|error| SortError::OpenTmpFileFailed { error })?,
             path,
         ))
     }
@@ -194,4 +213,27 @@ fn remove_tmp_dir(path: &Path) -> std::io::Result<()> {
         }
     }
     std::fs::remove_dir(path)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::TmpDirWrapper;
+    use std::os::unix::fs::PermissionsExt;
+
+    fn mode(path: &std::path::Path) -> u32 {
+        std::fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    #[test]
+    fn tmp_files_are_private_regardless_of_umask() {
+        let parent = tempfile::tempdir().unwrap();
+        // Permissive, so the modes below cannot have come from the umask.
+        let old = unsafe { libc::umask(0) };
+        let mut wrapper = TmpDirWrapper::new(parent.path().to_owned());
+        let (_file, path) = wrapper.next_file().unwrap();
+        unsafe { libc::umask(old) };
+
+        assert_eq!(mode(path.parent().unwrap()), 0o700);
+        assert_eq!(mode(&path), 0o600);
+    }
 }
