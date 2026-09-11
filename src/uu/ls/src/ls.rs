@@ -906,20 +906,44 @@ impl<'a> PathData<'a> {
         }
     }
 
+    /// Report a failed `stat` of this entry the way GNU does: flush what has
+    /// already been written so the diagnostic lands in order, then `show!` it,
+    /// which also sets the exit status.
+    fn report_metadata_error(&self, err: std::io::Error) {
+        // FIXME: A bit tricky to propagate the result here
+        let mut out: std::io::StdoutLock<'static> = stdout().lock();
+        let _ = out.flush();
+        show!(LsError::IOErrorContext(
+            self.path().to_path_buf(),
+            err,
+            self.command_line
+        ));
+    }
+
     fn metadata(&self) -> Option<&Metadata> {
         self.md
             .get_or_init(|| {
                 if !self.must_dereference
                     && let Some(dir_entry) = RefCell::take(&self.de)
                 {
-                    return dir_entry.metadata().ok();
+                    return match dir_entry.metadata() {
+                        Ok(md) => Some(md),
+                        // The entry is still listed, with '?' in every field,
+                        // but the failure has to be reported and has to set the
+                        // exit status: dropping it here left `ls -l` silent and
+                        // exiting 0 on EACCES, EIO, ELOOP, ... where GNU
+                        // diagnoses and exits 1. Only reached when the metadata
+                        // is actually needed, so a plain `ls`, which never stats
+                        // its entries, stays quiet just as GNU's does.
+                        Err(err) => {
+                            self.report_metadata_error(err);
+                            None
+                        }
+                    };
                 }
 
                 match get_metadata_with_deref_opt(self.path(), self.must_dereference) {
                     Err(err) => {
-                        // FIXME: A bit tricky to propagate the result here
-                        let mut out: std::io::StdoutLock<'static> = stdout().lock();
-                        let _ = out.flush();
                         let errno = err.raw_os_error().unwrap_or(1i32);
                         // a bad fd will throw an error when dereferenced,
                         // but GNU will not throw an error until a bad fd "dir"
@@ -931,11 +955,7 @@ impl<'a> PathData<'a> {
                         {
                             return file.symlink_metadata().ok();
                         }
-                        show!(LsError::IOErrorContext(
-                            self.path().to_path_buf(),
-                            err,
-                            self.command_line
-                        ));
+                        self.report_metadata_error(err);
                         None
                     }
                     Ok(md) => Some(md),

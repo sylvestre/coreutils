@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 // spell-checker:ignore (words) READMECAREFULLY birthtime doesntexist oneline somebackup lrwx somefile somegroup somehiddenbackup somehiddenfile tabsize aaaaaaaa bbbb cccc dddddddd ncccc neee naaaaa nbcdef nfffff dired subdired tmpfs mdir COLORTERM mexe bcdef mfoo timefile
-// spell-checker:ignore (words) fakeroot setcap drwxr bcdlps mdangling mentry awith acolons NOFILE NOTCAPABLE
+// spell-checker:ignore (words) fakeroot setcap drwxr bcdlps mdangling mentry awith acolons NOFILE NOTCAPABLE newfstatat
 #![allow(
     clippy::similar_names,
     clippy::too_many_lines,
@@ -5586,6 +5586,51 @@ fn test_ls_perm_io_errors() {
         .stdout_contains("total 0")
         .stdout_contains("l????????? ? ? ? ?            ? s")
         .stdout_contains("-????????? ? ? ? ?            ? f");
+}
+
+/// A directory that is readable but not searchable lets `read_dir` succeed while
+/// `stat` on its entries fails. The entries are still listed, with '?' in every
+/// field, but the failure must be reported and must set the exit status -- it was
+/// silently dropped for entries that came from `read_dir`, so `ls -l` exited 0 and
+/// printed nothing on stderr where GNU diagnoses and exits 1.
+#[cfg(all(unix, feature = "chmod"))]
+#[test]
+fn test_ls_stat_failure_on_dir_entry_is_reported() {
+    let scene = TestScenario::new(util_name!());
+    let at = &scene.fixtures;
+    at.mkdir("d");
+    at.touch("d/f");
+
+    scene.ccmd("chmod").arg("600").arg("d").succeeds();
+
+    // Every mode that needs the metadata reports and exits 1.
+    for arg in ["-l", "-F", "--color=always"] {
+        scene
+            .ucmd()
+            .arg(arg)
+            .arg("d")
+            .fails_with_code(1)
+            .stderr_contains("Permission denied")
+            .stderr_contains("f");
+    }
+
+    // The row is still printed, with '?' in place of the metadata.
+    scene
+        .ucmd()
+        .arg("-l")
+        .arg("d")
+        .fails_with_code(1)
+        .stdout_contains("-????????? ? ? ? ?            ? f");
+
+    // A plain listing never stats its entries, so it stays quiet and exits 0,
+    // just as GNU's does.
+    scene
+        .ucmd()
+        .arg("-1")
+        .arg("d")
+        .succeeds()
+        .stderr_is("")
+        .stdout_is("f\n");
 }
 
 #[test]
