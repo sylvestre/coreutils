@@ -671,21 +671,41 @@ fn move_files_into_dir(files: &[PathBuf], target_dir: &Path, options: &Options) 
     // remember the moved destinations for further usage
     let mut moved_destinations: FxHashSet<PathBuf> =
         FxHashSet::with_capacity_and_hasher(files.len(), rustc_hash::FxBuildHasher);
-    // Create hardlink tracking context
+    // Create hardlink tracking context.
+    // The scan is deferred: on a same-filesystem move fs::rename() succeeds
+    // immediately without ever needing hardlink information, so we avoid
+    // walking the entire source tree upfront.  The scanner lazily runs when
+    // rename_with_fallback() detects a cross-device error (EXDEV).
     #[cfg(unix)]
-    let (mut hardlink_tracker, hardlink_scanner) = {
+    let (mut hardlink_tracker, mut hardlink_scanner) = {
         let (tracker, mut scanner) = create_hardlink_context();
-
-        // Use hardlink options
-        let hardlink_options = HardlinkOptions {
-            verbose: options.verbose || options.debug,
-        };
-
-        // Pre-scan files if needed
-        scanner.scan_files(files, &hardlink_options);
-
+        // Register which top-level files are being moved so the scanner can
+        // walk them on demand if a cross-device fallback is triggered.
+        scanner.set_source_files(files);
         (tracker, scanner)
     };
+    #[cfg(unix)]
+    let hardlink_options = HardlinkOptions {
+        verbose: options.verbose || options.debug,
+    };
+
+    // Pre-scan for hardlinks only when we know we are crossing a device
+    // boundary (different st_dev).  On a same-filesystem rename() will succeed
+    // with a single syscall so the walk is never needed and would be the cause
+    // of the severe slowdown reported in issue #15950.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let target_dev = target_dir.metadata().map(|m| m.dev()).ok();
+        let needs_scan = files.iter().any(|f| {
+            f.metadata()
+                .map(|m| Some(m.dev()) != target_dev)
+                .unwrap_or(false)
+        });
+        if needs_scan {
+            hardlink_scanner.scan_files(files, &hardlink_options);
+        }
+    }
 
     if !target_dir.is_dir() {
         return Err(MvError::NotADirectory(target_dir.quote().to_string()).into());

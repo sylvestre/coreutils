@@ -211,6 +211,17 @@ impl HardlinkGroupScanner {
         }
     }
 
+    /// Store source files for later scanning without walking the tree yet.
+    ///
+    /// Call this eagerly so the scanner knows which top-level files are being
+    /// moved, then call [`scan_files`] only if a cross-device fallback is
+    /// actually needed (i.e. after `EXDEV`).
+    pub fn set_source_files(&mut self, files: &[PathBuf]) {
+        if !self.scanned {
+            self.source_files = files.to_vec();
+        }
+    }
+
     /// Scan a single path (file or directory)
     fn scan_single_path(&mut self, path: &Path) -> io::Result<()> {
         use std::os::unix::fs::MetadataExt;

@@ -3802,3 +3802,33 @@ fn test_mv_exchange_missing_target() {
         .stderr_contains("present")
         .stderr_contains("absent");
 }
+
+#[test]
+fn test_mv_dir_same_fs_does_not_stat_contents() {
+    // Regression test for https://github.com/uutils/coreutils/issues/15950
+    // Moving a directory on the same filesystem should use rename(2) and must
+    // not stat every file inside the source directory.
+    let (at, mut ucmd) = at_and_ucmd!();
+
+    // Create a directory with many files.
+    at.mkdir("src");
+    for i in 0..500 {
+        at.write(&format!("src/file_{i}"), "data");
+    }
+    at.mkdir("dst");
+
+    // The move must complete quickly (well under a second even on slow CI).
+    let start = std::time::Instant::now();
+    ucmd.args(&["src", "dst/src"]).succeeds();
+    let elapsed = start.elapsed();
+
+    assert!(
+        elapsed.as_secs() < 2,
+        "mv of 500-file directory on same fs took {:?} — likely stat-ing contents (issue #15950)",
+        elapsed
+    );
+
+    // Verify the files actually moved.
+    assert!(at.dir_exists("dst/src"));
+    assert!(!at.dir_exists("src"));
+}
