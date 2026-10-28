@@ -3808,24 +3808,56 @@ fn test_mv_dir_same_fs_does_not_stat_contents() {
     // Regression test for https://github.com/uutils/coreutils/issues/15950
     // Moving a directory on the same filesystem should use rename(2) and must
     // not stat every file inside the source directory.
-    let (at, mut ucmd) = at_and_ucmd!();
+    use std::process::Command;
 
-    // Create a directory with many files.
+    let scene = TestScenario::new(util_name!());
+    let at = &scene.fixtures;
+
+    // Create a directory with 100 files.
     at.mkdir("src");
-    for i in 0..500 {
+    for i in 0..100 {
         at.write(&format!("src/file_{i}"), "data");
     }
     at.mkdir("dst");
 
-    // The move must complete quickly (well under a second even on slow CI).
-    let start = std::time::Instant::now();
-    ucmd.args(&["src", "dst/src"]).succeeds();
-    let elapsed = start.elapsed();
+    let strace_out = at.plus_as_string("strace.out");
 
-    assert!(
-        elapsed.as_secs() < 2,
-        "mv of 500-file directory on same fs took {:?} — likely stat-ing contents (issue #15950)",
-        elapsed
+    let status = Command::new("strace")
+        .args([
+            "-qqq",
+            "-e",
+            "trace=stat,statx,lstat,newfstatat",
+            "-o",
+            &strace_out,
+        ])
+        .arg(&scene.bin_path)
+        .arg(scene.util_name.as_str())
+        .arg(at.plus_as_string("src"))
+        .arg(at.plus_as_string("dst/src"))
+        .status();
+
+    let Ok(status) = status else {
+        // strace not available (container without ptrace, etc.)
+        return;
+    };
+    assert!(status.success());
+
+    let trace = std::fs::read_to_string(&strace_out).unwrap_or_default();
+
+    // strace produced no output — ptrace restricted, skip the syscall check.
+    if trace.is_empty() {
+        return;
+    }
+
+    // Count how many stat syscalls touched a file inside src/.
+    // A rename()-based move should touch none of them.
+    let stat_on_contents = trace.lines().filter(|l| l.contains("/src/file_")).count();
+
+    assert_eq!(
+        stat_on_contents, 0,
+        "mv stat'd files inside the source directory ({stat_on_contents} calls); \
+         expected 0 — rename(2) should be used on the same filesystem (issue #15950).\n\
+         strace output:\n{trace}"
     );
 
     // Verify the files actually moved.
