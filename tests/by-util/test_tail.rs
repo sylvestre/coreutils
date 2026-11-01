@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-// spell-checker:ignore (ToDO) abcdefghijklmnopqrstuvwxyz efghijklmnopqrstuvwxyz vwxyz emptyfile file siette ocho nueve diez MULT watchme nofile wxyz
+// spell-checker:ignore (ToDO) abcdefghijklmnopqrstuvwxyz efghijklmnopqrstuvwxyz vwxyz emptyfile file siette ocho nueve diez MULT watchme nofile wxyz cdefghijkl retargeted
 // spell-checker:ignore (libs) kqueue ELOOP EISDIR
 // spell-checker:ignore (jargon) tailable untailable datasame runneradmin tmpi
 // spell-checker:ignore (cmd) taskkill
@@ -184,6 +184,27 @@ fn test_stdin_redirect_offset2() {
         .stdout_only(
             "==> k <==\n1\n2\n\n==> 'standard input' <==\n2\n\n==> l <==\n3\n4\n\n==> m <==\n5\n6\n",
         );
+}
+
+// Both the small file (read from the start) and the large one (read from the end)
+// must leave the shared stdin offset at the end, like a shell reading the rest would expect.
+#[rstest]
+#[case::small(3)]
+#[case::large(5000)]
+#[cfg(unix)]
+fn test_stdin_redirect_advances_shared_offset(#[case] line_count: usize) {
+    let (at, mut ucmd) = at_and_ucmd!();
+    let content = format!("{}last\n", "row\n".repeat(line_count - 1));
+    at.write("lines", &content);
+    let stdin = File::open(at.plus("lines")).unwrap();
+    let mut shared = stdin.try_clone().unwrap();
+
+    ucmd.set_stdin(stdin)
+        .args(&["-n", "1"])
+        .succeeds()
+        .stdout_only("last\n");
+
+    assert_eq!(shared.stream_position().unwrap(), content.len() as u64);
 }
 
 #[test]
