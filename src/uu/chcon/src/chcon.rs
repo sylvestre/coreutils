@@ -15,15 +15,15 @@ use uucore::{display::Quotable, format_usage, show_error, show_warning};
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use selinux::{OpaqueSecurityContext, SecurityContext};
+use walkdir::WalkDir;
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::ffi::{CStr, CString, OsStr, OsString};
-use std::os::raw::c_int;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 mod errors;
-mod fts;
 
 use errors::{Error, Result, report_full_error};
 
@@ -67,7 +67,6 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             if let Error::CommandLine(r) = r {
                 return Err(r.into());
             }
-
             return Err(UUsageError::new(libc::EXIT_FAILURE, format!("{r}.\n")));
         }
     };
@@ -76,7 +75,6 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         CommandLineMode::ReferenceBased { reference } => {
             let result = match SecurityContext::of_path(reference, true, false) {
                 Ok(Some(context)) => Ok(context),
-
                 Ok(None) => {
                     let err = io::Error::from_raw_os_error(libc::ENODATA);
                     Err(Error::from_io1(
@@ -85,7 +83,6 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                         err,
                     ))
                 }
-
                 Err(r) => Err(Error::from_selinux(
                     translate!("chcon-op-getting-security-context"),
                     r,
@@ -99,7 +96,6 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                         format!("{}.", report_full_error(&r)),
                     ));
                 }
-
                 Ok(file_context) => SELinuxSecurityContext::File(file_context),
             }
         }
@@ -107,7 +103,6 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         CommandLineMode::ContextBased { context } => {
             let c_context = match os_str_to_c_string(context) {
                 Ok(context) => context,
-
                 Err(_r) => {
                     return Err(USimpleError::new(
                         libc::EXIT_FAILURE,
@@ -132,7 +127,6 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let root_dev_ino = if options.preserve_root && options.recursive_mode.is_recursive() {
         match get_root_dev_ino() {
             Ok(r) => Some(r),
-
             Err(r) => {
                 return Err(USimpleError::new(
                     libc::EXIT_FAILURE,
@@ -144,13 +138,12 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         None
     };
 
-    let results = process_files(&options, &context, root_dev_ino);
-    if results.is_empty() {
+    let errors = relabel_all(&options, &context, root_dev_ino);
+    if errors.is_empty() {
         return Ok(());
     }
-
-    for result in &results {
-        show_error!("{}.", report_full_error(result));
+    for err in &errors {
+        show_error!("{}.", report_full_error(err));
     }
     Err(libc::EXIT_FAILURE.into())
 }
@@ -315,31 +308,27 @@ fn parse_command_line(matches: &ArgMatches) -> Result<Options> {
                     "chcon-error-recursive-no-dereference-require-p"
                 )));
             }
-
-            (RecursiveMode::RecursiveAndFollowAllDirSymLinks, true)
+            (RecursiveMode::FollowAll, true)
         } else if matches.get_flag(options::sym_links::FOLLOW_ARG_DIR_SYM_LINK) {
             if matches.get_flag(options::dereference::NO_DEREFERENCE) {
                 return Err(Error::ArgumentsMismatch(translate!(
                     "chcon-error-recursive-no-dereference-require-p"
                 )));
             }
-
-            (RecursiveMode::RecursiveAndFollowArgDirSymLinks, true)
+            (RecursiveMode::FollowArgs, true)
         } else {
             if matches.get_flag(options::dereference::DEREFERENCE) {
                 return Err(Error::ArgumentsMismatch(translate!(
                     "chcon-error-recursive-dereference-require-h-or-l"
                 )));
             }
-
-            (RecursiveMode::RecursiveButDoNotFollowSymLinks, false)
+            (RecursiveMode::NoFollow, false)
         }
     } else {
         let no_dereference = matches.get_flag(options::dereference::NO_DEREFERENCE);
-        (RecursiveMode::NotRecursive, !no_dereference)
+        (RecursiveMode::None, !no_dereference)
     };
 
-    // By default, do not preserve root.
     let preserve_root = matches.get_flag(options::preserve_root::PRESERVE_ROOT);
 
     let mut files = matches.get_many::<OsString>("FILE").unwrap_or_default();
@@ -382,38 +371,22 @@ fn parse_command_line(matches: &ArgMatches) -> Result<Options> {
     })
 }
 
-#[derive(Debug, Copy, Clone)]
+/// How symbolic links are handled during recursive traversal.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum RecursiveMode {
-    NotRecursive,
-    /// Do not traverse any symbolic links.
-    RecursiveButDoNotFollowSymLinks,
-    /// Traverse every symbolic link to a directory encountered.
-    RecursiveAndFollowAllDirSymLinks,
-    /// If a command line argument is a symbolic link to a directory, traverse it.
-    RecursiveAndFollowArgDirSymLinks,
+    /// Not recursive.
+    None,
+    /// Recursive, do not follow any symbolic links (-P).
+    NoFollow,
+    /// Recursive, follow every symbolic link to a directory (-L).
+    FollowAll,
+    /// Recursive, follow symbolic links only when they are command-line arguments (-H).
+    FollowArgs,
 }
 
 impl RecursiveMode {
     fn is_recursive(self) -> bool {
-        match self {
-            Self::NotRecursive => false,
-
-            Self::RecursiveButDoNotFollowSymLinks
-            | Self::RecursiveAndFollowAllDirSymLinks
-            | Self::RecursiveAndFollowArgDirSymLinks => true,
-        }
-    }
-
-    fn fts_open_options(self) -> c_int {
-        match self {
-            Self::NotRecursive | Self::RecursiveButDoNotFollowSymLinks => fts_sys::FTS_PHYSICAL,
-
-            Self::RecursiveAndFollowAllDirSymLinks => fts_sys::FTS_LOGICAL,
-
-            Self::RecursiveAndFollowArgDirSymLinks => {
-                fts_sys::FTS_PHYSICAL | fts_sys::FTS_COMFOLLOW
-            }
-        }
+        self != Self::None
     }
 }
 
@@ -433,7 +406,7 @@ enum CommandLineMode {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct DeviceAndINode {
     device_id: u64,
     inode: u64,
@@ -443,7 +416,6 @@ struct DeviceAndINode {
 impl From<fs::Metadata> for DeviceAndINode {
     fn from(md: fs::Metadata) -> Self {
         use std::os::unix::fs::MetadataExt;
-
         Self {
             device_id: md.dev(),
             inode: md.ino(),
@@ -451,182 +423,99 @@ impl From<fs::Metadata> for DeviceAndINode {
     }
 }
 
-impl TryFrom<&libc::stat> for DeviceAndINode {
-    type Error = Error;
-
-    #[allow(clippy::useless_conversion)]
-    fn try_from(st: &libc::stat) -> Result<Self> {
-        let device_id = u64::try_from(st.st_dev).map_err(|_r| Error::OutOfRange)?;
-        let inode = u64::try_from(st.st_ino).map_err(|_r| Error::OutOfRange)?;
-        Ok(Self { device_id, inode })
-    }
-}
-
-fn process_files(
+/// Walk all target paths and apply the new SELinux context to each entry.
+fn relabel_all(
     options: &Options,
     context: &SELinuxSecurityContext,
     root_dev_ino: Option<DeviceAndINode>,
 ) -> Vec<Error> {
-    let fts_options = options.recursive_mode.fts_open_options();
-    let mut fts = match fts::FTS::new(options.files.iter(), fts_options) {
-        Ok(fts) => fts,
-        Err(err) => return vec![err],
-    };
+    let mut errors = Vec::new();
+    let mut seen = HashSet::new();
 
-    let mut errors = Vec::default();
-    loop {
-        match fts.read_next_entry() {
-            Ok(true) => {
-                if let Err(err) = process_file(options, context, &mut fts, root_dev_ino) {
-                    errors.push(err);
+    for path in &options.files {
+        if options.recursive_mode.is_recursive() {
+            let follow_links = options.recursive_mode == RecursiveMode::FollowAll
+                || options.recursive_mode == RecursiveMode::FollowArgs;
+
+            let walker = WalkDir::new(path)
+                .follow_links(follow_links)
+                .follow_root_links(options.recursive_mode == RecursiveMode::FollowArgs);
+
+            for entry in walker {
+                match entry {
+                    Err(e) => {
+                        let io_err = e.into_io_error().unwrap_or_else(|| {
+                            io::Error::new(io::ErrorKind::Other, "walkdir error")
+                        });
+                        errors.push(Error::from_io(translate!("chcon-op-accessing"), io_err));
+                    }
+                    Ok(entry) => {
+                        let entry_path = entry.path();
+
+                        // Cycle detection via device+inode.
+                        if entry.file_type().is_dir() {
+                            if let Ok(meta) = entry_path.symlink_metadata() {
+                                let dev_ino = DeviceAndINode::from(meta);
+                                if !seen.insert(dev_ino) {
+                                    show_warning!(
+                                        "{}",
+                                        translate!("chcon-warning-circular-directory", "file" => entry_path.quote())
+                                    );
+                                    continue;
+                                }
+
+                                // Root protection.
+                                if root_dev_ino_check(root_dev_ino, dev_ino) {
+                                    root_dev_ino_warn(entry_path);
+                                    errors.push(Error::from_io1(
+                                        translate!("chcon-op-modifying-root-path"),
+                                        entry_path,
+                                        io::ErrorKind::PermissionDenied.into(),
+                                    ));
+                                    continue;
+                                }
+                            }
+                        }
+
+                        if let Err(e) = apply_context(options, context, entry_path) {
+                            errors.push(e);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Non-recursive: relabel the single path only.
+            if let Some(dev_ino) = root_dev_ino {
+                if let Ok(meta) = path.symlink_metadata() {
+                    if dev_ino == DeviceAndINode::from(meta) {
+                        root_dev_ino_warn(path);
+                        errors.push(Error::from_io1(
+                            translate!("chcon-op-modifying-root-path"),
+                            path,
+                            io::ErrorKind::PermissionDenied.into(),
+                        ));
+                        continue;
+                    }
                 }
             }
 
-            Ok(false) => break,
-
-            Err(err) => {
-                errors.push(err);
-                break;
+            if let Err(e) = apply_context(options, context, path) {
+                errors.push(e);
             }
         }
     }
     errors
 }
 
-fn process_file(
-    options: &Options,
-    context: &SELinuxSecurityContext,
-    fts: &mut fts::FTS,
-    root_dev_ino: Option<DeviceAndINode>,
-) -> Result<()> {
-    let mut entry = fts.last_entry_ref().unwrap();
-
-    let file_full_name = entry.path().map(PathBuf::from).ok_or_else(|| {
-        Error::from_io(
-            translate!("chcon-op-file-name-validation"),
-            io::ErrorKind::InvalidInput.into(),
-        )
-    })?;
-
-    let fts_access_path = entry.access_path().ok_or_else(|| {
-        let err = io::ErrorKind::InvalidInput.into();
-        Error::from_io1(
-            translate!("chcon-op-file-name-validation"),
-            &file_full_name,
-            err,
-        )
-    })?;
-
-    let err = |s, k: io::ErrorKind| Error::from_io1(s, &file_full_name, k.into());
-
-    let fts_err = |s| {
-        let r = io::Error::from_raw_os_error(entry.errno());
-        Err(Error::from_io1(s, &file_full_name, r))
-    };
-
-    // SAFETY: If `entry.fts_statp` is not null, then is is assumed to be valid.
-    let file_dev_ino: DeviceAndINode = if let Some(st) = entry.stat() {
-        st.try_into()?
-    } else {
-        return Err(err(
-            translate!("chcon-op-getting-meta-data"),
-            io::ErrorKind::InvalidInput,
-        ));
-    };
-
-    let mut result = Ok(());
-
-    match entry.flags() {
-        fts_sys::FTS_D if options.recursive_mode.is_recursive() => {
-            if root_dev_ino_check(root_dev_ino, file_dev_ino) {
-                // This happens e.g., with "chcon -R --preserve-root ... /"
-                // and with "chcon -RH --preserve-root ... symlink-to-root".
-                root_dev_ino_warn(&file_full_name);
-
-                // Tell fts not to traverse into this hierarchy.
-                let _ignored = fts.set(fts_sys::FTS_SKIP);
-
-                // Ensure that we do not process "/" on the second visit.
-                let _ignored = fts.read_next_entry();
-
-                return Err(err(
-                    translate!("chcon-op-modifying-root-path"),
-                    io::ErrorKind::PermissionDenied,
-                ));
-            }
-
-            return Ok(());
-        }
-
-        fts_sys::FTS_DP if !options.recursive_mode.is_recursive() => {
-            return Ok(());
-        }
-
-        fts_sys::FTS_NS => {
-            // For a top-level file or directory, this FTS_NS (stat failed) indicator is determined
-            // at the time of the initial fts_open call. With programs like chmod, chown, and chgrp,
-            // that modify permissions, it is possible that the file in question is accessible when
-            // control reaches this point. So, if this is the first time we've seen the FTS_NS for
-            // this file, tell fts_read to stat it "again".
-            if entry.level() == 0 && entry.number() == 0 {
-                entry.set_number(1);
-                let _ignored = fts.set(fts_sys::FTS_AGAIN);
-                return Ok(());
-            }
-
-            result = fts_err(translate!("chcon-op-accessing"));
-        }
-
-        fts_sys::FTS_ERR => result = fts_err(translate!("chcon-op-accessing")),
-
-        fts_sys::FTS_DNR => result = fts_err(translate!("chcon-op-reading-directory")),
-
-        fts_sys::FTS_DC
-            if cycle_warning_required(options.recursive_mode.fts_open_options(), &entry) =>
-        {
-            emit_cycle_warning(&file_full_name);
-            return Err(err(
-                translate!("chcon-op-reading-cyclic-directory"),
-                io::ErrorKind::InvalidData,
-            ));
-        }
-
-        _ => {}
+/// Apply the requested SELinux context change to a single path.
+fn apply_context(options: &Options, context: &SELinuxSecurityContext, path: &Path) -> Result<()> {
+    if options.verbose {
+        println!(
+            "{}",
+            translate!("chcon-verbose-changing-context", "util_name" => "chcon", "file" => path.quote())
+        );
     }
 
-    if entry.flags() == fts_sys::FTS_DP
-        && result.is_ok()
-        && root_dev_ino_check(root_dev_ino, file_dev_ino)
-    {
-        root_dev_ino_warn(&file_full_name);
-        result = Err(err(
-            translate!("chcon-op-modifying-root-path"),
-            io::ErrorKind::PermissionDenied,
-        ));
-    }
-
-    if result.is_ok() {
-        if options.verbose {
-            println!(
-                "{}",
-                translate!("chcon-verbose-changing-context", "util_name" => "chcon", "file" => file_full_name.quote())
-            );
-        }
-
-        result = change_file_context(options, context, fts_access_path);
-    }
-
-    if !options.recursive_mode.is_recursive() {
-        let _ignored = fts.set(fts_sys::FTS_SKIP);
-    }
-    result
-}
-
-fn change_file_context(
-    options: &Options,
-    context: &SELinuxSecurityContext,
-    path: &Path,
-) -> Result<()> {
     type SetValueProc = fn(&OpaqueSecurityContext, &CStr) -> selinux::errors::Result<()>;
 
     match &options.mode {
@@ -637,8 +526,6 @@ fn change_file_context(
             range,
         } => {
             let err0 = || -> Result<()> {
-                // If the file doesn't have a context, and we're not setting all of the context
-                // components, there isn't really an obvious default. Thus, we just give up.
                 let op = translate!("chcon-op-applying-partial-context");
                 let err = io::ErrorKind::InvalidInput.into();
                 Err(Error::from_io1(op, path, err))
@@ -647,7 +534,6 @@ fn change_file_context(
             let file_context =
                 match SecurityContext::of_path(path, options.affect_symlink_referent, false) {
                     Ok(Some(context)) => context,
-
                     Ok(None) => return err0(),
                     Err(r) => {
                         return Err(Error::from_selinux(
@@ -659,7 +545,6 @@ fn change_file_context(
 
             let c_file_context = match file_context.to_c_string() {
                 Ok(Some(context)) => context,
-
                 Ok(None) => return err0(),
                 Err(r) => {
                     return Err(Error::from_selinux(
@@ -700,7 +585,7 @@ fn change_file_context(
             })?;
 
             if c_file_context.as_ref().to_bytes() == context_string.as_ref().to_bytes() {
-                Ok(()) // Nothing to change.
+                Ok(())
             } else {
                 SecurityContext::from_c_str(&context_string, false)
                     .set_for_path(path, options.affect_symlink_referent, false)
@@ -732,12 +617,10 @@ fn change_file_context(
 #[cfg(unix)]
 pub(crate) fn os_str_to_c_string(s: &OsStr) -> Result<CString> {
     use std::os::unix::ffi::OsStrExt;
-
     CString::new(s.as_bytes())
         .map_err(|_r| Error::from_io("CString::new()", io::ErrorKind::InvalidInput.into()))
 }
 
-/// Call `lstat()` to get the device and inode numbers for `/`.
 #[cfg(unix)]
 fn get_root_dev_ino() -> Result<DeviceAndINode> {
     fs::symlink_metadata("/")
@@ -763,27 +646,6 @@ fn root_dev_ino_warn(dir_name: &Path) {
     }
 }
 
-/// When `fts_read` returns [`fts_sys::FTS_DC`] to indicate a directory cycle, it may or may not indicate
-/// a real problem.
-/// When a program like chgrp performs a recursive traversal that requires traversing symbolic links,
-/// it is *not* a problem.
-/// However, when invoked with "-P -R", it deserves a warning.
-/// The `fts_options` parameter records the options that control this aspect of fts behavior,
-/// so test that.
-fn cycle_warning_required(fts_options: c_int, entry: &fts::EntryRef) -> bool {
-    // When dereferencing no symlinks, or when dereferencing only those listed on the command line
-    // and we're not processing a command-line argument, then a cycle is a serious problem.
-    ((fts_options & fts_sys::FTS_PHYSICAL) != 0)
-        && (((fts_options & fts_sys::FTS_COMFOLLOW) == 0) || entry.level() != 0)
-}
-
-fn emit_cycle_warning(file_name: &Path) {
-    show_warning!(
-        "{}",
-        translate!("chcon-warning-circular-directory", "file" => file_name.quote())
-    );
-}
-
 #[derive(Debug)]
 enum SELinuxSecurityContext<'t> {
     File(SecurityContext<'t>),
@@ -796,7 +658,6 @@ impl SELinuxSecurityContext<'_> {
             Self::File(context) => context
                 .to_c_string()
                 .map_err(|r| Error::from_selinux("SELinuxSecurityContext::to_c_string()", r)),
-
             Self::String(context) => Ok(context.as_deref().map(Cow::Borrowed)),
         }
     }
