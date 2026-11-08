@@ -24,7 +24,6 @@ chcon-help-verbose = Output a diagnostic for every file processed.
 # Error messages - basic validation
 chcon-error-no-context-specified = No context is specified
 chcon-error-no-files-specified = No files are specified
-chcon-error-data-out-of-range = Data is out of range
 chcon-error-operation-failed = { $operation } failed
 chcon-error-operation-failed-on = { $operation } failed on { $operand }
 chcon-error-write = write error: { $error }
@@ -36,15 +35,11 @@ chcon-error-recursive-dereference-require-h-or-l = '--recursive' with '--derefer
 
 # Operation strings for error context
 chcon-op-getting-security-context = Getting security context
-chcon-op-file-name-validation = File name validation
 chcon-op-getting-meta-data = Getting meta data
-chcon-op-modifying-root-path = Modifying root path
 chcon-op-accessing = Accessing
 chcon-op-reading-directory = Reading directory
-chcon-op-reading-cyclic-directory = Reading cyclic directory
 chcon-op-applying-partial-context = Applying partial security context to unlabeled file
 chcon-op-creating-security-context = Creating security context
-chcon-op-setting-security-context-user = Setting security context user
 chcon-op-setting-security-context = Setting security context
 
 # Verbose output
