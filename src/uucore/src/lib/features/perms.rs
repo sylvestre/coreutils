@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-// spell-checker:ignore (jargon) TOCTOU fchownat fchown
+// spell-checker:ignore (jargon) TOCTOU fchownat fchown chownat
 
 //! Common functions to manage permissions
 
@@ -33,7 +33,7 @@ use crate::features::safe_traversal::{DirFd, FileInfo, SymlinkBehavior};
 #[cfg(target_os = "redox")]
 use std::ffi::CString;
 use std::fs::Metadata;
-use std::io::{Error as IOError, Result as IOResult};
+use std::io::{Error as IOError, ErrorKind, Result as IOResult};
 use std::os::unix::fs::MetadataExt;
 
 #[cfg(target_os = "redox")]
@@ -589,6 +589,8 @@ impl ChownExecutor {
 
             let meta = match dir_fd.metadata_at(&entry_name, follow.into()) {
                 Ok(m) => m,
+                // Removed since the directory was listed: nothing to change.
+                Err(e) if e.kind() == ErrorKind::NotFound && !entry_path.is_symlink() => continue,
                 Err(e) => {
                     *ret = 1;
                     if self.verbosity.level != VerbosityLevel::Silent {
@@ -621,6 +623,10 @@ impl ChownExecutor {
                 if let Err(e) =
                     dir_fd.chown_at(&entry_name, chown_uid, chown_gid, follow_symlinks.into())
                 {
+                    // Removed since it was stat'ed: nothing to change.
+                    if e.kind() == ErrorKind::NotFound {
+                        continue;
+                    }
                     *ret = 1;
                     if self.verbosity.level != VerbosityLevel::Silent {
                         let msg = format!(

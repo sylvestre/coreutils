@@ -3,7 +3,7 @@
 // For the full copyright and license information, please view the LICENSE
 // file that was distributed with this source code.
 
-// spell-checker:ignore (words) agroupthatdoesntexist auserthatdoesntexist groupname notexisting passgrp
+// spell-checker:ignore (words) agroupthatdoesntexist auserthatdoesntexist groupname notexisting passgrp chowned fchownat
 
 #[cfg(all(unix, not(target_os = "openbsd")))]
 use std::os::unix::fs::MetadataExt;
@@ -1196,5 +1196,50 @@ fn test_repeated_flags_are_accepted() {
             .arg(geteuid().to_string())
             .arg("dir")
             .succeeds();
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+#[cfg(not(wasi_runner))]
+fn test_chown_recursive_ignores_entry_removed_during_traversal() {
+    // Pretend `tree/sub/leaf.txt` disappears between its stat and its chown:
+    // that race is ignored, while any other chown failure is still reported.
+    use rustix::process::{getegid, geteuid};
+    use std::process::Command;
+
+    let (at, _ucmd) = at_and_ucmd!();
+    at.mkdir_all("tree/sub");
+    at.touch("tree/sub/leaf.txt");
+    let owner = format!("{}:{}", geteuid().as_raw(), getegid().as_raw());
+
+    for (errno, expected_code, expected_stderr) in [
+        ("ENOENT", 0, String::new()),
+        (
+            "EACCES",
+            1,
+            "chown: changing ownership of 'tree/sub/leaf.txt': Permission denied\n".to_string(),
+        ),
+    ] {
+        let Ok(out) = Command::new("strace")
+            .current_dir(at.as_string())
+            // The entry is chowned relative to its directory's fd, so match
+            // the bare name strace sees in the fchownat call.
+            .args(["-o", "/dev/null", "-P", "leaf.txt", "-e"])
+            .arg(format!("inject=fchownat:error={errno}"))
+            .arg(uutests::util::get_tests_binary())
+            .args(["chown", "-R", &owner, "tree"])
+            .env("LC_ALL", "C")
+            .env("LANG", "C")
+            .output()
+        else {
+            return; // missing strace
+        };
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        if stderr.contains("ptrace") {
+            return; // tracing not permitted here
+        }
+        assert_eq!(out.status.code(), Some(expected_code), "{errno}: {stderr}");
+        assert_eq!(stderr, expected_stderr, "{errno}");
     }
 }

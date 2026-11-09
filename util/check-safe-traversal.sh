@@ -150,6 +150,23 @@ assert_descent_nofollow() {
     echo "✓ $util descent opens use O_NOFOLLOW"
 }
 
+# An entry removed between the directory listing and the syscall that changes
+# it (here faked by injecting ENOENT on that syscall) is a race to ignore, not
+# an error: the run must still succeed silently.
+assert_ignores_vanished_entry() {
+    local util="$1"
+    local syscalls="$2"
+    shift 2
+    local util_path
+    util_path=$(util_cmd "$util")
+    if ! strace -o /dev/null -P file3.txt -e inject="$syscalls":error=ENOENT \
+        $util_path "$@" 2>"vanished_$util.err" || [ -s "vanished_$util.err" ]; then
+        cat "vanished_$util.err"
+        fail_immediately "$util reports an entry removed during traversal"
+    fi
+    echo "✓ $util ignores an entry removed during traversal"
+}
+
 # Test rm - should use openat, unlinkat, newfstatat
 if have_util rm; then
     cp -r test_dir test_rm
@@ -184,6 +201,7 @@ if have_util chown; then
     GROUP_ID=$(id -g)
     check_utility "chown" "openat,fchownat,newfstatat,chown,lchown" "openat fchownat" "-R $USER_ID:$GROUP_ID test_chown" "recursive_chown"
     assert_descent_nofollow "chown" strace_chown_recursive_chown.log
+    assert_ignores_vanished_entry "chown" fchownat -R "$USER_ID" test_chown
 fi
 
 # Test chgrp - should use openat, fchownat, newfstatat
@@ -191,6 +209,7 @@ if have_util chgrp; then
     cp -r test_dir test_chgrp
     check_utility "chgrp" "openat,fchownat,newfstatat,chown,lchown" "openat fchownat" "-R $GROUP_ID test_chgrp" "recursive_chgrp"
     assert_descent_nofollow "chgrp" strace_chgrp_recursive_chgrp.log
+    assert_ignores_vanished_entry "chgrp" fchownat -R "$GROUP_ID" test_chgrp
 fi
 
 # chcon recursive relabel must resolve each target relative to the traversal
