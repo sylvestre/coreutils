@@ -8747,3 +8747,106 @@ fn test_dereferenced_context_reports_error_once(
         .fails_with_code(if command_line { 2 } else { 1 })
         .stderr_is("ls: cannot access 'dir/broken': No such file or directory\n");
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_ls_json_names() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.touch("tab\there \"quoted\"");
+    at.touch("plain");
+    ucmd.args(&["--output-format=json", "-m"])
+        .succeeds()
+        .stdout_only("[{\"filename\":\"plain\"},{\"filename\":\"tab\\there \\\"quoted\\\"\"}]\n");
+}
+
+#[cfg(feature = "json")]
+#[test]
+#[cfg(unix)]
+fn test_ls_json_long() {
+    use filetime::{FileTime, set_file_mtime};
+    use std::os::unix::fs::MetadataExt;
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("setuid", "seven b");
+    at.set_mode("setuid", 0o4750);
+    set_file_mtime(
+        at.plus("setuid"),
+        FileTime::from_unix_time(1_234_567_890, 0),
+    )
+    .unwrap();
+    let result = ucmd
+        .env("TZ", "UTC0")
+        .args(&["--output-format=json", "-n", "--time-style=long-iso"])
+        .succeeds();
+    let entries: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    let metadata = at.metadata("setuid");
+    assert_eq!(
+        entries,
+        serde_json::json!([{
+            "filename": "setuid",
+            "flags": "-rwsr-x---",
+            "links": 1,
+            "owner": metadata.uid().to_string(),
+            "group": metadata.gid().to_string(),
+            "size": 7,
+            "date": "2009-02-13 23:31",
+            "epoch": 1_234_567_890
+        }])
+    );
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_ls_json_recursive_parent() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir_all("outer/inner");
+    at.touch("outer/inner/leaf");
+    ucmd.args(&["--output-format=json", "-R", "outer"])
+        .succeeds()
+        .stdout_only(concat!(
+            r#"[{"filename":"inner","parent":"outer"},"#,
+            r#"{"filename":"leaf","parent":"outer/inner"}]"#,
+            "\n"
+        ));
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_ls_json_long_change_time_sorts_by_name() {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.touch("first");
+    scene.fixtures.touch("second");
+    // `second` has the newest ctime; -l keeps sorting by name anyway.
+    scene.fixtures.set_mode("second", 0o600);
+    let args = ["-lc", "first", "second"];
+    let text = scene.ucmd().args(&args).succeeds().stdout_move_str();
+    let text_names: Vec<&str> = text
+        .lines()
+        .map(|line| line.rsplit(' ').next().unwrap())
+        .collect();
+    let result = scene
+        .ucmd()
+        .arg("--output-format=json")
+        .args(&args)
+        .succeeds();
+    let entries: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    let json_names: Vec<&str> = entries
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["filename"].as_str().unwrap())
+        .collect();
+    assert_eq!(json_names, text_names);
+    assert_eq!(json_names, ["first", "second"]);
+}
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::keeps_long(&["-l", "--output-format=text"], "-l")]
+#[case::cancels_json(&["--output-format=json", "--output-format=text"], "-1")]
+fn test_ls_output_format_text(#[case] args: &[&str], #[case] plain: &str) {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.touch("lone");
+    let expected = scene.ucmd().arg(plain).succeeds().stdout_move_str();
+    scene.ucmd().args(args).succeeds().stdout_only(expected);
+}

@@ -41,6 +41,7 @@ ls-help-display-detailed-info = Afficher des informations détaillées.
 ls-help-list-entries-rows = Lister les entrées en lignes au lieu de colonnes.
 ls-help-assume-tab-stops = Supposer des arrêts de tabulation à chaque COLS au lieu de 8
 ls-help-list-entries-commas = Lister les entrées séparées par des virgules.
+ls-help-output-format = Afficher la liste au FORMAT donné.
 ls-help-list-entries-nul = Lister les entrées séparées par des caractères NUL ASCII.
 ls-help-generate-dired-output = générer une sortie conçue pour le mode dired (Directory Editor) d'Emacs
 ls-help-hyperlink-filenames = créer des hyperliens pour les noms de fichiers QUAND

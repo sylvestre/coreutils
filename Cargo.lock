@@ -3603,6 +3603,7 @@ dependencies = [
  "lscolors",
  "rustc-hash",
  "selinux",
+ "temp-env",
  "tempfile",
  "terminal_size",
  "thiserror 2.0.21",

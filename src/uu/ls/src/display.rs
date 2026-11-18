@@ -139,6 +139,7 @@ pub enum Format {
     OneLine,
     Across,
     Commas,
+    Json,
 }
 
 #[allow(dead_code)]
@@ -604,7 +605,7 @@ fn display_additional_leading_info(
 // Currently getpwuid is `linux` target only. If it's broken state.out into
 // a posix-compliant attribute this can be updated...
 #[cfg(unix)]
-fn display_uname<'a>(
+pub(crate) fn display_uname<'a>(
     metadata: &Metadata,
     config: &Config,
     uid_cache: &'a mut FxHashMap<u32, String>,
@@ -621,7 +622,7 @@ fn display_uname<'a>(
 }
 
 #[cfg(unix)]
-fn display_group<'a>(
+pub(crate) fn display_group<'a>(
     metadata: &Metadata,
     config: &Config,
     gid_cache: &'a mut FxHashMap<u32, String>,
@@ -655,7 +656,7 @@ fn display_group(_metadata: &Metadata, config: &Config, _gid_cache: &mut ()) -> 
     "somegroup"
 }
 
-fn display_date(
+pub(crate) fn display_date(
     metadata: &Metadata,
     config: &Config,
     recent_time_range: &RangeInclusive<SystemTime>,

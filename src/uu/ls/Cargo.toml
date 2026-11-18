@@ -57,6 +57,7 @@ path = "src/main.rs"
 
 [dev-dependencies]
 divan = { workspace = true }
+temp-env = { workspace = true }
 tempfile = { workspace = true }
 uucore = { workspace = true, features = ["benchmark"] }
 
@@ -66,6 +67,7 @@ harness = false
 
 [features]
 diagnostics = ["uucore/diagnostics"]
+json = ["uucore/json"]
 selinux = ["dep:selinux", "uucore/selinux"]
 smack = ["uucore/smack"]
 

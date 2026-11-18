@@ -46,6 +46,8 @@ mod colors;
 mod config;
 mod dired;
 mod display;
+#[cfg(feature = "json")]
+mod json;
 
 pub mod output;
 pub use config::{Config, options};
@@ -135,7 +137,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 }
 
 pub fn uu_app() -> Command {
-    uucore::clap_localization::configure_localized_command(
+    let cmd = uucore::clap_localization::configure_localized_command(
         Command::new("ls")
             .version(uucore::crate_version!())
             .override_usage(format_usage(&translate!("ls-usage")))
@@ -769,7 +771,12 @@ pub fn uu_app() -> Command {
             .value_hint(clap::ValueHint::AnyPath)
             .value_parser(ValueParser::os_string()),
     )
-    .after_help(translate!("ls-after-help"))
+    .after_help(translate!("ls-after-help"));
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "ls-help-output-format"
+    )));
+    cmd
 }
 
 /// Represents the possible values of [`PathData::display_name`]. The reason this is a
@@ -1523,11 +1530,16 @@ fn enter_directory<O: LsOutput>(
     Ok(())
 }
 
-/// Lists files and directories with text output to stdout.
+/// Lists files and directories to stdout.
 ///
-/// This is the standard ls entry point that formats output as text.
+/// This is the standard ls entry point that formats output as text, or as
+/// JSON with `--output-format=json`.
 /// It uses [`list_with_output`] internally with a text formatter.
 pub fn list(locs: Vec<&Path>, config: &Config) -> UResult<()> {
+    #[cfg(feature = "json")]
+    if config.format == Format::Json {
+        return json::list_json(locs, config);
+    }
     let mut output = TextOutput::new(config);
     list_with_output(locs, config, &mut output)
 }

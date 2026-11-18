@@ -23,6 +23,7 @@ uucore = { workspace = true, features = ["entries", "fs", "quoting-style"] }
 
 [features]
 diagnostics = ["uucore/diagnostics"]
+json = ["uu_ls/json"]
 
 [lints]
 workspace = true
