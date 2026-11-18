@@ -44,6 +44,7 @@ du-help-exclude-from = exclure les fichiers qui correspondent à n'importe quel 
 du-help-files0-from = résumer l'utilisation du périphérique des noms de fichiers terminés par NUL spécifiés dans le fichier F ; si F est -, alors lire les noms depuis l'entrée standard
 du-help-time = montrer l'heure de la dernière modification de n'importe quel fichier dans le répertoire, ou n'importe lequel de ses sous-répertoires. Si MOT est donné, montrer l'heure comme MOT au lieu de l'heure de modification : atime, access, use, ctime, status, birth ou creation
 du-help-time-style = montrer les heures en utilisant le style STYLE : full-iso, long-iso, iso, +FORMAT FORMAT est interprété comme 'date'
+du-help-output-format = afficher la sortie au FORMAT donné
 
 # Messages d'erreur
 du-error-invalid-max-depth = profondeur maximale invalide { $depth }

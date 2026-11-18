@@ -3071,3 +3071,105 @@ fn test_dereference_args_after_dereference_wins() {
         .succeeds()
         .stdout_contains("dir/link");
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_du_json() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir_all("top/inner");
+    at.write("top/inner/data", "0123456789abc");
+    at.write("top/note", "hello");
+
+    let result = ucmd
+        .args(&["--output-format=json", "-ab", "top"])
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    let entries = value.as_array().unwrap();
+    let names: Vec<&str> = entries
+        .iter()
+        .map(|e| e["name"].as_str().unwrap())
+        .collect();
+    // Same entries and order as the text output, a directory after its contents.
+    let text = new_ucmd!()
+        .current_dir(at.as_string())
+        .args(&["-ab", "top"])
+        .succeeds()
+        .stdout_move_str();
+    let text_names: Vec<&str> = text
+        .lines()
+        .map(|l| l.split('\t').nth(1).unwrap())
+        .collect();
+    assert_eq!(names, text_names);
+    assert_eq!(
+        entries[0].as_object().unwrap().keys().collect::<Vec<_>>(),
+        ["size", "name"]
+    );
+    let size = |name: &str| entries.iter().find(|e| e["name"] == name).unwrap()["size"].clone();
+    assert_eq!(size("top/inner/data"), 13);
+    assert_eq!(size("top/note"), 5);
+}
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::disk_usage(&[], &["-B1"])]
+#[case::kilobytes(&["-k"], &["-B1"])]
+#[case::inodes(&["--inodes"], &["--inodes"])]
+fn test_du_json_size_unit(#[case] json_args: &[&str], #[case] text_args: &[&str]) {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.mkdir("pile");
+    scene.fixtures.write("pile/bytes", &"z".repeat(5000));
+
+    // Bytes (or inodes) whatever unit the text output would use.
+    let text = scene
+        .ucmd()
+        .args(&["-s", "pile"])
+        .args(text_args)
+        .succeeds()
+        .stdout_move_str();
+    let expected: u64 = text.split('\t').next().unwrap().parse().unwrap();
+    let result = scene
+        .ucmd()
+        .args(&["--output-format=json", "-s", "pile"])
+        .args(json_args)
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(value[0]["size"], expected);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_du_json_summarize_and_total() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir_all("first/nested");
+    at.mkdir("second");
+
+    // --total only affects the text output: the JSON has one entry per argument.
+    let result = ucmd
+        .args(&["--output-format=json", "-s", "--total", "first", "second"])
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    let paths: Vec<&str> = value
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(paths, ["first", "second"]);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_du_output_format_text_overrides_json() {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.mkdir("pile");
+    let plain = scene
+        .ucmd()
+        .args(&["-s", "pile"])
+        .succeeds()
+        .stdout_move_str();
+    scene
+        .ucmd()
+        .args(&["--output-format=json", "--output-format=text", "-s", "pile"])
+        .succeeds()
+        .stdout_only(plain);
+}

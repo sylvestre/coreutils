@@ -44,6 +44,7 @@ du-help-exclude-from = exclude files that match any pattern in FILE
 du-help-files0-from = summarize device usage of the NUL-terminated file names specified in file F; if F is -, then read names from standard input
 du-help-time = show time of the last modification of any file in the directory, or any of its subdirectories. If WORD is given, show time as WORD instead of modification time: atime, access, use, ctime, status, birth or creation
 du-help-time-style = show times using style STYLE: full-iso, long-iso, iso, +FORMAT FORMAT is interpreted like 'date'
+du-help-output-format = print the output in FORMAT
 
 # Error messages
 du-error-invalid-max-depth = invalid maximum depth { $depth }

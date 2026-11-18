@@ -305,3 +305,16 @@ A percentage is null where the text shows `-`.
 $ df / --output-format=json
 [{"filesystem":"/dev/sda2","size":1005441241088,"used":939699818496,"available":14592307200,"use_percent":99,"mounted_on":"/"}]
 ```
+
+### `du --output-format=json`
+
+An array with one object per line the text output prints, in the same order
+(a directory after its contents), with `size` and `name`. `-a`, `-s`, `-d`,
+`-t`, `-b` and `--apparent-size` apply. `size` is in bytes whatever `-h`,
+`-B`, `-k` or `-m` say, or a number of inodes with `--inodes`. `--total` does
+not add an entry.
+
+```
+$ du -s src --output-format=json
+[{"size":118784,"name":"src"}]
+```

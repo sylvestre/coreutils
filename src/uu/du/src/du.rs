@@ -48,6 +48,9 @@ use windows_sys::Win32::Storage::FileSystem::{
     FileStandardInfo, GetFileInformationByHandleEx,
 };
 
+#[cfg(feature = "json")]
+mod json;
+
 mod options {
     pub const HELP: &str = "help";
     pub const NULL: &str = "0";
@@ -92,6 +95,8 @@ struct TraversalOptions {
 
 struct StatPrinter {
     total: bool,
+    #[cfg(feature = "json")]
+    json: bool,
     inodes: bool,
     max_depth: Option<usize>,
     threshold: Option<Threshold>,
@@ -929,6 +934,8 @@ impl StatPrinter {
 
     fn print_stats(&self, rx: &mpsc::Receiver<UResult<StatPrintInfo>>) -> UResult<()> {
         let mut grand_total = 0;
+        #[cfg(feature = "json")]
+        let mut json_entries = json::JsonEntries::default();
         while let Ok(received) = rx.recv() {
             match received {
                 Ok(stat_info) => {
@@ -946,6 +953,11 @@ impl StatPrinter {
                             .is_none_or(|max_depth| stat_info.depth <= max_depth)
                         && (!self.summarize || stat_info.depth == 0)
                     {
+                        #[cfg(feature = "json")]
+                        if self.json {
+                            json_entries.push(size, &stat_info.stat.path);
+                            continue;
+                        }
                         self.print_stat(&stat_info.stat, size)?;
                     }
                 }
@@ -953,6 +965,11 @@ impl StatPrinter {
             }
         }
 
+        #[cfg(feature = "json")]
+        if self.json {
+            json_entries.print()?;
+            return Ok(());
+        }
         if self.total {
             stdout().write_all(&self.convert_size(grand_total))?;
             write!(stdout(), "\t{}{}", self.total_text, self.line_ending)?;
@@ -1230,6 +1247,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         time_format,
         line_ending: LineEnding::from_zero_flag(matches.get_flag(options::NULL)),
         total_text: translate!("du-total"),
+        #[cfg(feature = "json")]
+        json: uucore::json::is_json(&matches),
     };
 
     if stat_printer.inodes
@@ -1402,7 +1421,7 @@ fn parse_depth(max_depth_str: Option<&str>, summarize: bool) -> UResult<Option<u
 }
 
 pub fn uu_app() -> Command {
-    Command::new("du")
+    let cmd = Command::new("du")
         .version(uucore::crate_version!())
         .help_template(uucore::localized_help_template(uucore::util_name()))
         .about(translate!("du-about"))
@@ -1650,7 +1669,12 @@ pub fn uu_app() -> Command {
                 .value_hint(clap::ValueHint::AnyPath)
                 .value_parser(clap::value_parser!(OsString))
                 .action(ArgAction::Append),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "du-help-output-format"
+    )));
+    cmd
 }
 
 #[derive(Clone, Copy)]
