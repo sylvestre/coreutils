@@ -3071,3 +3071,39 @@ fn test_dereference_args_after_dereference_wins() {
         .succeeds()
         .stdout_contains("dir/link");
 }
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::apparent_size(&["-b"], &["-b"])]
+#[case::kilobytes_are_bytes(&["-k"], &["-B1"])]
+#[case::inodes(&["--inodes"], &["--inodes"])]
+#[case::grand_total(&["-b", "-c"], &["-b", "-c"])]
+fn test_du_json(#[case] json_args: &[&str], #[case] text_args: &[&str]) {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.mkdir_all("top/inner");
+    scene.fixtures.write("top/inner/data", &"z".repeat(5000));
+    scene.fixtures.write("top/note", "hello");
+
+    // The lines of the text output, in the same order, with the size in bytes
+    // (or inodes) whatever unit the text would use.
+    let text = scene
+        .ucmd()
+        .args(&["-a", "top"])
+        .args(text_args)
+        .succeeds()
+        .stdout_move_str();
+    let expected: Vec<serde_json::Value> = text
+        .lines()
+        .map(|line| {
+            let (size, name) = line.split_once('\t').unwrap();
+            serde_json::json!({"size": size.parse::<u64>().unwrap(), "name": name})
+        })
+        .collect();
+    let result = scene
+        .ucmd()
+        .args(&["--output-format=json", "-a", "top"])
+        .args(json_args)
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(value, serde_json::Value::from(expected));
+}

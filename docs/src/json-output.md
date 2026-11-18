@@ -42,3 +42,13 @@ per column: `filesystem`, `type`, `size`, `used`, `available`, `use_percent`,
 $ df / --output-format=json
 [{"filesystem":"/dev/sda2","size":1005441241088,"used":939699818496,"available":14592307200,"use_percent":99,"mounted_on":"/"}]
 ```
+
+## `du`
+
+An array with one `{"size", "name"}` object per line, `size` in bytes (or
+inodes with `--inodes`).
+
+```
+$ du -s src --output-format=json
+[{"size":118784,"name":"src"}]
+```
