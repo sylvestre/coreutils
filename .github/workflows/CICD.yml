@@ -739,7 +739,7 @@ jobs:
       fail-fast: false
       matrix:
         job:
-          - { os: ubuntu-latest  , features: unix }
+          - { os: ubuntu-latest  , features: "unix,json" }
           # FIXME: Re-enable macos code coverage
           # - { os: macos-latest   , features: macos }
           # FIXME: Re-enable Code Coverage on windows, which currently fails due to "profiler_builtins". See #6686.

@@ -129,6 +129,7 @@ textwrap = { version = "0.16.1", default-features = false, features = [
   "terminal_size",
 ] }
 thiserror = "2.0.3"
+serde_json = { version = "1", features = ["preserve_order"] }
 time = { version = "0.3.36" }
 quote = "1.0.36"
 unicode-width = "0.2.0"
@@ -362,6 +363,7 @@ pretty_assertions.workspace = true
 rand.workspace = true
 regex.workspace = true
 rustc-hash.workspace = true
+serde_json.workspace = true
 sha1 = { workspace = true }
 tempfile.workspace = true
 time = { workspace = true, features = ["local-offset"] }
@@ -413,6 +415,10 @@ unix = ["feat_os_unix"]
 windows = ["feat_os_windows"]
 ## project-specific feature shortcodes
 expensive_tests = []
+# Opt-in: `--output-format=json` for ls, dir, vdir, df, du and uname.
+#
+# Enable with: `cargo build --release --features json`
+json = []
 # Opt-in: use OpenSSL (libcrypto) for md5/sha1/sha2-family digests in the
 # checksum utilities instead of the pure-Rust crates. Provides large speedups
 # on CPUs without SHA-NI.

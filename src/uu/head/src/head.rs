@@ -744,7 +744,7 @@ mod tests {
 
         let lines_in_input_file = loop_iteration;
         let input_length = lines_in_input_file * 5;
-        assert_eq!(input_length, input_buffer.len().try_into().unwrap());
+        assert_eq!(input_length, u64::try_from(input_buffer.len()).unwrap());
         let mut input = Cursor::new(input_buffer);
         // We now have loop_iteration lines in the buffer Now walk backwards through the buffer
         // to confirm everything parses correctly.

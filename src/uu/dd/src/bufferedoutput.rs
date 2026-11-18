@@ -135,7 +135,7 @@ mod tests {
         assert_eq!(wstat.writes_complete, 0);
         assert_eq!(wstat.writes_partial, 0);
         assert_eq!(wstat.bytes_total, 0);
-        assert_eq!(output.buf, vec![]);
+        assert_eq!(output.buf, Vec::<u8>::new());
     }
 
     #[test]
@@ -235,6 +235,6 @@ mod tests {
         assert_eq!(wstat.writes_complete, 0);
         assert_eq!(wstat.writes_partial, 1);
         assert_eq!(wstat.bytes_total, 3);
-        assert_eq!(output.buf, vec![]);
+        assert_eq!(output.buf, Vec::<u8>::new());
     }
 }

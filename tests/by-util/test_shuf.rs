@@ -535,7 +535,7 @@ fn test_zero_head_count_file_touch_output_positive_new() {
     ucmd.args(&["-n0", "-o", "file"]).succeeds().no_output();
     assert_eq!(
         at.read_bytes("file"),
-        Vec::new(),
+        Vec::<u8>::new(),
         "Output file must exist and be completely empty"
     );
 }
@@ -547,7 +547,7 @@ fn test_zero_head_count_file_touch_output_positive_existing() {
     ucmd.args(&["-n0", "-o", "file"]).succeeds().no_output();
     assert_eq!(
         at.read_bytes("file"),
-        Vec::new(),
+        Vec::<u8>::new(),
         "Output file must exist and be completely empty"
     );
 }

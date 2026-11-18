@@ -33,6 +33,7 @@ jiff = { workspace = true, optional = true, features = [
   "tzdb-concatenated",
 ] }
 libc = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 os_display = { workspace = true }
 rustc-hash = { workspace = true }
 # Not optional: os_display already pulls unicode-width into every uucore build,
@@ -194,6 +195,7 @@ i18n-datetime = [
   "jiff-icu",
   "jiff",
 ]
+json = ["serde_json"]
 mode = ["libc", "quoting-style", "rustix/process"]
 numeric-str-cmp = ["i18n-decimal"]
 perms = ["entries", "safe-traversal", "walkdir"]

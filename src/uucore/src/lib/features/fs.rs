@@ -914,7 +914,7 @@ pub fn path_ends_with_terminator(path: &Path) -> bool {
     path.as_os_str()
         .encode_wide()
         .last()
-        .is_some_and(|wide| wide == b'/'.into() || wide == b'\\'.into())
+        .is_some_and(|wide| wide == u16::from(b'/') || wide == u16::from(b'\\'))
 }
 
 /// Checks if the standard input (stdin) is a directory.
