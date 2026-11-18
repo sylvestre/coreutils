@@ -248,6 +248,9 @@ pub struct Config {
     pub(crate) dired: bool,
     pub(crate) hyperlink: bool,
     pub(crate) tab_size: usize,
+    /// With `--output-format=json`, add the columns of a long listing.
+    #[cfg(feature = "json")]
+    pub(crate) json_long: bool,
 }
 
 /// Extracts the format to display the information based on the options provided.
@@ -908,6 +911,17 @@ impl Config {
             None
         };
 
+        // --output-format=json replaces the text formats. A listing that would
+        // have been long gets the fields `ls -l` prints.
+        let long_listing = format == Format::Long;
+        #[cfg(feature = "json")]
+        let json_long = if uucore::json::is_json(options) {
+            format = Format::Json;
+            long_listing
+        } else {
+            false
+        };
+
         // Hyperlinks enabled after the last --dired cancel the dired output,
         // and a --dired after --hyperlink disables them again. Dired output
         // also requires the final format to be long: a later -C, -x, -m or
@@ -922,7 +936,7 @@ impl Config {
         let sort = extract_sort(options, &format);
 
         // Only parse the time style after the final output format is known.
-        let (time_format_recent, time_format_older) = if format == Format::Long {
+        let (time_format_recent, time_format_older) = if long_listing {
             parse_time_style(options)?
         } else {
             Default::default()
@@ -936,7 +950,7 @@ impl Config {
             Dereference::DirArgs
         } else if options.get_flag(options::DIRECTORY)
             || indicator_style == Some(IndicatorStyle::Classify)
-            || format == Format::Long
+            || long_listing
         {
             Dereference::None
         } else {
@@ -985,6 +999,8 @@ impl Config {
             dired,
             hyperlink,
             tab_size: tab_size.unwrap_or(SPACES_IN_TAB),
+            #[cfg(feature = "json")]
+            json_long,
         })
     }
 

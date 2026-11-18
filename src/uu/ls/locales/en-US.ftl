@@ -43,6 +43,7 @@ ls-help-display-detailed-info = Display detailed information.
 ls-help-list-entries-rows = List entries in rows instead of in columns.
 ls-help-assume-tab-stops = Assume tab stops at each COLS instead of 8
 ls-help-list-entries-commas = List entries separated by commas.
+ls-help-output-format = Print the listing in FORMAT.
 ls-help-list-entries-nul = List entries separated by ASCII NUL characters.
 ls-help-generate-dired-output = generate output designed for Emacs' dired (Directory Editor) mode
 ls-help-hyperlink-filenames = hyperlink file names WHEN

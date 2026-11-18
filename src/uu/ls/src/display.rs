@@ -139,6 +139,7 @@ pub enum Format {
     OneLine,
     Across,
     Commas,
+    Json,
 }
 
 #[allow(dead_code)]
@@ -655,7 +656,7 @@ fn display_group(_metadata: &Metadata, config: &Config, _gid_cache: &mut ()) -> 
     "somegroup"
 }
 
-fn display_date(
+pub(crate) fn display_date(
     metadata: &Metadata,
     config: &Config,
     recent_time_range: &RangeInclusive<SystemTime>,

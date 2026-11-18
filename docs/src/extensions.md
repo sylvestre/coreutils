@@ -205,3 +205,61 @@ With `-U`/`--no-utf8`, you can interpret input files as 8-bit ASCII rather than 
 Similar to the proc-ps implementation and unlike GNU/Coreutils, `uptime` provides:
  * `-s`/`--since` to show since when the system is up
  * `-p`/`--pretty` to display uptime in a pretty-printed format
+
+## JSON output
+
+When built with the `json` feature (`cargo build --features json`), some
+utilities accept `--output-format=json` to print what they would print as
+text as JSON instead. `--output-format=text` gives back the regular output,
+e.g. to override a `--output-format=json` set in an alias; the last
+`--output-format` wins.
+
+The keys are those of [jc](https://github.com/kellyjonbrazil/jc), which turns
+the text output of these commands into JSON, so a script using
+`cmd | jc --cmd` can use `cmd --output-format=json` instead. As with jc, the
+fields are the ones the text output shows: options that add or remove a
+column add or remove a key. Unlike the text, sizes are exact byte counts and
+times also come as seconds since the Unix epoch.
+
+The JSON is indented when written to a terminal and on a single line
+otherwise, followed by a newline. Names that are not valid UTF-8 are converted
+lossily (invalid bytes become U+FFFD).
+
+### `ls --output-format=json`
+
+An array with one object per listed entry, in the order `ls` would print them
+(sorting, `-a`, `-d`, `-R`, ... apply). A plain listing only has `filename`.
+A long listing (`-l`, `-n`, `-o`, `-g`, `--format=long`, `vdir`) adds the
+fields `ls -l` prints. The other format options (`-1`, `-m`, `-C`, `-x`,
+`--format`) do not change the JSON.
+
+| Key            | Type    | Description                                                   |
+| -------------- | ------- | ------------------------------------------------------------- |
+| `filename`     | string  | Name as printed                                               |
+| `link_to`      | string  | Long, symlinks only: what the link points to                  |
+| `flags`        | string  | Long: file type and permissions, e.g. `"-rw-r--r--"`          |
+| `links`        | integer | Long, Unix: number of hard links                              |
+| `parent`       | string  | The directory heading the entry is printed under, if any      |
+| `owner`        | string  | Long, Unix, not with `-g`: owner name, or uid with `-n`       |
+| `group`        | string  | Long, Unix, not with `-o`: group name, or gid with `-n`       |
+| `size`         | integer | Long: size in bytes, whatever `-h` or `--block-size` say      |
+| `major_number` | integer | Long, devices only, instead of `size`                         |
+| `minor_number` | integer | Long, devices only, instead of `size`                         |
+| `date`         | string  | Long: the date as printed (`--time-style`, `-u`, `-c` apply)  |
+| `epoch`        | integer | Long: the same time, in seconds since the Unix epoch          |
+
+```
+$ ls -l --output-format=json
+[
+  {
+    "filename": "notes.txt",
+    "flags": "-rw-r--r--",
+    "links": 1,
+    "owner": "alice",
+    "group": "staff",
+    "size": 42,
+    "date": "Nov 19 18:27",
+    "epoch": 1795109278
+  }
+]
+```

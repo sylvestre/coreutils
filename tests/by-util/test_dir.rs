@@ -174,3 +174,13 @@ mod diagnostics {
             .stderr_is("dir: invalid --block-size argument '1fb'\n");
     }
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_dir_json() {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.touch("lone");
+    let result = scene.ucmd().arg("--output-format=json").succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(value[0], serde_json::json!({"filename": "lone"}));
+}

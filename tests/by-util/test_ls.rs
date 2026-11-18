@@ -8747,3 +8747,187 @@ fn test_dereferenced_context_reports_error_once(
         .fails_with_code(if command_line { 2 } else { 1 })
         .stderr_is("ls: cannot access 'dir/broken': No such file or directory\n");
 }
+
+#[cfg(feature = "json")]
+fn parse_json_listing(stdout: &str) -> Vec<serde_json::Map<String, serde_json::Value>> {
+    let value: serde_json::Value = serde_json::from_str(stdout).unwrap();
+    value
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry.as_object().unwrap().clone())
+        .collect()
+}
+
+#[cfg(feature = "json")]
+fn json_keys(entry: &serde_json::Map<String, serde_json::Value>) -> Vec<&str> {
+    entry.keys().map(String::as_str).collect()
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_ls_json_names() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("box");
+    at.touch("box/tab\there \"quoted\"");
+    at.touch("box/plain");
+
+    let result = ucmd.args(&["--output-format=json", "box"]).succeeds();
+    let entries = parse_json_listing(result.stdout_str());
+    // A plain listing only prints names, and so does its JSON.
+    assert_eq!(
+        entries[0],
+        serde_json::json!({"filename": "plain"})
+            .as_object()
+            .unwrap()
+            .clone()
+    );
+    assert_eq!(entries[1]["filename"], "tab\there \"quoted\"");
+    assert_eq!(json_keys(&entries[1]), ["filename"]);
+}
+
+#[cfg(feature = "json")]
+#[test]
+#[cfg(unix)]
+fn test_ls_json_long() {
+    use filetime::{FileTime, set_file_mtime};
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("setuid", "seven b");
+    at.set_mode("setuid", 0o4750);
+    set_file_mtime(
+        at.plus("setuid"),
+        FileTime::from_unix_time(1_234_567_890, 0),
+    )
+    .unwrap();
+    at.relative_symlink_file("setuid", "alias");
+
+    let result = ucmd
+        .env("TZ", "UTC0")
+        .args(&["--output-format=json", "-l", "--time-style=long-iso"])
+        .succeeds();
+    let entries = parse_json_listing(result.stdout_str());
+    let (link, file) = (&entries[0], &entries[1]);
+    assert_eq!(
+        json_keys(file),
+        [
+            "filename", "flags", "links", "owner", "group", "size", "date", "epoch"
+        ]
+    );
+    assert_eq!(file["filename"], "setuid");
+    assert_eq!(file["flags"], "-rwsr-x---");
+    assert_eq!(file["links"], 1);
+    assert_eq!(file["size"], 7);
+    // The date as `ls -l` prints it, and the exact time.
+    assert_eq!(file["date"], "2009-02-13 23:31");
+    assert_eq!(file["epoch"], 1_234_567_890);
+    assert_eq!(link["link_to"], "setuid");
+    assert!(link["flags"].as_str().unwrap().starts_with('l'));
+}
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::no_owner("-g", &["group"], &["owner"])]
+#[case::no_group("-o", &["owner"], &["group"])]
+#[case::numeric("-n", &["owner", "group"], &[])]
+#[cfg(unix)]
+fn test_ls_json_long_owner_columns(
+    #[case] option: &str,
+    #[case] present: &[&str],
+    #[case] absent: &[&str],
+) {
+    use std::os::unix::fs::MetadataExt;
+
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.touch("owned");
+    let result = ucmd.args(&["--output-format=json", option]).succeeds();
+    let entry = &parse_json_listing(result.stdout_str())[0];
+    for key in present {
+        assert!(entry[*key].is_string(), "{key} should be a string");
+    }
+    for key in absent {
+        assert!(!entry.contains_key(*key), "{key} should be absent");
+    }
+    if option == "-n" {
+        assert_eq!(entry["owner"], at.metadata("owned").uid().to_string());
+    }
+}
+
+#[cfg(feature = "json")]
+#[test]
+#[cfg(target_os = "linux")]
+fn test_ls_json_device_numbers() {
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "-l", "/dev/null"])
+        .succeeds();
+    let entry = &parse_json_listing(result.stdout_str())[0];
+    assert_eq!(entry["major_number"], 1);
+    assert_eq!(entry["minor_number"], 3);
+    assert!(!entry.contains_key("size"));
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_ls_json_parent_follows_headings() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir_all("root/leaf");
+    at.touch("root/leaf/deep");
+    at.touch("loose");
+
+    // `loose` is printed before any heading, the rest under "root:" or
+    // "root/leaf:".
+    let result = ucmd
+        .args(&["--output-format=json", "-R", "loose", "root"])
+        .succeeds();
+    let entries = parse_json_listing(result.stdout_str());
+    let pairs: Vec<(&str, Option<&str>)> = entries
+        .iter()
+        .map(|e| {
+            (
+                e["filename"].as_str().unwrap(),
+                e.get("parent").and_then(|p| p.as_str()),
+            )
+        })
+        .collect();
+    assert_eq!(
+        pairs,
+        [
+            ("loose", None),
+            ("leaf", Some("root")),
+            ("deep", Some("root/leaf")),
+        ]
+    );
+}
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::one_line("-1")]
+#[case::commas("-m")]
+#[case::across("-x")]
+#[case::format_commas("--format=commas")]
+fn test_ls_json_ignores_text_formats(#[case] text_format: &str) {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.touch("lone");
+    for args in [
+        [text_format, "--output-format=json"],
+        ["--output-format=json", text_format],
+    ] {
+        scene
+            .ucmd()
+            .args(&args)
+            .succeeds()
+            .stdout_only("[{\"filename\":\"lone\"}]\n");
+    }
+}
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::keeps_long(&["-l", "--output-format=text"], "-l")]
+#[case::cancels_json(&["-l", "--output-format=json", "--output-format=text"], "-l")]
+#[case::cancels_json_alone(&["-1", "--output-format=json", "--output-format=text"], "-1")]
+fn test_ls_output_format_text(#[case] args: &[&str], #[case] plain: &str) {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.touch("lone");
+    let expected = scene.ucmd().arg(plain).succeeds().stdout_move_str();
+    scene.ucmd().args(args).succeeds().stdout_only(expected);
+}

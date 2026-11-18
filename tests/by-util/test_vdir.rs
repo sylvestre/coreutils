@@ -218,3 +218,15 @@ mod diagnostics {
             .stderr_is("vdir: invalid --block-size argument '1fb'\n");
     }
 }
+
+#[cfg(feature = "json")]
+#[test]
+#[cfg(unix)]
+fn test_vdir_json_is_long() {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.touch("lone");
+    let result = scene.ucmd().arg("--output-format=json").succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(value[0]["filename"], "lone");
+    assert!(value[0]["flags"].is_string());
+}
