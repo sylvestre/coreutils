@@ -277,3 +277,31 @@ unknown processor and hardware platform, as the text does.
 $ uname -sm --output-format=json
 {"kernel_name":"Linux","machine":"x86_64"}
 ```
+
+### `df --output-format=json`
+
+An array with one object per row of the table, the `--total` row included,
+with one key per column. `-a`, `-l`, `-t`, `-x`, `-i`, `-T`, `--output` and
+the path arguments apply; `-h`, `-H`, `-B` and `-k` do not change the values.
+
+| Column     | Key             | Type            |
+| ---------- | --------------- | --------------- |
+| source     | `filesystem`    | string          |
+| fstype     | `type`          | string          |
+| size       | `size`          | integer (bytes) |
+| used       | `used`          | integer (bytes) |
+| avail      | `available`     | integer (bytes) |
+| pcent      | `use_percent`   | integer or null |
+| itotal     | `inodes`        | integer         |
+| iused      | `iused`         | integer         |
+| iavail     | `ifree`         | integer         |
+| ipcent     | `iused_percent` | integer or null |
+| file       | `file`          | string or null  |
+| target     | `mounted_on`    | string          |
+
+A percentage is null where the text shows `-`.
+
+```
+$ df / --output-format=json
+[{"filesystem":"/dev/sda2","size":1005441241088,"used":939699818496,"available":14592307200,"use_percent":99,"mounted_on":"/"}]
+```

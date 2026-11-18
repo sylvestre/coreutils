@@ -29,30 +29,30 @@ use std::ops::{Add, AddAssign};
 /// filesystem device, the mountpoint, the number of bytes used, etc.
 pub(crate) struct Row {
     /// The filename given on the command-line, if given.
-    file: Option<OsString>,
+    pub(crate) file: Option<OsString>,
 
     /// Name of the device on which the filesystem lives.
-    fs_device: String,
+    pub(crate) fs_device: String,
 
     /// Type of filesystem (for example, `"ext4"`, `"tmpfs"`, etc.).
-    fs_type: String,
+    pub(crate) fs_type: String,
 
     /// Path at which the filesystem is mounted.
-    fs_mount: OsString,
+    pub(crate) fs_mount: OsString,
 
     /// Total number of bytes in the filesystem regardless of whether they are used.
-    bytes: BytesCell,
+    pub(crate) bytes: BytesCell,
 
     /// Number of used bytes.
-    bytes_used: BytesCell,
+    pub(crate) bytes_used: BytesCell,
 
     /// Number of available bytes.
-    bytes_avail: BytesCell,
+    pub(crate) bytes_avail: BytesCell,
 
     /// Percentage of bytes that are used, given as a float between 0 and 1.
     ///
     /// If the filesystem has zero bytes, then this is `None`.
-    bytes_usage: Option<f64>,
+    pub(crate) bytes_usage: Option<f64>,
 
     /// Percentage of bytes that are available, given as a float between 0 and 1.
     ///
@@ -60,21 +60,21 @@ pub(crate) struct Row {
     ///
     /// If the filesystem has zero bytes, then this is `None`.
     #[cfg(target_vendor = "apple")]
-    bytes_capacity: Option<f64>,
+    pub(crate) bytes_capacity: Option<f64>,
 
     /// Total number of inodes in the filesystem.
-    inodes: u128,
+    pub(crate) inodes: u128,
 
     /// Number of used inodes.
-    inodes_used: u128,
+    pub(crate) inodes_used: u128,
 
     /// Number of free inodes.
-    inodes_free: u128,
+    pub(crate) inodes_free: u128,
 
     /// Percentage of inodes that are used, given as a float between 0 and 1.
     ///
     /// If the filesystem has zero bytes, then this is `None`.
-    inodes_usage: Option<f64>,
+    pub(crate) inodes_usage: Option<f64>,
 }
 
 impl Row {
@@ -141,7 +141,7 @@ impl AddAssign for Row {
 }
 
 impl Row {
-    fn from_filesystem(fs: Filesystem, row_block_size: &BlockSize) -> Self {
+    pub(crate) fn from_filesystem(fs: Filesystem, row_block_size: &BlockSize) -> Self {
         let MountInfo {
             dev_name,
             fs_type,
@@ -196,8 +196,8 @@ impl Row {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct BytesCell {
-    bytes: u64,
+pub(crate) struct BytesCell {
+    pub(crate) bytes: u64,
     scaled: u64,
 }
 

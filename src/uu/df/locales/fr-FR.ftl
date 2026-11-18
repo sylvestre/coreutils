@@ -27,6 +27,7 @@ df-help-sync = invoquer sync avant d'obtenir les informations d'utilisation (non
 df-help-type = limiter l'affichage aux systèmes de fichiers de type TYPE
 df-help-print-type = afficher le type de système de fichiers
 df-help-exclude-type = limiter l'affichage aux systèmes de fichiers pas de type TYPE
+df-help-output-format = afficher la sortie au FORMAT donné
 
 # Messages d'erreur
 df-error-block-size-too-large = argument --block-size '{ $size }' trop grand

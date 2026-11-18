@@ -1233,3 +1233,111 @@ df: invalid suffix in --block-size argument '1fb'
             .stderr_is("df: invalid suffix in --block-size argument '1fb'\n");
     }
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json() {
+    let result = new_ucmd!().args(&["--output-format=json", "."]).succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    let filesystems = value.as_array().unwrap();
+    assert_eq!(filesystems.len(), 1);
+    let fs = filesystems[0].as_object().unwrap();
+    // The default columns, keyed like jc's `df` parser.
+    let keys: Vec<&str> = fs.keys().map(String::as_str).collect();
+    assert_eq!(
+        keys,
+        [
+            "filesystem",
+            "size",
+            "used",
+            "available",
+            "use_percent",
+            "mounted_on"
+        ]
+    );
+
+    // Sizes are exact byte counts, whatever the block size of the text.
+    let table = new_ucmd!()
+        .args(&["--output=source,size,used,avail,pcent,target", "-B1", "."])
+        .succeeds()
+        .stdout_move_str();
+    let row: Vec<&str> = table.lines().nth(1).unwrap().split_whitespace().collect();
+    assert_eq!(fs["filesystem"], row[0]);
+    assert_eq!(fs["size"].to_string(), row[1]);
+    assert_eq!(fs["mounted_on"], row[5]);
+    assert_eq!(format!("{}%", fs["use_percent"]), row[4]);
+}
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::inodes(&["-i"], &["filesystem", "inodes", "iused", "ifree", "iused_percent", "mounted_on"])]
+#[case::fs_type(&["-T"], &["filesystem", "type", "size", "used", "available", "use_percent", "mounted_on"])]
+#[case::output(&["--output=file,avail"], &["file", "available"])]
+fn test_json_follows_columns(#[case] args: &[&str], #[case] keys: &[&str]) {
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "."])
+        .args(args)
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    let found: Vec<&str> = value[0]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(found, keys);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_total_row() {
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "--total", "."])
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    let rows = value.as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[1]["filesystem"], "total");
+    assert_eq!(rows[1]["size"], rows[0]["size"]);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_no_filesystem_is_empty_array() {
+    new_ucmd!()
+        .args(&["--output-format=json", "does-not-exist"])
+        .fails_with_code(1)
+        .stdout_is("[]\n");
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_one_entry_per_filesystem() {
+    let json = new_ucmd!().arg("--output-format=json").succeeds();
+    let value: serde_json::Value = serde_json::from_str(json.stdout_str()).unwrap();
+    let table = new_ucmd!().arg("--output=target").succeeds();
+    assert_eq!(
+        value.as_array().unwrap().len(),
+        table.stdout_str().lines().count() - 1
+    );
+}
+
+#[rstest::rstest]
+#[case::o("--o=target")]
+#[case::out("--out=target")]
+#[case::outpu("--outpu=target")]
+fn test_output_prefix_is_not_ambiguous_with_output_format(#[case] arg: &str) {
+    new_ucmd!()
+        .args(&[arg, "."])
+        .succeeds()
+        .stdout_str_check(|out| out.starts_with("Mounted on\n"));
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_output_format_rejects_unknown_format() {
+    new_ucmd!()
+        .arg("--output-format=yaml")
+        .fails_with_code(1)
+        .stderr_contains("invalid value 'yaml'");
+}

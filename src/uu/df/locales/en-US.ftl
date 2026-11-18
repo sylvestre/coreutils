@@ -27,6 +27,7 @@ df-help-sync = invoke sync before getting usage info (non-windows only)
 df-help-type = limit listing to file systems of type TYPE
 df-help-print-type = print file system type
 df-help-exclude-type = limit listing to file systems not of type TYPE
+df-help-output-format = print the output in FORMAT
 
 # Error messages
 df-error-block-size-too-large = --block-size argument '{ $size }' too large

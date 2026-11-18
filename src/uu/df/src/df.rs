@@ -8,6 +8,8 @@
 mod blocks;
 mod columns;
 mod filesystem;
+#[cfg(feature = "json")]
+mod json;
 mod platform;
 mod table;
 
@@ -94,6 +96,10 @@ pub struct Options {
 
     /// Sequence of columns to display in the output table.
     columns: Vec<Column>,
+
+    /// Whether to print the filesystems as a JSON array instead of a table.
+    #[cfg(feature = "json")]
+    json: bool,
 }
 
 impl Default for Options {
@@ -116,6 +122,8 @@ impl Default for Options {
                 Column::Pcent,
                 Column::Target,
             ],
+            #[cfg(feature = "json")]
+            json: false,
         }
     }
 }
@@ -254,6 +262,8 @@ impl Options {
             show_total: matches.get_flag(OPT_TOTAL),
             columns: Column::from_matches(matches)
                 .map_err(|e| DfError::OptionsError(OptionsError::ColumnError(e)))?,
+            #[cfg(feature = "json")]
+            json: uucore::json::is_json(matches),
         })
     }
 
@@ -506,6 +516,12 @@ where
 pub fn df(paths: Option<&[&Path]>, opt: &Options) -> UResult<()> {
     let filesystems = filesystems(paths, opt)?;
 
+    #[cfg(feature = "json")]
+    if opt.json {
+        uucore::json::print_json(&json::to_json(opt, filesystems))?;
+        return Ok(());
+    }
+
     // Every path given on the command line was rejected; `filesystems` has
     // already emitted a diagnostic for each, so there is no table to print.
     if filesystems.is_empty() {
@@ -544,7 +560,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 }
 
 pub fn uu_app() -> Command {
-    Command::new("df")
+    let cmd = Command::new("df")
         .version(uucore::crate_version!())
         .help_template(uucore::localized_help_template(uucore::util_name()))
         .about(translate!("df-about"))
@@ -637,6 +653,7 @@ pub fn uu_app() -> Command {
         .arg(
             Arg::new(OPT_OUTPUT)
                 .long("output")
+                .aliases(["o", "ou", "out", "outp", "outpu"])
                 .value_name("FIELD_LIST")
                 .action(ArgAction::Append)
                 .num_args(0..)
@@ -695,7 +712,12 @@ pub fn uu_app() -> Command {
                 .action(ArgAction::Append)
                 .value_parser(ValueParser::os_string())
                 .value_hint(clap::ValueHint::AnyPath),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "df-help-output-format"
+    )));
+    cmd
 }
 
 #[cfg(test)]
