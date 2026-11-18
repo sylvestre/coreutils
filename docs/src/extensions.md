@@ -263,3 +263,17 @@ $ ls -l --output-format=json
   }
 ]
 ```
+
+### `uname --output-format=json`
+
+An object with one key per field the text output prints, in the same order:
+`kernel_name` (`-s`), `node_name` (`-n`), `kernel_release` (`-r`),
+`kernel_version` (`-v`), `machine` (`-m`), `processor` (`-p`),
+`hardware_platform` (`-i`) and `operating_system` (`-o`). All values are
+strings. Without an option it has `kernel_name` only; `-a` leaves out an
+unknown processor and hardware platform, as the text does.
+
+```
+$ uname -sm --output-format=json
+{"kernel_name":"Linux","machine":"x86_64"}
+```

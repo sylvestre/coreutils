@@ -19,6 +19,7 @@ uname-help-os = print the operating system name.
 uname-help-processor = print the processor type (non-portable)
 uname-help-hardware-platform = print the hardware platform (non-portable)
 uname-help-all-labeled = like -a, print all information but one item per line, labeled.
+uname-help-output-format = print the information in FORMAT
 
 # Labels for --all-labeled
 # Labels for --all-labeled; { $value } is the system-provided field value.

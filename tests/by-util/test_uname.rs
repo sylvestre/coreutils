@@ -196,3 +196,62 @@ fn test_uname_all_labeled_long_flag() {
         .succeeds()
         .stdout_is(short.stdout_str());
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_uname_json_all() {
+    let result = new_ucmd!().args(&["--output-format=json", "-a"]).succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    let object = value.as_object().unwrap();
+    // Keyed like jc's `uname` parser, one key per printed field: -a leaves
+    // out an unknown processor and hardware platform.
+    let keys: Vec<&str> = object.keys().map(String::as_str).collect();
+    assert_eq!(
+        keys,
+        [
+            "kernel_name",
+            "node_name",
+            "kernel_release",
+            "kernel_version",
+            "machine",
+            "operating_system",
+        ]
+    );
+    let kernel_name = new_ucmd!().arg("-s").succeeds().stdout_move_str();
+    assert_eq!(object["kernel_name"], kernel_name.trim_end());
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_uname_json_follows_field_selection() {
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "-mn"])
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    let keys: Vec<&str> = value
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(keys, ["node_name", "machine"]);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_uname_output_format_rejects_unknown_format() {
+    new_ucmd!()
+        .arg("--output-format=xml")
+        .fails_with_code(1)
+        .stderr_contains("invalid value 'xml'");
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_uname_output_format_text_overrides_json() {
+    let plain = new_ucmd!().arg("-a").succeeds().stdout_move_str();
+    new_ucmd!()
+        .args(&["--output-format=json", "-a", "--output-format=text"])
+        .succeeds()
+        .stdout_only(plain);
+}
