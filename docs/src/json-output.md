@@ -31,3 +31,14 @@ An object with the printed fields: `kernel_name`, `node_name`,
 $ uname -sm --output-format=json
 {"kernel_name":"Linux","machine":"x86_64"}
 ```
+
+## `df`
+
+An array with one object per row, the `--total` row included, with one key
+per column: `filesystem`, `type`, `size`, `used`, `available`, `use_percent`,
+`inodes`, `iused`, `ifree`, `iused_percent`, `file` and `mounted_on`.
+
+```
+$ df / --output-format=json
+[{"filesystem":"/dev/sda2","size":1005441241088,"used":939699818496,"available":14592307200,"use_percent":99,"mounted_on":"/"}]
+```

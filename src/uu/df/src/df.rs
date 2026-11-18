@@ -8,6 +8,8 @@
 mod blocks;
 mod columns;
 mod filesystem;
+#[cfg(feature = "json")]
+mod json;
 mod platform;
 mod table;
 
@@ -540,11 +542,17 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         .get_many::<OsString>(OPT_PATHS)
         .map(|paths| paths.map(Path::new).collect());
 
+    #[cfg(feature = "json")]
+    if uucore::json::is_json(&matches) {
+        let filesystems = filesystems(paths.as_deref(), &opt)?;
+        return Ok(uucore::json::print_json(&json::to_json(&opt, filesystems))?);
+    }
+
     df(paths.as_deref(), &opt)
 }
 
 pub fn uu_app() -> Command {
-    Command::new("df")
+    let cmd = Command::new("df")
         .version(uucore::crate_version!())
         .help_template(uucore::localized_help_template(uucore::util_name()))
         .about(translate!("df-about"))
@@ -637,6 +645,7 @@ pub fn uu_app() -> Command {
         .arg(
             Arg::new(OPT_OUTPUT)
                 .long("output")
+                .aliases(["o", "ou", "out", "outp", "outpu"])
                 .value_name("FIELD_LIST")
                 .action(ArgAction::Append)
                 .num_args(0..)
@@ -695,7 +704,12 @@ pub fn uu_app() -> Command {
                 .action(ArgAction::Append)
                 .value_parser(ValueParser::os_string())
                 .value_hint(clap::ValueHint::AnyPath),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "df-help-output-format"
+    )));
+    cmd
 }
 
 #[cfg(test)]
