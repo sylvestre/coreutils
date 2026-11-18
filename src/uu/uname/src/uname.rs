@@ -16,6 +16,9 @@ use uucore::{
     format_usage,
 };
 
+#[cfg(feature = "json")]
+mod json;
+
 pub mod options {
     pub static ALL: &str = "all";
     pub static ALL_LABELED: &str = "all-labeled";
@@ -170,6 +173,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         os: matches.get_flag(options::OS),
     };
     let output = UNameOutput::new(&options)?;
+    #[cfg(feature = "json")]
+    if uucore::json::is_json(&matches) {
+        uucore::json::print_json(&json::to_json(&output))?;
+        return Ok(());
+    }
     if options.all_labeled {
         print_verbatim(output.display_labeled().as_os_str())
             .map_err(|e| USimpleError::new(1, e.to_string()))?;
@@ -181,7 +189,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 }
 
 pub fn uu_app() -> Command {
-    Command::new("uname")
+    let cmd = Command::new("uname")
         .version(uucore::crate_version!())
         .help_template(uucore::localized_help_template("uname"))
         .about(translate!("uname-about"))
@@ -260,5 +268,10 @@ pub fn uu_app() -> Command {
                 .help(translate!("uname-help-hardware-platform"))
                 .action(ArgAction::SetTrue)
                 .hide(true),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "uname-help-output-format"
+    )));
+    cmd
 }

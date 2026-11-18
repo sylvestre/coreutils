@@ -19,6 +19,7 @@ uname-help-os = affiche le nom du système d'exploitation.
 uname-help-processor = affiche le type de processeur (non portable)
 uname-help-hardware-platform = affiche la plateforme matérielle (non portable)
 uname-help-all-labeled = comme -a, affiche toutes les informations mais une par ligne, avec étiquette.
+uname-help-output-format = afficher les informations au FORMAT donné
 
 # Étiquettes pour --all-labeled
 uname-label-kernel-name = Nom du noyau : { $value }

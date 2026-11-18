@@ -196,3 +196,19 @@ fn test_uname_all_labeled_long_flag() {
         .succeeds()
         .stdout_is(short.stdout_str());
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_uname_json() {
+    let node_name = new_ucmd!().arg("-n").succeeds().stdout_move_str();
+    let machine = new_ucmd!().arg("-m").succeeds().stdout_move_str();
+    let expected = format!(
+        "{{\"node_name\":\"{}\",\"machine\":\"{}\"}}\n",
+        node_name.trim_end(),
+        machine.trim_end()
+    );
+    new_ucmd!()
+        .args(&["--output-format=json", "-mn"])
+        .succeeds()
+        .stdout_only(expected);
+}

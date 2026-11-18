@@ -20,3 +20,14 @@ printed) and `epoch`.
 $ ls -l --output-format=json
 [{"filename":"notes.txt","flags":"-rw-r--r--","links":1,"owner":"alice","group":"staff","size":42,"date":"Nov 19 18:27","epoch":1795109278}]
 ```
+
+## `uname`
+
+An object with the printed fields: `kernel_name`, `node_name`,
+`kernel_release`, `kernel_version`, `machine`, `processor`,
+`hardware_platform` and `operating_system`.
+
+```
+$ uname -sm --output-format=json
+{"kernel_name":"Linux","machine":"x86_64"}
+```
