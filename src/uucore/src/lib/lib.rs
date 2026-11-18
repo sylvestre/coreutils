@@ -153,6 +153,8 @@ pub use crate::features::wide;
 
 #[cfg(feature = "fsext")]
 pub use crate::features::fsext;
+#[cfg(feature = "json")]
+pub use crate::features::json;
 
 #[cfg(all(
     feature = "fsxattr",

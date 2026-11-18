@@ -42,6 +42,8 @@ pub mod fs;
 pub mod fsext;
 #[cfg(feature = "i18n-common")]
 pub mod i18n;
+#[cfg(feature = "json")]
+pub mod json;
 #[cfg(feature = "lines")]
 pub mod lines;
 #[cfg(feature = "numeric-str-cmp")]

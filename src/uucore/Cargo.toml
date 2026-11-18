@@ -194,6 +194,7 @@ i18n-datetime = [
   "jiff-icu",
   "jiff",
 ]
+json = []
 mode = ["libc", "quoting-style", "rustix/process"]
 numeric-str-cmp = ["i18n-decimal"]
 perms = ["entries", "safe-traversal", "walkdir"]
