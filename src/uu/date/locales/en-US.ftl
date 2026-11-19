@@ -95,6 +95,7 @@ date-help-reference = display the last modification time of FILE
 date-help-set = set time described by STRING
 date-help-set-redox = set time described by STRING (not available on redox yet)
 date-help-universal = print or set Coordinated Universal Time (UTC)
+date-help-output-format = print the date in FORMAT
 
 date-error-invalid-date = invalid date '{$date}'
 date-error-invalid-format = invalid format '{$format}' ({$error})
@@ -110,3 +111,4 @@ date-error-format-missing-plus = the argument '{$arg}' lacks a leading '+';
   when using an option to specify date(s), any non-option
   argument must be a format string beginning with '+'
 date-error-multiple-output-formats = multiple output formats specified
+date-error-json-out-of-range = cannot print a date outside years -9999 to 9999 as JSON

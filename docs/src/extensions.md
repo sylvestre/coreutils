@@ -436,3 +436,39 @@ on stderr and left out.
 $ stat /etc/hostname --output-format=json
 [{"file":"/etc/hostname","size":6,"blocks":8,"io_blocks":4096,"type":"regular file","device":"8,2","inode":262259,"links":1,"access":"0644","flags":"-rw-r--r--","uid":0,"user":"root","gid":0,"group":"root","access_time":"2026-11-17 14:49:54.232433928 +0100","access_time_epoch":1794923394,"modify_time":"2025-03-12 20:30:42.160110010 +0100","modify_time_epoch":1741807842,"change_time":"2025-06-25 15:24:32.942562013 +0200","change_time_epoch":1750857872,"birth_time":"2025-03-12 20:30:20.804110665 +0100","birth_time_epoch":1741807820}]
 ```
+
+### `date --output-format=json`
+
+An object describing the date `date` would print: now, or the one given with
+`-d`, `-r` or `--resolution`; `-u` applies. With `-f`, an array with one object
+per valid line. `-I`, `-R` and `--rfc-3339` do not change the JSON, and `+FORMAT`
+cannot be combined with it. Names are in English whatever the locale. As the
+time zone is known, `epoch` and `epoch_utc` are both the Unix time and
+`timezone_aware` is always true.
+
+| Key              | Type    | Description                                              |
+| ---------------- | ------- | -------------------------------------------------------- |
+| `year`           | integer |                                                          |
+| `month`          | string  | `"Jan"` to `"Dec"`                                       |
+| `month_num`      | integer | 1 to 12                                                  |
+| `day`            | integer | Day of the month                                         |
+| `weekday`        | string  | `"Mon"` to `"Sun"`                                       |
+| `weekday_num`    | integer | 1 (Monday) to 7 (Sunday)                                 |
+| `hour`           | integer | 1 to 12                                                  |
+| `hour_24`        | integer | 0 to 23                                                  |
+| `minute`         | integer |                                                          |
+| `second`         | integer |                                                          |
+| `period`         | string  | `"AM"` or `"PM"`                                         |
+| `timezone`       | string  | Abbreviation, e.g. `"CEST"`                              |
+| `utc_offset`     | string  | e.g. `"+0200"`                                           |
+| `day_of_year`    | integer | 1 to 366                                                 |
+| `week_of_year`   | integer | Weeks start on Monday; week 0 is before the first Monday |
+| `iso`            | string  | e.g. `"2024-07-14T08:15:00+02:00"`                       |
+| `epoch`          | integer | Seconds since the Unix epoch                             |
+| `epoch_utc`      | integer | Same as `epoch`                                          |
+| `timezone_aware` | boolean | Always `true`                                            |
+
+```
+$ TZ=Europe/Paris date -d '2024-07-14 08:15' --output-format=json
+{"year":2024,"month":"Jul","month_num":7,"day":14,"weekday":"Sun","weekday_num":7,"hour":8,"hour_24":8,"minute":15,"second":0,"period":"AM","timezone":"CEST","utc_offset":"+0200","day_of_year":196,"week_of_year":28,"iso":"2024-07-14T08:15:00+02:00","epoch":1720937700,"epoch_utc":1720937700,"timezone_aware":true}
+```

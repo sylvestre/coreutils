@@ -8,6 +8,8 @@
 
 mod date_names;
 mod format_modifiers;
+#[cfg(feature = "json")]
+mod json;
 mod locale;
 
 use clap::{Arg, ArgAction, Command};
@@ -159,6 +161,9 @@ enum DateError {
     FormatMissingPlus { arg: String },
     #[error("{}", translate!("date-error-multiple-output-formats"))]
     MultipleOutputFormats,
+    #[cfg(feature = "json")]
+    #[error("{}", translate!("date-error-json-out-of-range"))]
+    JsonOutOfRange,
     #[error("{}", translate!("date-error-expected-file-got-directory", "path" => .path))]
     ExpectedFileGotDirectory { path: String },
     #[error("{}", translate!("date-error-cannot-set-date", "path" => .path, "error" => .error))]
@@ -181,6 +186,9 @@ struct Settings {
     format: Format,
     date_source: DateSource,
     debug: bool,
+    /// Whether to print the dates as JSON instead of text.
+    #[cfg(feature = "json")]
+    json: bool,
 }
 
 /// Options for parsing dates
@@ -462,6 +470,13 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     if has_custom_format && has_option_format {
         return Err(Box::new(DateError::MultipleOutputFormats));
     }
+    // --output-format=json replaces +FORMAT, so both cannot be given.
+    #[cfg(feature = "json")]
+    let json = uucore::json::is_json(&matches);
+    #[cfg(feature = "json")]
+    if json && has_custom_format {
+        return Err(Box::new(DateError::MultipleOutputFormats));
+    }
 
     let utc = matches.get_flag(OPT_UNIVERSAL);
     let debug_mode = matches.get_flag(OPT_DEBUG);
@@ -485,6 +500,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         format,
         date_source,
         debug: debug_mode,
+        #[cfg(feature = "json")]
+        json,
     };
 
     if let Some(input) = matches.get_one::<String>(OPT_SET) {
@@ -662,6 +679,15 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         }
     };
 
+    #[cfg(feature = "json")]
+    if settings.json {
+        let several = matches!(
+            settings.date_source,
+            DateSource::File(_) | DateSource::Stdin
+        );
+        return print_json_dates(dates, several, &settings);
+    }
+
     let output = OutputContext::new(&settings);
     let mut stdout = BufWriter::new(std::io::stdout().lock());
 
@@ -696,7 +722,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 }
 
 pub fn uu_app() -> Command {
-    Command::new("date")
+    let cmd = Command::new("date")
         .version(uucore::crate_version!())
         .help_template(uucore::localized_help_template(uucore::util_name()))
         .about(translate!("date-about"))
@@ -811,7 +837,12 @@ pub fn uu_app() -> Command {
             Arg::new(OPT_FORMAT)
                 .num_args(0..)
                 .value_parser(clap::value_parser!(OsString)),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "date-help-output-format"
+    )));
+    cmd
 }
 
 /// Replace bare `%s` conversion specifiers in `fmt` with the Unix epoch second
@@ -1089,11 +1120,7 @@ fn write_formatted_date<W: Write>(
     settings: &Settings,
 ) -> UResult<()> {
     let skip_localization = matches!(settings.format, Format::Rfc5322 | Format::Rfc3339(_));
-    let date = if settings.utc {
-        date.with_time_zone(TimeZone::UTC)
-    } else {
-        date
-    };
+    let date = date_for_display(date, settings);
     write_formatted_bytes(
         writer,
         format_chunks(&output.chunks, |fmt| {
@@ -1102,6 +1129,46 @@ fn write_formatted_date<W: Write>(
         }),
         output,
     )
+}
+
+/// Returns `date` in the time zone it is displayed in: UTC with `-u`.
+fn date_for_display(date: Zoned, settings: &Settings) -> Zoned {
+    if settings.utc {
+        date.with_time_zone(TimeZone::UTC)
+    } else {
+        date
+    }
+}
+
+/// Prints `dates` as JSON: an array with one record per date read from a
+/// file (`several`), a single record otherwise. Invalid dates are reported
+/// and left out.
+#[cfg(feature = "json")]
+fn print_json_dates(
+    dates: impl Iterator<Item = Result<ParsedDateTime, (String, parse_datetime::ParseDateTimeError)>>,
+    several: bool,
+    settings: &Settings,
+) -> UResult<()> {
+    let mut records = Vec::new();
+    for date in dates {
+        match date {
+            Ok(ParsedDateTime::InRange(date)) => {
+                records.push(json::to_json(&date_for_display(date, settings)));
+            }
+            Ok(ParsedDateTime::Extended(_)) => show!(DateError::JsonOutOfRange),
+            Err((input, _err)) => show!(DateError::InvalidDate { date: input }),
+        }
+    }
+    let value = if several {
+        uucore::json::Value::Array(records)
+    } else if let Some(record) = records.pop() {
+        record
+    } else {
+        // The only date was invalid and has been reported.
+        return Ok(());
+    };
+    uucore::json::print_json(&value).map_err(DateError::Write)?;
+    Ok(())
 }
 
 /// Write formatted bytes, newline-terminated, mapping a formatting failure to
@@ -1137,6 +1204,12 @@ fn set_and_echo(input: &str, now: &Zoned, settings: &Settings) -> UResult<()> {
                 settings.utc
             )));
 
+            #[cfg(feature = "json")]
+            if settings.json {
+                let date = date_for_display(date, settings);
+                uucore::json::print_json(&json::to_json(&date)).map_err(DateError::Write)?;
+                return Ok(());
+            }
             let output = OutputContext::new(settings);
             let mut stdout = BufWriter::new(std::io::stdout().lock());
             write_formatted_date(&mut stdout, date, &output, settings)?;
@@ -2531,6 +2604,8 @@ mod tests {
             format: Format::Custom(b"%F %T %Z".to_vec()),
             date_source: DateSource::Now,
             debug: false,
+            #[cfg(feature = "json")]
+            json: false,
         };
         assert_eq!(
             write_date_with_settings(date, settings),
@@ -2546,6 +2621,8 @@ mod tests {
             format: Format::Rfc5322,
             date_source: DateSource::Now,
             debug: false,
+            #[cfg(feature = "json")]
+            json: false,
         };
         assert_eq!(
             write_date_with_settings(date, settings),
@@ -2562,6 +2639,8 @@ mod tests {
             format: Format::Custom(b"%F %T %:z".to_vec()),
             date_source: DateSource::Now,
             debug: false,
+            #[cfg(feature = "json")]
+            json: false,
         };
         assert_eq!(
             write_date_with_settings(date, settings),

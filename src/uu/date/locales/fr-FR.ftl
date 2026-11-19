@@ -90,6 +90,7 @@ date-help-reference = afficher l'heure de dernière modification du FICHIER
 date-help-set = définir l'heure décrite par CHAÎNE
 date-help-set-redox = définir l'heure décrite par CHAÎNE (pas encore disponible sur redox)
 date-help-universal = afficher ou définir le Temps Universel Coordonné (UTC)
+date-help-output-format = afficher la date au FORMAT donné
 
 date-error-invalid-date = date invalide '{$date}'
 date-error-invalid-format = format invalide '{$format}' ({$error})
@@ -105,3 +106,4 @@ date-error-format-missing-plus = l'argument '{$arg}' ne commence pas par un sign
  lorsqu'une option est utilisée pour spécifier une ou plusieurs dates, tout argument autre
   qu'une option doit être une chaîne de format commençant par un signe '+'.
 date-error-multiple-output-formats = plusieurs formats de sortie spécifiés
+date-error-json-out-of-range = impossible d'afficher en JSON une date hors des années -9999 à 9999

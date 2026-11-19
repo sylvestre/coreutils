@@ -422,6 +422,7 @@ expensive_tests = []
 json = [
   "b2sum?/json",
   "cksum?/json",
+  "date?/json",
   "df?/json",
   "dir?/json",
   "du?/json",

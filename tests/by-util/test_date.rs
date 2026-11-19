@@ -4162,3 +4162,119 @@ fn test_invalid_date_escaping_depends_on_locale() {
             .stderr_is(expected);
     }
 }
+
+#[cfg(feature = "json")]
+fn parse_json_date(stdout: &str) -> serde_json::Value {
+    serde_json::from_str(stdout).unwrap()
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_date_json_record() {
+    let result = new_ucmd!()
+        .env("TZ", "Pacific/Auckland")
+        .args(&["--output-format=json", "-d", "2019-11-30 21:47:13"])
+        .succeeds();
+    assert_eq!(
+        parse_json_date(result.stdout_str()),
+        serde_json::json!({
+            "year": 2019,
+            "month": "Nov",
+            "month_num": 11,
+            "day": 30,
+            "weekday": "Sat",
+            "weekday_num": 6,
+            "hour": 9,
+            "hour_24": 21,
+            "minute": 47,
+            "second": 13,
+            "period": "PM",
+            "timezone": "NZDT",
+            "utc_offset": "+1300",
+            "day_of_year": 334,
+            "week_of_year": 47,
+            "iso": "2019-11-30T21:47:13+13:00",
+            "epoch": 1_575_103_633,
+            "epoch_utc": 1_575_103_633,
+            "timezone_aware": true,
+        })
+    );
+}
+
+#[cfg(feature = "json")]
+#[rstest]
+#[case::local(&[], "NZDT", 21)]
+#[case::universal(&["-u"], "UTC", 8)]
+// The text format options do not change the JSON.
+#[case::iso(&["-Iseconds"], "NZDT", 21)]
+#[case::rfc_email(&["-R"], "NZDT", 21)]
+fn test_date_json_time_zone(#[case] args: &[&str], #[case] timezone: &str, #[case] hour_24: u8) {
+    let result = new_ucmd!()
+        .env("TZ", "Pacific/Auckland")
+        .args(&["--output-format=json", "-d", "@1575103633"])
+        .args(args)
+        .succeeds();
+    let value = parse_json_date(result.stdout_str());
+    assert_eq!(value["timezone"], timezone);
+    assert_eq!(value["hour_24"], hour_24);
+    assert_eq!(value["epoch"], 1_575_103_633);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_date_json_file_gives_array() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("when", "1999-06-07 05:04\nnot a date\n2031-12-25 18:00\n");
+    let result = ucmd
+        .env("TZ", "UTC0")
+        .args(&["--output-format=json", "-f", "when"])
+        .fails_with_code(1);
+    result.stderr_is("date: invalid date 'not a date'\n");
+    let value = parse_json_date(result.stdout_str());
+    let days: Vec<_> = value
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|record| record["iso"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(
+        days,
+        ["1999-06-07T05:04:00+00:00", "2031-12-25T18:00:00+00:00"]
+    );
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_date_json_rejects_custom_format() {
+    new_ucmd!()
+        .args(&["--output-format=json", "+%H"])
+        .fails_with_code(1)
+        .no_stdout()
+        .stderr_is("date: multiple output formats specified\n");
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_date_json_invalid_date_prints_nothing() {
+    new_ucmd!()
+        .args(&["--output-format=json", "-d", "yesterday-ish"])
+        .fails_with_code(1)
+        .no_stdout()
+        .stderr_is("date: invalid date 'yesterday-ish'\n");
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_date_output_format_text_overrides_json() {
+    new_ucmd!()
+        .env("TZ", "UTC0")
+        .args(&[
+            "-d",
+            "@86400",
+            "--output-format=json",
+            "--output-format=text",
+            "+%F",
+        ])
+        .succeeds()
+        .stdout_only("1970-01-02\n");
+}
