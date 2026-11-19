@@ -42,6 +42,7 @@ id-help-real = Display the real ID for the -G, -g and -u options instead of
   the effective ID.
 id-help-zero = delimit entries with NUL characters, not whitespace;
   not permitted in default format
+id-help-output-format = print the information in FORMAT
 
 # Output labels
 id-output-uid = uid

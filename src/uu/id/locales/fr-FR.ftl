@@ -42,6 +42,7 @@ id-help-real = Affiche l'ID réel pour les options -G, -g et -u au lieu de
   l'ID effectif.
 id-help-zero = délimite les entrées avec des caractères NUL, pas des espaces ;
   non autorisé dans le format par défaut
+id-help-output-format = afficher les informations au FORMAT donné
 
 # Étiquettes de sortie
 id-output-uid = uid

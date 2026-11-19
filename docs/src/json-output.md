@@ -71,3 +71,14 @@ An array with one `{"name", "value"}` object per variable.
 $ env --output-format=json -i LANG=C
 [{"name":"LANG","value":"C"}]
 ```
+
+## `id`
+
+An object with `uid`, `gid`, `euid` and `egid` (when they differ) as
+`{"id", "name"}`, and `groups`, an array of them. With several users, an
+array of objects.
+
+```
+$ id -g --output-format=json
+{"gid":{"id":1000,"name":"alice"}}
+```

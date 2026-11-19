@@ -581,3 +581,39 @@ fn test_id_digital_username() {
 
     new_ucmd!().arg("200").succeeds();
 }
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::user("-u", "uid")]
+#[case::group("-g", "gid")]
+#[case::real_user("-ru", "uid")]
+fn test_id_json_single_id_matches_text(#[case] flag: &str, #[case] key: &str) {
+    let id = new_ucmd!().arg(flag).succeeds().stdout_move_str();
+    let name = new_ucmd!().arg(flag).arg("-n").succeeds().stdout_move_str();
+    let expected = format!(
+        "{{\"{key}\":{{\"id\":{},\"name\":\"{}\"}}}}\n",
+        id.trim_end(),
+        name.trim_end()
+    );
+    new_ucmd!()
+        .args(&["--output-format=json", flag])
+        .succeeds()
+        .stdout_only(expected);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_id_json_given_users() {
+    // Several users give an array, the unknown one only an error.
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "root", "no_such_user_x9", "root"])
+        .fails_with_code(1);
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(value.as_array().unwrap().len(), 2);
+    assert_eq!(
+        value[1]["uid"],
+        serde_json::json!({"id": 0, "name": "root"})
+    );
+    assert_eq!(value[1]["gid"]["id"], 0);
+    assert!(value[1]["groups"].is_array());
+}
