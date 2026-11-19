@@ -6,6 +6,7 @@ sum-usage = sum [OPTION]... [FILE]...
 # Help messages
 sum-help-bsd-compatible = use the BSD sum algorithm, use 1K blocks (default)
 sum-help-sysv-compatible = use System V sum algorithm, use 512 bytes blocks
+sum-help-output-format = print the checksums in FORMAT
 
 # Error messages
 sum-error-is-directory = { $name }: Is a directory

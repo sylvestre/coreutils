@@ -16,3 +16,6 @@ ck-common-help-status = don't output anything, status code shows success
 ck-common-help-quiet = don't print OK for each successfully verified file
 ck-common-help-ignore-missing = don't fail or report status for missing files
 ck-common-help-debug = print CPU hardware capability detection info used by cksum
+ck-common-help-output-format = print the checksums in FORMAT
+
+ck-common-error-json-check = --output-format=json cannot be used with --check

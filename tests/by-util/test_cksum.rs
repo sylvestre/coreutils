@@ -4058,3 +4058,62 @@ fn test_terminal_output_quotes_names() {
             .stdout_only(expected);
     }
 }
+
+#[cfg(feature = "json")]
+#[rstest]
+#[case::crc("crc")]
+#[case::crc32b("crc32b")]
+#[case::sysv("sysv")]
+#[case::bsd("bsd")]
+fn test_json_legacy_sum(#[case] algorithm: &str) {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.write("pebble", &"granite ".repeat(300));
+    let text = scene
+        .ucmd()
+        .args(&["-a", algorithm, "pebble"])
+        .succeeds()
+        .stdout_move_str();
+    let columns: Vec<&str> = text.split_whitespace().collect();
+
+    let result = scene
+        .ucmd()
+        .args(&["-a", algorithm, "--output-format=json", "pebble"])
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    // Keyed like jc's `cksum` parser, with the two numbers the text prints.
+    assert_eq!(
+        value,
+        serde_json::json!([{
+            "filename": "pebble",
+            "checksum": columns[0].parse::<u64>().unwrap(),
+            "blocks": columns[1].parse::<u64>().unwrap(),
+        }])
+    );
+}
+
+#[cfg(feature = "json")]
+#[rstest]
+#[case::hex(&[])]
+#[case::base64(&["--base64"])]
+fn test_json_digest_algorithm(#[case] encoding: &[&str]) {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.write("pebble", "basalt");
+    let text = scene
+        .ucmd()
+        .args(&["-a", "sha512", "--untagged", "pebble"])
+        .args(encoding)
+        .succeeds()
+        .stdout_move_str();
+    let hash = text.split_whitespace().next().unwrap();
+
+    let result = scene
+        .ucmd()
+        .args(&["-a", "sha512", "--output-format=json", "pebble"])
+        .args(encoding)
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(
+        value,
+        serde_json::json!([{ "filename": "pebble", "hash": hash }])
+    );
+}

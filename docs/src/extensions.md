@@ -375,3 +375,33 @@ several users, the output is an array with one object per user.
 $ id -g --output-format=json
 {"gid":{"id":1000,"name":"alice"}}
 ```
+
+### `md5sum`, `sha1sum`, `sha224sum`, `sha256sum`, `sha384sum`, `sha512sum`, `b2sum --output-format=json`
+
+An array with one object per file, in the order given, with `filename` and
+`hash` (as jc's `hashsum` parser). The standard input is named `-`. Files
+that cannot be read are reported on standard error and left out. `--tag`,
+`--binary`, `--text` and `-z` do not change the JSON, and `-l` applies to
+`b2sum`. `--output-format=json` cannot be used with `--check`.
+
+```
+$ sha256sum notes.txt --output-format=json
+[{"filename":"notes.txt","hash":"8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4"}]
+```
+
+### `cksum`, `sum --output-format=json`
+
+An array with one object per file. For the CRC, BSD and SysV sums (`cksum`
+by default or with `-a crc`, `crc32b`, `sysv` or `bsd`, and `sum`), the
+keys are `filename`, `checksum` and `blocks`, as jc's `cksum` parser:
+`checksum` is the integer the text prints and `blocks` the second number,
+which is a byte count for CRC. With a digest algorithm (`cksum -a sha256`,
+...) the object has `filename` and `hash`, as for `sha256sum`, and
+`--base64` gives the hash in base64. `filename` is always present, `-` for
+the standard input. `--raw`, `--tag` and `--untagged` do not change the
+JSON, and it cannot be used with `--check`.
+
+```
+$ cksum notes.txt --output-format=json
+[{"filename":"notes.txt","checksum":3015617425,"blocks":6}]
+```

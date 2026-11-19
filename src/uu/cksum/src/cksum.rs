@@ -144,5 +144,6 @@ pub fn uu_app() -> Command {
         .with_binary()
         .with_zero()
         .with_debug()
+        .with_output_format()
         .after_help(translate!("cksum-after-help"))
 }

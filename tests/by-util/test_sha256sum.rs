@@ -85,3 +85,64 @@ fn test_check_binary_files_with_crlf_bytes() {
             .stdout_only("a.fake-ttf: OK\nb.fake-heic: OK\n");
     }
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_hash_per_file() {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.write("left", "left side\n");
+    scene.fixtures.write("right", "");
+    let text = scene
+        .ucmd()
+        .args(&["left", "right"])
+        .succeeds()
+        .stdout_move_str();
+    let hashes: Vec<&str> = text
+        .lines()
+        .map(|line| line.split_whitespace().next().unwrap())
+        .collect();
+
+    let result = scene
+        .ucmd()
+        .args(&["--output-format=json", "left", "right", "-"])
+        .pipe_in("left side\n")
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    // Keyed like jc's `hashsum` parser; stdin is named "-".
+    assert_eq!(
+        value,
+        serde_json::json!([
+            { "filename": "left", "hash": hashes[0] },
+            { "filename": "right", "hash": hashes[1] },
+            { "filename": "-", "hash": hashes[0] },
+        ])
+    );
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_skips_unreadable_file() {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.write("kept", "x");
+    let result = scene
+        .ucmd()
+        .args(&["--output-format=json", "absent", "kept"])
+        .fails_with_code(1);
+    result.stderr_contains("absent: No such file or directory");
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(value.as_array().unwrap().len(), 1);
+    assert_eq!(value[0]["filename"], "kept");
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_rejects_check() {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.write("sums", "");
+    scene
+        .ucmd()
+        .args(&["--output-format=json", "-c", "sums"])
+        .fails_with_code(1)
+        .stderr_contains("--output-format=json cannot be used with --check")
+        .no_stdout();
+}

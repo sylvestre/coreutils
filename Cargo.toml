@@ -420,13 +420,22 @@ expensive_tests = []
 #
 # Enable with: `cargo build --release --features json`
 json = [
+  "b2sum?/json",
+  "cksum?/json",
   "df?/json",
   "dir?/json",
   "du?/json",
   "env?/json",
   "id?/json",
   "ls?/json",
+  "md5sum?/json",
   "printenv?/json",
+  "sha1sum?/json",
+  "sha224sum?/json",
+  "sha256sum?/json",
+  "sha384sum?/json",
+  "sha512sum?/json",
+  "sum?/json",
   "uname?/json",
   "vdir?/json",
   "wc?/json",

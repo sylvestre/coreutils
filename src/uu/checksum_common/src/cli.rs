@@ -57,6 +57,9 @@ pub trait ChecksumCommand {
     fn with_zero(self) -> Self;
 
     fn with_debug(self) -> Self;
+
+    /// `--output-format=json`; a no-op without the `json` feature.
+    fn with_output_format(self) -> Self;
 }
 
 impl ChecksumCommand for Command {
@@ -209,5 +212,15 @@ impl ChecksumCommand for Command {
                 .help(translate!("ck-common-help-debug"))
                 .action(ArgAction::SetTrue),
         )
+    }
+
+    fn with_output_format(self) -> Self {
+        #[cfg(feature = "json")]
+        let cmd = self.arg(uucore::json::output_format_arg(translate!(
+            "ck-common-help-output-format"
+        )));
+        #[cfg(not(feature = "json"))]
+        let cmd = self;
+        cmd
     }
 }

@@ -16,6 +16,9 @@ use uucore::translate;
 
 use uucore::{format_usage, show};
 
+#[cfg(feature = "json")]
+mod json;
+
 // Fixed to 8 KiB (equivalent to `std::sys::io::DEFAULT_BUF_SIZE` on most targets)
 const DEFAULT_BUF_SIZE: usize = 8 * 1024;
 
@@ -128,6 +131,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 
     let print_names = files.len() > 1 || files[0] != "-";
     let width = if sysv { 1 } else { 5 };
+    #[cfg(feature = "json")]
+    let mut records = uucore::json::is_json(&matches).then(Vec::new);
 
     for file in &files {
         let reader = match open(file) {
@@ -152,6 +157,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
                 continue;
             }
         };
+        #[cfg(feature = "json")]
+        if let Some(records) = records.as_mut() {
+            records.push(json::record(sum, blocks, file));
+            continue;
+        }
         let mut stdout = stdout().lock();
         if print_names {
             write!(stdout, "{sum:0width$} {blocks:width$} ")?;
@@ -161,11 +171,15 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             writeln!(stdout, "{sum:0width$} {blocks:width$}")?;
         }
     }
+    #[cfg(feature = "json")]
+    if let Some(records) = records {
+        uucore::json::print_json(&uucore::json::Value::Array(records))?;
+    }
     Ok(())
 }
 
 pub fn uu_app() -> Command {
-    Command::new("sum")
+    let cmd = Command::new("sum")
         .version(uucore::crate_version!())
         .help_template(uucore::localized_help_template("sum"))
         .override_usage(format_usage(&translate!("sum-usage")))
@@ -195,7 +209,12 @@ pub fn uu_app() -> Command {
                 .action(ArgAction::SetTrue)
                 // GNU: whichever of -r/-s comes last wins.
                 .overrides_with(options::BSD_COMPATIBLE),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "sum-help-output-format"
+    )));
+    cmd
 }
 
 enum Reader {

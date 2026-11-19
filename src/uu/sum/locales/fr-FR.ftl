@@ -6,6 +6,7 @@ sum-usage = sum [OPTION]... [FICHIER]...
 # Messages d'aide
 sum-help-bsd-compatible = utiliser l'algorithme de somme BSD, utiliser des blocs de 1K (par défaut)
 sum-help-sysv-compatible = utiliser l'algorithme de somme System V, utiliser des blocs de 512 octets
+sum-help-output-format = afficher les sommes de contrôle au FORMAT donné
 
 # Messages d'erreur
 sum-error-is-directory = { $name } : Est un répertoire
