@@ -10,13 +10,14 @@ mod platform;
 use clap::{Arg, ArgAction, Command};
 use jiff::Timestamp;
 use jiff::tz::TimeZone;
+use std::fmt;
 use std::io::{self, Write, stdout};
+use std::time::Duration;
 use uucore::error::{UError, UResult};
 use uucore::format_usage;
 use uucore::translate;
 use uucore::uptime::{
-    OutputFormat, format_nusers, get_formatted_loadavg, get_formatted_nusers, get_formatted_time,
-    get_formatted_uptime,
+    FormattedUptime, OutputFormat, format_loadavg, format_nusers, get_formatted_uptime, get_loadavg,
 };
 
 pub mod options {
@@ -52,10 +53,50 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     if matches.get_flag(options::PRETTY) {
         return pretty_print_uptime();
     }
-    if let Some(result) = platform::maybe_uptime_from_file(&matches) {
-        return result;
+    writeln!(stdout(), "{}", Report::new(&matches)?)?;
+    Ok(())
+}
+
+/// What the default output shows, printed by [`fmt::Display`].
+struct Report {
+    now: jiff::civil::Time,
+    /// `None` when the utmp file operand has no usable boot time.
+    uptime: Option<Duration>,
+    users: usize,
+    /// `None` where there are no load averages (e.g. Windows).
+    loadavg: Option<(f64, f64, f64)>,
+}
+
+impl Report {
+    fn new(matches: &clap::ArgMatches) -> UResult<Self> {
+        let (uptime, users) = platform::uptime_and_users(matches)?;
+        Ok(Self {
+            now: Timestamp::now().to_zoned(TimeZone::system()).time(),
+            uptime,
+            users,
+            loadavg: get_loadavg().ok(),
+        })
     }
-    default_uptime()
+}
+
+impl fmt::Display for Report {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, " {} ", self.now.strftime("%H:%M:%S"))?;
+        match self.uptime {
+            Some(uptime) => write!(
+                f,
+                "{} {},  ",
+                translate!("uptime-output-up-text"),
+                FormattedUptime::new(uptime.as_secs()).get_human_readable_uptime()
+            )?,
+            None => write!(f, "{}", translate!("uptime-output-unknown-uptime"))?,
+        }
+        write!(f, "{}", format_nusers(self.users))?;
+        if let Some(loadavg) = self.loadavg {
+            write!(f, ",  {}", format_loadavg(loadavg))?;
+        }
+        Ok(())
+    }
 }
 
 pub fn uu_app() -> Command {
@@ -93,57 +134,6 @@ fn uptime_since() -> UResult<()> {
     let since_date = (Timestamp::now() - uptime).to_zoned(TimeZone::system());
     writeln!(stdout(), "{}", since_date.strftime("%Y-%m-%d %H:%M:%S"))?;
 
-    Ok(())
-}
-
-/// Default uptime behaviour i.e. when no file argument is given.
-fn default_uptime() -> UResult<()> {
-    print_time()?;
-    print_uptime(None)?;
-    print_nusers(None)?;
-    print_loadavg()?;
-
-    Ok(())
-}
-
-/// Prints the load average with its leading separator, or just the line ending
-/// where load averages are unavailable (e.g. Windows), as GNU does.
-#[inline]
-fn print_loadavg() -> UResult<()> {
-    if let Ok(s) = get_formatted_loadavg() {
-        write!(stdout(), ",  {s}")?;
-    }
-    writeln!(stdout())?;
-    Ok(())
-}
-
-fn print_nusers(nusers: Option<usize>) -> UResult<()> {
-    write!(
-        stdout(),
-        "{}",
-        match nusers {
-            None => {
-                get_formatted_nusers()
-            }
-            Some(nusers) => {
-                format_nusers(nusers)
-            }
-        }
-    )?;
-
-    Ok(())
-}
-
-fn print_time() -> UResult<()> {
-    write!(stdout(), " {} ", get_formatted_time())?;
-    Ok(())
-}
-
-fn print_uptime(boot_time: Option<i64>) -> UResult<()> {
-    let localized_text = translate!("uptime-output-up-text");
-    let uptime_message = get_formatted_uptime(boot_time, OutputFormat::HumanReadable)?;
-
-    write!(stdout(), "{localized_text} {uptime_message},  ")?;
     Ok(())
 }
 

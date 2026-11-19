@@ -139,7 +139,7 @@ pub fn get_nusers() -> usize {
 
 /// Get the number of users from the default system source, for
 /// [`super::get_formatted_nusers`].
-pub(crate) fn default_nusers() -> usize {
+pub fn default_nusers() -> usize {
     get_nusers()
 }
 

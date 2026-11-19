@@ -205,7 +205,7 @@ pub fn get_nusers(file: &str) -> usize {
 /// Get the number of users from the default system source, for
 /// [`super::get_formatted_nusers`]. On OpenBSD the default source is
 /// `/var/run/utmp`.
-pub(crate) fn default_nusers() -> usize {
+pub fn default_nusers() -> usize {
     #[cfg(not(any(target_os = "openbsd", target_os = "android")))]
     return get_nusers();
     #[cfg(target_os = "openbsd")]

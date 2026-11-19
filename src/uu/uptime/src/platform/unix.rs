@@ -11,15 +11,14 @@
 
 use clap::{Arg, ArgAction, ArgMatches, Command, ValueHint, builder::ValueParser};
 use std::ffi::OsString;
-use std::io::{Write, stdout};
 use std::time::Duration;
 use uucore::error::UResult;
 use uucore::translate;
-use uucore::uptime::get_uptime;
+use uucore::uptime::{default_nusers, get_uptime};
 #[cfg(not(any(target_os = "openbsd", target_os = "android")))]
 use uucore::utmpx::{BOOT_TIME, USER_PROCESS, Utmpx};
 
-use crate::{UptimeError, options, print_loadavg, print_nusers, print_time, print_uptime};
+use crate::{UptimeError, options};
 
 /// Register platform-only CLI arguments: the utmp file operand, which only
 /// makes sense where utmp files exist.
@@ -34,12 +33,37 @@ pub(crate) fn add_platform_args(cmd: Command) -> Command {
     )
 }
 
-/// Run `uptime` against a user-supplied utmp file if the file operand was
-/// given, or return `None` to fall through to the default system sources.
-pub(crate) fn maybe_uptime_from_file(matches: &ArgMatches) -> Option<UResult<()>> {
-    matches
-        .get_one::<OsString>(options::PATH)
-        .map(uptime_with_file)
+/// The time since boot and the number of users: from the utmp file operand
+/// if there is one, from the system otherwise. The uptime is `None`, after
+/// reporting why, when the file has no usable boot time.
+pub(crate) fn uptime_and_users(matches: &ArgMatches) -> UResult<(Option<Duration>, usize)> {
+    let Some(file_path) = matches.get_one::<OsString>(options::PATH) else {
+        return Ok((Some(get_uptime(None)?), default_nusers()));
+    };
+    if !utmp_file_is_usable(file_path) {
+        return Ok((None, 0));
+    }
+
+    #[cfg(not(any(target_os = "openbsd", target_os = "android")))]
+    {
+        use uucore::error::set_exit_code;
+        use uucore::show_error;
+
+        let (boot_time, users) = process_utmpx(Some(file_path));
+        let Some(boot_time) = boot_time else {
+            show_error!("{}", translate!("uptime-error-couldnt-get-boot-time"));
+            set_exit_code(1);
+            return Ok((None, users));
+        };
+        Ok((Some(get_uptime(Some(boot_time))?), users))
+    }
+    #[cfg(target_os = "openbsd")]
+    {
+        let users = file_path.to_str().map_or(0, uucore::uptime::get_nusers);
+        Ok((Some(get_uptime(None)?), users))
+    }
+    #[cfg(target_os = "android")]
+    Ok((Some(get_uptime(None)?), 0))
 }
 
 /// The elapsed duration since boot, for `--since`: derived from the utmpx
@@ -55,13 +79,14 @@ pub(crate) fn system_uptime() -> UResult<Duration> {
     get_uptime(None)
 }
 
-fn uptime_with_file(file_path: &OsString) -> UResult<()> {
+/// Reports why `file_path` cannot be read as a utmp file, if it cannot, and
+/// returns whether it can.
+fn utmp_file_is_usable(file_path: &OsString) -> bool {
     use std::fs;
     use std::os::unix::fs::FileTypeExt;
     use uucore::error::set_exit_code;
     use uucore::show_error;
 
-    // Uptime will print loadavg and time to stderr unless we encounter an extra operand.
     let mut non_fatal_error = false;
 
     // process_utmpx_from_file() doesn't detect or report failures, we check if the path is valid
@@ -93,58 +118,12 @@ fn uptime_with_file(file_path: &OsString) -> UResult<()> {
 
         if bytes.last() != Some(&b'x') {
             show_error!("{}", translate!("uptime-error-couldnt-get-boot-time"));
-            print_time()?;
-            write!(stdout(), "{}", translate!("uptime-output-unknown-uptime"))?;
-            print_nusers(Some(0))?;
-            print_loadavg()?;
             set_exit_code(1);
-            return Ok(());
+            return false;
         }
     }
 
-    if non_fatal_error {
-        print_time()?;
-        write!(stdout(), "{}", translate!("uptime-output-unknown-uptime"))?;
-        print_nusers(Some(0))?;
-        print_loadavg()?;
-        return Ok(());
-    }
-
-    print_time()?;
-    let user_count;
-
-    #[cfg(not(any(target_os = "openbsd", target_os = "android")))]
-    {
-        let (boot_time, count) = process_utmpx(Some(file_path));
-        if let Some(time) = boot_time {
-            print_uptime(Some(time))?;
-        } else {
-            show_error!("{}", translate!("uptime-error-couldnt-get-boot-time"));
-            set_exit_code(1);
-
-            write!(stdout(), "{}", translate!("uptime-output-unknown-uptime"))?;
-        }
-        user_count = count;
-    }
-
-    #[cfg(any(target_os = "openbsd", target_os = "android"))]
-    {
-        print_uptime(None)?;
-        #[cfg(target_os = "openbsd")]
-        {
-            user_count =
-                uucore::uptime::get_nusers(file_path.to_str().expect("invalid utmp path file"));
-        }
-        #[cfg(target_os = "android")]
-        {
-            user_count = 0;
-        }
-    }
-
-    print_nusers(Some(user_count))?;
-    print_loadavg()?;
-
-    Ok(())
+    !non_fatal_error
 }
 
 #[cfg(not(any(target_os = "openbsd", target_os = "android")))]
