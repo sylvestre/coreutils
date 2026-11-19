@@ -113,3 +113,13 @@ An object with the date split in fields, or an array of them with `-f`.
 $ TZ=Europe/Paris date -d '2024-07-14 08:15' --output-format=json
 {"year":2024,"month":"Jul","month_num":7,"day":14,"weekday":"Sun","weekday_num":7,"hour":8,"hour_24":8,"minute":15,"second":0,"period":"AM","timezone":"CEST","utc_offset":"+0200","day_of_year":196,"week_of_year":28,"iso":"2024-07-14T08:15:00+02:00","epoch":1720937700,"epoch_utc":1720937700,"timezone_aware":true}
 ```
+
+## `who`
+
+An array with one object per line, with its columns: `user`,
+`writeable_tty`, `tty`, `time`, `idle`, `pid` and `comment`.
+
+```
+$ who --output-format=json
+[{"user":"alice","tty":"tty2","time":"2026-11-12 17:24","comment":"(:0)"}]
+```

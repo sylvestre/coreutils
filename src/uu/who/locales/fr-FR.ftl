@@ -23,6 +23,7 @@ who-help-short = affiche seulement nom, ligne et heure (par défaut)
 who-help-time = affiche le dernier changement d'horloge système
 who-help-users = liste les utilisateurs connectés
 who-help-mesg = ajoute le statut de message de l'utilisateur comme +, - ou ?
+who-help-output-format = afficher les informations au FORMAT donné
 
 # Output messages
 who-user-count = # { $count ->

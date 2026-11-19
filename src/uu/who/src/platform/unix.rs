@@ -160,6 +160,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         select,
         layout,
         args: files,
+        #[cfg(feature = "json")]
+        json: uucore::json::is_json(&matches).then(Default::default),
     };
 
     who.exec()?;
@@ -173,6 +175,9 @@ struct Who {
     select: Selection,
     layout: Layout,
     args: Vec<String>,
+    /// With `--output-format=json`, the records of the lines printed so far.
+    #[cfg(feature = "json")]
+    json: Option<std::cell::RefCell<Vec<uucore::json::Value>>>,
 }
 
 /// Render how long a terminal has been quiet: `hours:minutes`, `.` when under a
@@ -257,6 +262,10 @@ impl Who {
             } else if let Some(event) = self.event_for(&ut) {
                 self.emit_event(&ut, event)?;
             }
+        }
+        #[cfg(feature = "json")]
+        if let Some(records) = &self.json {
+            uucore::json::print_json(&records.take().into())?;
         }
         Ok(())
     }
@@ -432,6 +441,12 @@ impl Who {
         // Width of "%b %e %H:%M" under LC_ALL=C.
         const TIME_WIDTH: usize = 3 + 2 + 2 + 1 + 2;
 
+        #[cfg(feature = "json")]
+        if let Some(records) = &self.json {
+            records.borrow_mut().push(self.json_record(row));
+            return Ok(());
+        }
+
         let mut buf = String::with_capacity(64);
         write!(buf, "{:<8}", row.user).unwrap();
         if self.layout.write_state {
@@ -468,5 +483,33 @@ impl Who {
             exit: &translate!("who-heading-exit"),
         })?;
         Ok(())
+    }
+
+    /// The columns the text line would show, as a JSON record.
+    #[cfg(feature = "json")]
+    fn json_record(&self, row: &Row) -> uucore::json::Value {
+        let layout = &self.layout;
+        let write_state = row.write_state.to_string();
+        let comment = format!("{} {}", row.note, row.exit);
+        let columns = [
+            ("user", row.user),
+            (
+                "writeable_tty",
+                if layout.write_state { &write_state } else { "" },
+            ),
+            ("tty", row.line),
+            ("time", row.time),
+            (
+                "idle",
+                if layout.terse || !layout.idle {
+                    ""
+                } else {
+                    row.idle
+                },
+            ),
+            ("pid", if layout.terse { "" } else { row.pid }),
+            ("comment", &comment),
+        ];
+        crate::json::record(&columns)
     }
 }

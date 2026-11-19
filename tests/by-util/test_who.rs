@@ -516,4 +516,24 @@ alice    ? ttyNotThere  Nov 14 22:13   ?          3456 (example.org)
     fn test_run_level_without_previous_level() {
         run_who(&[run_level(0, b'5')], &["-r"]).stdout_is("         run-level 5  Nov 14 22:13\n");
     }
+
+    #[cfg(feature = "json")]
+    #[rstest::rstest]
+    #[case::boot("-b", serde_json::json!({"tty": "system boot", "time": "Nov 14 22:13"}))]
+    #[case::dead("-d", serde_json::json!({
+        "tty": "pts/98", "time": "Nov 14 22:13", "pid": 4567, "comment": "id=ts/8 term=1 exit=2"
+    }))]
+    #[case::users("-u", serde_json::json!({
+        "user": "alice", "tty": "ttyNotThere", "time": "Nov 14 22:13", "idle": "?", "pid": 3456,
+        "comment": "(example.org)"
+    }))]
+    #[case::mesg("-T", serde_json::json!({
+        "user": "alice", "writeable_tty": "?", "tty": "ttyNotThere", "time": "Nov 14 22:13",
+        "comment": "(example.org)"
+    }))]
+    fn test_json(#[case] arg: &str, #[case] expected: serde_json::Value) {
+        let result = run_who(&records(), &["--output-format=json", arg]);
+        let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+        assert_eq!(value, serde_json::json!([expected]));
+    }
 }
