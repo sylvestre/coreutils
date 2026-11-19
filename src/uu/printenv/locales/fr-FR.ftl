@@ -2,3 +2,4 @@ printenv-about = Afficher les valeurs des VARIABLE(s) d'environnement spécifié
 printenv-usage = printenv [OPTION]... [VARIABLE]...
 
 printenv-help-null = terminer chaque ligne de sortie avec un octet 0 plutôt qu'un saut de ligne
+printenv-help-output-format = afficher les variables au FORMAT donné

@@ -2680,3 +2680,72 @@ fn test_env0_from_hyphen_value_not_split() {
         .succeeds()
         .stdout_is("A=1\n");
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_env_json() {
+    let result = new_ucmd!()
+        .args(&[
+            "--output-format=json",
+            "-i",
+            "PAIR=k=v",
+            "BLANK=",
+            "SPACED=one two",
+        ])
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(
+        value,
+        serde_json::json!([
+            {"name": "PAIR", "value": "k=v"},
+            {"name": "BLANK", "value": ""},
+            {"name": "SPACED", "value": "one two"},
+        ])
+    );
+}
+
+#[cfg(feature = "json")]
+#[rstest]
+#[case::text_last(&["--output-format=json", "--output-format=text", "-i", "LONE=1"], "LONE=1\n")]
+#[case::json_last(
+    &["--output-format=text", "--output-format=json", "-i", "LONE=1"],
+    "[{\"name\":\"LONE\",\"value\":\"1\"}]\n"
+)]
+// After a NAME=VALUE, an argument with `=` is one more assignment, not an option.
+#[case::after_assignment(&["-i", "LONE=1", "--output-format=json"], "LONE=1\n--output-format=json\n")]
+fn test_env_json_option_position(#[case] args: &[&str], #[case] expected: &str) {
+    new_ucmd!().args(args).succeeds().stdout_only(expected);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_env_json_env0_from() {
+    let scene = TestScenario::new(util_name!());
+    scene
+        .fixtures
+        .write_bytes("vars", b"FIRST=a\nb\0SECOND=2\0");
+    let result = scene
+        .ucmd()
+        .args(&["-i", "--env0-from=vars", "--output-format=json"])
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(
+        value,
+        serde_json::json!([
+            {"name": "FIRST", "value": "a\nb"},
+            {"name": "SECOND", "value": "2"},
+        ])
+    );
+}
+
+#[cfg(all(feature = "json", unix))]
+#[test]
+fn test_env_json_invalid_utf8_is_lossy() {
+    use std::os::unix::ffi::OsStrExt;
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "-i"])
+        .arg(std::ffi::OsStr::from_bytes(b"RAW=\xfeok"))
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(value[0]["value"], "\u{fffd}ok");
+}

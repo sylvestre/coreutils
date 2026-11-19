@@ -88,6 +88,9 @@ impl From<string_parser::Error> for EnvError {
     }
 }
 
+#[cfg(feature = "json")]
+mod json;
+
 mod options {
     pub const IGNORE_ENVIRONMENT: &str = "ignore-environment";
     pub const CHDIR: &str = "chdir";
@@ -117,6 +120,9 @@ struct Options<'a> {
     signal_actions: Vec<(SignalActionKind, SignalRequest)>,
     #[cfg(all(unix, not(target_os = "fuchsia")))]
     list_signal_handling: bool,
+    /// Whether to print the environment as a JSON array instead of lines.
+    #[cfg(feature = "json")]
+    json: bool,
 }
 
 fn parse_name_value_opt<'a>(opts: &mut Options<'a>, opt: &'a OsStr) -> UResult<bool> {
@@ -492,7 +498,7 @@ fn load_env0_from(opts: &Options, env0_file: &OsStr) -> UResult<Vec<Vec<u8>>> {
     Ok(entries)
 }
 pub fn uu_app() -> Command {
-    Command::new("env")
+    let cmd = Command::new("env")
         .version(uucore::crate_version!())
         .help_template(uucore::localized_help_template("env"))
         .about(translate!("env-about"))
@@ -620,7 +626,12 @@ pub fn uu_app() -> Command {
                 .long(options::LIST_SIGNAL_HANDLING)
                 .action(ArgAction::SetTrue)
                 .help(translate!("env-help-list-signal-handling")),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "env-help-output-format"
+    )));
+    cmd
 }
 
 pub fn parse_args_from_str(text: &NativeIntStr) -> UResult<Vec<NativeIntString>> {
@@ -1086,6 +1097,15 @@ impl EnvAppData {
 
         apply_change_directory(&opts)?;
         if opts.program.is_empty() {
+            #[cfg(feature = "json")]
+            if opts.json {
+                let records = match &custom_env {
+                    Some(entries) => json::from_entries(entries),
+                    None => json::from_current_env(),
+                };
+                uucore::json::print_json(&records)?;
+                return Ok(());
+            }
             if let Some(ref entries) = custom_env {
                 let stdout = io::stdout().lock();
                 let mut writer = io::BufWriter::new(stdout);
@@ -1349,6 +1369,8 @@ fn make_options<'a>(
         signal_actions,
         #[cfg(all(unix, not(target_os = "fuchsia")))]
         list_signal_handling,
+        #[cfg(feature = "json")]
+        json: uucore::json::is_json(matches),
     };
 
     let mut begin_prog_opts = false;

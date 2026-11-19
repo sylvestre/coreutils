@@ -341,3 +341,21 @@ default) are `bytes`; `characters` is used for `-m`.
 $ wc --output-format=json notes.txt todo.txt
 [{"filename":"notes.txt","lines":3,"words":12,"bytes":61},{"filename":"todo.txt","lines":1,"words":2,"bytes":9},{"filename":"total","lines":4,"words":14,"bytes":70}]
 ```
+
+### `env --output-format=json` and `printenv --output-format=json`
+
+An array with one `{"name", "value"}` object per variable, in the order the
+text output prints them; both values are strings. For `env`, this is the
+environment after `-i`, `-u`, `--env0-from` and the `NAME=VALUE` arguments
+apply; the option has no effect when a command is given, and like the other
+`env` options it must come before the first `NAME=VALUE` or command word.
+`printenv VAR...` gives the named variables that are set, in the order given;
+as with the text, a variable that is not set is left out and the exit status
+is 1.
+
+```
+$ env --output-format=json -i LANG=C TERM=xterm
+[{"name":"LANG","value":"C"},{"name":"TERM","value":"xterm"}]
+$ printenv --output-format=json HOME
+[{"name":"HOME","value":"/home/alice"}]
+```

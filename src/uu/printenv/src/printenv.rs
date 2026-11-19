@@ -17,6 +17,9 @@ use uucore::quoting_style::{
 };
 use uucore::{format_usage, translate};
 
+#[cfg(feature = "json")]
+mod json;
+
 static OPT_NULL: &str = "null";
 static ARG_VARIABLES: &str = "variables";
 
@@ -36,6 +39,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     );
 
     let separator = LineEnding::from_zero_flag(matches.get_flag(OPT_NULL));
+
+    #[cfg(feature = "json")]
+    if uucore::json::is_json(&matches) {
+        return json::print_variables(&variables);
+    }
 
     if variables.is_empty() {
         if let Some(quoting_style) = maybe_quoting_style {
@@ -84,7 +92,7 @@ pub fn uu_app() -> Command {
         .about(translate!("printenv-about"))
         .override_usage(format_usage(&translate!("printenv-usage")))
         .infer_long_args(true);
-    uucore::clap_localization::configure_localized_command(cmd)
+    let cmd = uucore::clap_localization::configure_localized_command(cmd)
         .arg(
             Arg::new(OPT_NULL)
                 .short('0')
@@ -97,5 +105,10 @@ pub fn uu_app() -> Command {
             Arg::new(ARG_VARIABLES)
                 .action(ArgAction::Append)
                 .num_args(1..),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "printenv-help-output-format"
+    )));
+    cmd
 }

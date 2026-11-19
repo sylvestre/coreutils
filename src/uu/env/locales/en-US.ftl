@@ -14,6 +14,7 @@ env-help-ignore-signal = set handling of SIG signal(s) to do nothing
 env-help-default-signal = reset handling of SIG signal(s) to the default action
 env-help-block-signal = block delivery of SIG signal(s) while running COMMAND
 env-help-list-signal-handling = list signal handling changes requested by preceding options
+env-help-output-format = print the environment in FORMAT
 env-help-env0-from = read NUL-delimited environment entries from FILE
 
 # Error messages
