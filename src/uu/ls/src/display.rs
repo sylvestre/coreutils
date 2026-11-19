@@ -107,6 +107,7 @@ pub enum Format {
     OneLine,
     Across,
     Commas,
+    Json,
 }
 
 #[allow(dead_code)]

@@ -125,7 +125,11 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         .get_many::<OsString>(options::PATHS)
         .map_or_else(|| vec![Path::new(".")], |v| v.map(Path::new).collect());
 
-    list(locs, &config)
+    if config.format == Format::Json {
+        list_json(locs, &config)
+    } else {
+        list(locs, &config)
+    }
 }
 
 pub fn uu_app() -> Command {
@@ -228,6 +232,19 @@ pub fn uu_app() -> Command {
                 options::format::LONG,
                 options::format::ACROSS,
                 options::format::COLUMNS,
+            ])
+            .action(ArgAction::SetTrue),
+    )
+    .arg(
+        Arg::new(options::format::JSON)
+            .long(options::format::JSON)
+            .help(translate!("ls-help-list-entries-json"))
+            .overrides_with_all([
+                options::FORMAT,
+                options::format::COLUMNS,
+                options::format::LONG,
+                options::format::ACROSS,
+                options::format::COMMAS,
             ])
             .action(ArgAction::SetTrue),
     )
@@ -1468,6 +1485,125 @@ fn enter_directory<O: LsOutput>(
 pub fn list(locs: Vec<&Path>, config: &Config) -> UResult<()> {
     let mut output = TextOutput::new(config);
     list_with_output(locs, config, &mut output)
+}
+
+/// Lists files as a JSON array to stdout.
+pub fn list_json(locs: Vec<&Path>, config: &Config) -> UResult<()> {
+    let mut output = JsonOutput::new();
+    list_with_output(locs, config, &mut output)?;
+    output.flush_json();
+    Ok(())
+}
+
+/// JSON output sink — collects EntryInfo, emits a JSON array on finalize.
+struct JsonOutput {
+    entries: Vec<JsonEntry>,
+}
+
+struct JsonEntry {
+    name: String,
+    path: String,
+    kind: &'static str,
+    size: Option<u64>,
+    permissions: Option<String>,
+    modified: Option<u64>,
+}
+
+impl JsonOutput {
+    fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    fn flush_json(&self) {
+        print!("[");
+        for (i, e) in self.entries.iter().enumerate() {
+            if i > 0 {
+                print!(",");
+            }
+            print!("{{");
+            print!("\"name\":{}", json_str(&e.name));
+            print!(",\"path\":{}", json_str(&e.path));
+            print!(",\"type\":\"{}\"", e.kind);
+            if let Some(sz) = e.size {
+                print!(",\"size\":{sz}");
+            } else {
+                print!(",\"size\":null");
+            }
+            if let Some(ref p) = e.permissions {
+                print!(",\"permissions\":{}", json_str(p));
+            } else {
+                print!(",\"permissions\":null");
+            }
+            if let Some(ts) = e.modified {
+                print!(",\"modified\":{ts}");
+            } else {
+                print!(",\"modified\":null");
+            }
+            print!("}}");
+        }
+        println!("]");
+    }
+}
+
+/// Escape a string for JSON output (no serde dependency).
+fn json_str(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                use std::fmt::Write;
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+impl LsOutput for JsonOutput {
+    fn stream_mode(&self) -> StreamMode {
+        StreamMode::Streaming
+    }
+
+    fn write_entry(&mut self, entry: &EntryInfo) -> UResult<()> {
+        use std::time::UNIX_EPOCH;
+        let kind = if entry.is_dir() {
+            "directory"
+        } else if entry.is_symlink() {
+            "symlink"
+        } else {
+            "file"
+        };
+        let permissions = entry.metadata.as_ref().map(|md| {
+            use std::os::unix::fs::PermissionsExt;
+            format!("{:04o}", md.permissions().mode() & 0o7777)
+        });
+        let modified = entry.metadata.as_ref().and_then(|md| {
+            md.modified()
+                .ok()?
+                .duration_since(UNIX_EPOCH)
+                .ok()
+                .map(|d| d.as_secs())
+        });
+        self.entries.push(JsonEntry {
+            name: entry.display_name.to_string_lossy().into_owned(),
+            path: entry.path.to_string_lossy().into_owned(),
+            kind,
+            size: entry.size(),
+            permissions,
+            modified,
+        });
+        Ok(())
+    }
 }
 
 fn sort_entries(entries: &mut [PathData], config: &Config) {

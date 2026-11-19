@@ -40,6 +40,7 @@ pub mod options {
         pub static ACROSS: &str = "x";
         pub static TAB_SIZE: &str = "tabsize";
         pub static COMMAS: &str = "m";
+        pub static JSON: &str = "json";
         pub static LONG_NO_OWNER: &str = "g";
         pub static LONG_NO_GROUP: &str = "o";
         pub static LONG_NUMERIC_UID_GID: &str = "numeric-uid-gid";
@@ -251,6 +252,8 @@ fn extract_format(options: &clap::ArgMatches) -> (Format, Option<&'static str>) 
             },
             Some(options::FORMAT),
         )
+    } else if options.get_flag(options::format::JSON) {
+        (Format::Json, Some(options::format::JSON))
     } else if options.get_flag(options::format::LONG) {
         (Format::Long, Some(options::format::LONG))
     } else if options.get_flag(options::format::ACROSS) {
