@@ -59,6 +59,7 @@ stat-after-help = Séquences de format valides pour les fichiers (sans `--file-s
 stat-help-dereference = suivre les liens
 stat-help-file-system = afficher le statut du système de fichiers au lieu du statut du fichier
 stat-help-terse = afficher les informations en forme concise
+stat-help-output-format = afficher les informations au FORMAT donné
 stat-help-format = utiliser le FORMAT spécifié au lieu du défaut ;
  afficher une nouvelle ligne après chaque utilisation de FORMAT
 stat-help-printf = comme --format, mais interpréter les séquences d'échappement avec barre oblique inverse,
@@ -99,6 +100,7 @@ stat-error-cannot-read-filesystem = impossible de lire la table des systèmes de
 stat-error-stdin-filesystem-mode = utiliser '-' pour désigner l'entrée standard ne fonctionne pas en mode système de fichiers
 stat-error-cannot-read-filesystem-info = impossible de lire les informations du système de fichiers pour {$file} : {$error}
 stat-error-cannot-statx = impossible d'obtenir le statut de {$file} : {$error}
+stat-error-json-incompatible = --output-format=json ne peut pas être combiné avec { $option }
 
 ## Messages d'avertissement
 

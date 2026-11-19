@@ -405,3 +405,34 @@ JSON, and it cannot be used with `--check`.
 $ cksum notes.txt --output-format=json
 [{"filename":"notes.txt","checksum":3015617425,"blocks":6}]
 ```
+
+### `stat --output-format=json`
+
+An array with one object per file, with the fields of the default output, in
+order. `-L` applies; `-t` gives the same JSON. `-c`, `--printf` and `-f` are
+rejected with `--output-format=json`. A file that cannot be stat'ed is reported
+on stderr and left out.
+
+| Key                                                       | Type            | Description                                            |
+| --------------------------------------------------------- | --------------- | ------------------------------------------------------ |
+| `file`                                                    | string          | Name as given                                          |
+| `link_to`                                                 | string          | Symlinks only (not with `-L`): what the link points to |
+| `size`                                                    | integer         | Size in bytes                                          |
+| `blocks`                                                  | integer         | Allocated 512-byte blocks                              |
+| `io_blocks`                                               | integer         | Optimal I/O block size                                 |
+| `type`                                                    | string          | File type, e.g. `"regular file"`                       |
+| `device`                                                  | string          | Device as printed, `"major,minor"`                     |
+| `inode`                                                   | integer         | Inode number                                           |
+| `links`                                                   | integer         | Number of hard links                                   |
+| `rdev`                                                    | integer         | Character and block devices only: the device number    |
+| `access`                                                  | string          | Permissions in octal, e.g. `"0644"`                    |
+| `flags`                                                   | string          | File type and permissions, e.g. `"-rw-r--r--"`         |
+| `uid`, `gid`                                              | integer         | Owner and group IDs                                    |
+| `user`, `group`                                           | string          | Owner and group names (`UNKNOWN` if none)              |
+| `access_time`, `modify_time`, `change_time`, `birth_time` | string or null  | The time as printed; null where the text shows `-`     |
+| `access_time_epoch`, ...                                  | integer or null | The same time, in seconds since the Unix epoch         |
+
+```
+$ stat /etc/hostname --output-format=json
+[{"file":"/etc/hostname","size":6,"blocks":8,"io_blocks":4096,"type":"regular file","device":"8,2","inode":262259,"links":1,"access":"0644","flags":"-rw-r--r--","uid":0,"user":"root","gid":0,"group":"root","access_time":"2026-11-17 14:49:54.232433928 +0100","access_time_epoch":1794923394,"modify_time":"2025-03-12 20:30:42.160110010 +0100","modify_time_epoch":1741807842,"change_time":"2025-06-25 15:24:32.942562013 +0200","change_time_epoch":1750857872,"birth_time":"2025-03-12 20:30:20.804110665 +0100","birth_time_epoch":1741807820}]
+```

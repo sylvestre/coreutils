@@ -61,6 +61,7 @@ stat-error-cannot-read-filesystem = cannot read table of mounted file systems: {
 stat-error-stdin-filesystem-mode = using '-' to denote standard input does not work in file system mode
 stat-error-cannot-read-filesystem-info = cannot read file system information for {$file}: {$error}
 stat-error-cannot-statx = cannot statx {$file}: {$error}
+stat-error-json-incompatible = --output-format=json cannot be combined with { $option }
 
 ## Warning messages
 
@@ -74,6 +75,7 @@ stat-warning-unrecognized-escape = unrecognized escape '\{$escape}'
 stat-help-dereference = follow links
 stat-help-file-system = display file system status instead of file status
 stat-help-terse = print the information in terse form
+stat-help-output-format = print the information in FORMAT
 stat-help-format = use the specified FORMAT instead of the default;
  output a newline after each use of FORMAT
 stat-help-printf = like --format, but interpret backslash escapes,

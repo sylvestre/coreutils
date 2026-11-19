@@ -1198,3 +1198,175 @@ fn test_alternate_octal_adds_a_single_zero(#[case] format: &str, #[case] expecte
         .succeeds()
         .stdout_is(expected);
 }
+
+#[cfg(feature = "json")]
+fn parse_json_records(stdout: &str) -> Vec<serde_json::Value> {
+    let value: serde_json::Value = serde_json::from_str(stdout).unwrap();
+    value.as_array().unwrap().clone()
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_regular_file_and_symlink() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("payload", "eleven char");
+    at.set_mode("payload", 0o2640);
+    at.relative_symlink_file("payload", "pointer");
+    let meta = metadata(at.plus("payload")).unwrap();
+
+    let result = ucmd
+        .args(&["--output-format=json", "payload", "pointer"])
+        .succeeds();
+    let records = parse_json_records(result.stdout_str());
+    let (file, link) = (&records[0], &records[1]);
+    let keys: Vec<&str> = file
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        keys,
+        [
+            "file",
+            "size",
+            "blocks",
+            "io_blocks",
+            "type",
+            "device",
+            "inode",
+            "links",
+            "access",
+            "flags",
+            "uid",
+            "user",
+            "gid",
+            "group",
+            "access_time",
+            "access_time_epoch",
+            "modify_time",
+            "modify_time_epoch",
+            "change_time",
+            "change_time_epoch",
+            "birth_time",
+            "birth_time_epoch",
+        ]
+    );
+    assert_eq!(file["file"], "payload");
+    assert_eq!(file["size"], 11);
+    assert_eq!(file["type"], "regular file");
+    assert_eq!(file["inode"], meta.ino());
+    assert_eq!(file["access"], "2640");
+    assert_eq!(file["flags"], "-rw-r-S---");
+    assert_eq!(file["uid"], meta.uid());
+    assert_eq!(file["modify_time_epoch"], meta.mtime());
+
+    assert_eq!(link["file"], "pointer");
+    assert_eq!(link["link_to"], "payload");
+    assert_eq!(link["type"], "symbolic link");
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_matches_text_fields() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("sample", "abc");
+    let text = new_ucmd!()
+        .current_dir(at.as_string())
+        .args(&["-c", "%x|%y|%z|%Hd,%Ld|%U|%G", "sample"])
+        .succeeds()
+        .stdout_move_str();
+    let fields: Vec<&str> = text.trim_end().split('|').collect();
+    let result = ucmd.args(&["--output-format=json", "sample"]).succeeds();
+    let record = &parse_json_records(result.stdout_str())[0];
+    assert_eq!(record["access_time"], fields[0]);
+    assert_eq!(record["modify_time"], fields[1]);
+    assert_eq!(record["change_time"], fields[2]);
+    assert_eq!(record["device"], fields[3]);
+    assert_eq!(record["user"], fields[4]);
+    assert_eq!(record["group"], fields[5]);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_dereference_follows_link() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.mkdir("folder");
+    at.relative_symlink_dir("folder", "shortcut");
+    let result = ucmd
+        .args(&["--output-format=json", "-L", "shortcut"])
+        .succeeds();
+    let record = &parse_json_records(result.stdout_str())[0];
+    assert_eq!(record["file"], "shortcut");
+    assert_eq!(record["type"], "directory");
+    assert!(record.get("link_to").is_none());
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_char_device_has_rdev() {
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "/dev/zero"])
+        .succeeds();
+    let record = &parse_json_records(result.stdout_str())[0];
+    assert_eq!(record["type"], "character special file");
+    assert_eq!(record["rdev"], metadata("/dev/zero").unwrap().rdev());
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_keeps_records_of_stat_able_files() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.touch("present");
+    let result = ucmd
+        .args(&["--output-format=json", "absent", "present"])
+        .fails_with_code(1);
+    result.stderr_contains("absent");
+    let records = parse_json_records(result.stdout_str());
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0]["file"], "present");
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_terse_gives_the_same_fields() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.touch("item");
+    let plain = new_ucmd!()
+        .current_dir(at.as_string())
+        .args(&["--output-format=json", "item"])
+        .succeeds()
+        .stdout_move_str();
+    ucmd.args(&["--output-format=json", "-t", "item"])
+        .succeeds()
+        .stdout_only(plain);
+}
+
+#[cfg(feature = "json")]
+#[rstest]
+#[case::format(&["-c", "%s"], "--format")]
+#[case::printf(&["--printf=%s"], "--printf")]
+#[case::file_system(&["-f"], "--file-system")]
+fn test_json_rejects_custom_and_fs_output(#[case] args: &[&str], #[case] option: &str) {
+    new_ucmd!()
+        .args(&["--output-format=json", "."])
+        .args(args)
+        .fails_with_code(1)
+        .no_stdout()
+        .stderr_contains(format!("cannot be combined with {option}"));
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_output_format_text_after_json_allows_format() {
+    new_ucmd!()
+        .args(&[
+            "--output-format=json",
+            "--output-format=text",
+            "-c",
+            "%F",
+            ".",
+        ])
+        .succeeds()
+        .stdout_only("directory\n");
+}
