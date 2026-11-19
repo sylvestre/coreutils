@@ -283,3 +283,22 @@ mod quoting_style {
             );
     }
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_named_variables() {
+    // In the order given; a missing variable is left out and fails the run.
+    let result = new_ucmd!()
+        .env("ZETA", "last letter")
+        .env("ALPHA", "a=1")
+        .args(&["--output-format=json", "ZETA", "UU_NOT_SET", "ALPHA"])
+        .fails_with_code(1);
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(
+        value,
+        serde_json::json!([
+            {"name": "ZETA", "value": "last letter"},
+            {"name": "ALPHA", "value": "a=1"},
+        ])
+    );
+}

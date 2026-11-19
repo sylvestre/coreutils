@@ -63,7 +63,7 @@ $ wc --output-format=json notes.txt
 [{"filename":"notes.txt","lines":3,"words":12,"bytes":61}]
 ```
 
-## `env`
+## `env` and `printenv`
 
 An array with one `{"name", "value"}` object per variable.
 

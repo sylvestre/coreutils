@@ -21,6 +21,9 @@ clap = { workspace = true }
 fluent = { workspace = true }
 uucore = { workspace = true, features = ["quoting-style", "parser-num"] }
 
+[features]
+json = ["uucore/json"]
+
 [lints]
 workspace = true
 
