@@ -6,8 +6,10 @@
 // spell-checker:ignore bitlen
 
 use std::ffi::OsStr;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::num::IntErrorKind;
+use std::sync::mpsc;
+use std::thread;
 
 use os_display::Quotable;
 
@@ -519,12 +521,19 @@ impl ReadingMode {
     }
 }
 
-pub fn digest_reader<T: Read>(
+/// Read size while an input is small
+const SEQUENTIAL_READ_SIZE: usize = 32 * 1024;
+
+/// Inputs larger than this are read on a separate thread while being hashed.
+const OVERLAPPED_READ_THRESHOLD: usize = 4 * 1024 * 1024;
+
+pub fn digest_reader<T: Read + Send>(
     digest: &mut Box<dyn Digest>,
     reader: &mut T,
     mode: ReadingMode,
 ) -> io::Result<(DigestOutput, usize)> {
     digest.reset();
+    let chunk_size = digest.read_buffer_size();
 
     // Read bytes from `reader` and write those bytes to `digest`.
     //
@@ -539,10 +548,115 @@ pub fn digest_reader<T: Read>(
     // "\n". But when "\r" is the last character read, we need to force
     // it to be written.)
     let mut digest_writer = DigestWriter::new(digest, mode == ReadingMode::Binary);
-    let output_size = io::copy(reader, &mut digest_writer)? as usize;
+
+    // Start by reading and hashing in turn with a small buffer: for small
+    // inputs, a thread and large buffers would cost more than they save.
+    let mut buffer = vec![0; SEQUENTIAL_READ_SIZE];
+    let mut output_size = 0;
+    loop {
+        let len = read_chunk(reader, &mut buffer)?;
+        digest_writer.write_all(&buffer[..len])?;
+        output_size += len;
+        if len < buffer.len() {
+            // End of input.
+            digest_writer.finalize();
+            return Ok((digest.result()?, output_size));
+        }
+        if output_size >= OVERLAPPED_READ_THRESHOLD {
+            break;
+        }
+    }
+
+    // Large input: read the next chunk while hashing the current one.
+    output_size += match hash_while_reading(&mut digest_writer, reader, chunk_size) {
+        Some(result) => result?,
+        // No thread available (e.g. WASI): keep reading and hashing in turn.
+        None => hash_sequentially(&mut digest_writer, reader, buffer)?,
+    };
     digest_writer.finalize();
 
     Ok((digest.result()?, output_size))
+}
+
+/// Fills `buffer` from `reader`, stopping early only at end of input.
+fn read_chunk(reader: &mut impl Read, buffer: &mut [u8]) -> io::Result<usize> {
+    let mut filled = 0;
+    while filled < buffer.len() {
+        match reader.read(&mut buffer[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(filled)
+}
+
+fn hash_sequentially(
+    digest_writer: &mut DigestWriter<'_>,
+    reader: &mut impl Read,
+    mut buffer: Vec<u8>,
+) -> io::Result<usize> {
+    let mut total = 0;
+    loop {
+        let len = read_chunk(reader, &mut buffer)?;
+        if len == 0 {
+            return Ok(total);
+        }
+        digest_writer.write_all(&buffer[..len])?;
+        total += len;
+    }
+}
+
+/// Hashes the rest of `reader` in chunks of `chunk_size` bytes while a
+/// second thread reads the next chunk, so that reading and hashing overlap.
+///
+/// Returns `None`, before reading anything, if the thread can't be started.
+fn hash_while_reading(
+    digest_writer: &mut DigestWriter<'_>,
+    reader: &mut (impl Read + Send),
+    chunk_size: usize,
+) -> Option<io::Result<usize>> {
+    thread::scope(|scope| {
+        // Two buffers travel between the threads: one is hashed while the
+        // other is filled.
+        let (empty_tx, empty_rx) = mpsc::sync_channel::<Vec<u8>>(2);
+        let (filled_tx, filled_rx) = mpsc::sync_channel::<io::Result<(Vec<u8>, usize)>>(2);
+        empty_tx.send(vec![0; chunk_size]).ok()?;
+        empty_tx.send(vec![0; chunk_size]).ok()?;
+
+        thread::Builder::new()
+            .spawn_scoped(scope, move || {
+                // Stops when the hashing side hangs up, at end of input or on
+                // a read error.
+                while let Ok(mut buffer) = empty_rx.recv() {
+                    let message = read_chunk(reader, &mut buffer).map(|len| (buffer, len));
+                    let stop = !matches!(message, Ok((_, len)) if len > 0);
+                    if filled_tx.send(message).is_err() || stop {
+                        break;
+                    }
+                }
+            })
+            .ok()?;
+
+        let mut total = 0;
+        for message in filled_rx {
+            let (buffer, len) = match message {
+                Ok(chunk) => chunk,
+                Err(e) => return Some(Err(e)),
+            };
+            if len == 0 {
+                break;
+            }
+            if let Err(e) = digest_writer.write_all(&buffer[..len]) {
+                return Some(Err(e));
+            }
+            total += len;
+            // The reader may already have stopped; the buffer is then unused.
+            let _ = empty_tx.send(buffer);
+        }
+        Some(Ok(total))
+    })
 }
 
 pub enum BlakeLength<'s> {

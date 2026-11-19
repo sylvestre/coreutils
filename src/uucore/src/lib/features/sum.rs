@@ -14,6 +14,7 @@
 //! [`write`] would be useful.
 
 use std::io::{self, Write};
+use std::sync::OnceLock;
 
 use data_encoding::BASE64;
 
@@ -58,6 +59,11 @@ impl DigestOutput {
     }
 }
 
+/// Read size used when feeding a file to a digest. Reading and hashing run
+/// on separate threads, so chunks must be large enough to make the hand-off
+/// between them cheap.
+pub const DEFAULT_READ_BUFFER_SIZE: usize = 1024 * 1024;
+
 pub trait Digest {
     fn hash_update(&mut self, input: &[u8]);
     fn hash_finalize(&mut self, out: &mut [u8]);
@@ -65,6 +71,11 @@ pub trait Digest {
     fn output_bits(&self) -> usize;
     fn output_bytes(&self) -> usize {
         self.output_bits().div_ceil(8)
+    }
+
+    /// How many bytes to read from the input at once.
+    fn read_buffer_size(&self) -> usize {
+        DEFAULT_READ_BUFFER_SIZE
     }
 
     fn result(&mut self) -> io::Result<DigestOutput> {
@@ -145,6 +156,14 @@ pub struct Blake3 {
 }
 
 impl Blake3 {
+    /// Measured to be faster than the default size for BLAKE3.
+    const READ_BUFFER_SIZE: usize = 512 * 1024;
+
+    /// Below this size, spreading the work over threads costs more than it
+    /// saves. The value is the rule of thumb given in the `blake3` crate's
+    /// documentation of `Hasher::update_rayon` for `x86_64`.
+    const MIN_PARALLEL_INPUT: usize = 128 * 1024;
+
     /// Default length for the BLAKE3 digest in bytes.
     pub const DEFAULT_BYTE_SIZE: usize = 32;
     pub const DEFAULT_BIT_SIZE: usize = Self::DEFAULT_BYTE_SIZE * 8;
@@ -168,7 +187,21 @@ impl Default for Blake3 {
 
 impl Digest for Blake3 {
     fn hash_update(&mut self, input: &[u8]) {
-        self.digest.update(input);
+        // rayon's global pool panics when it cannot spawn its workers, so
+        // use a pool of our own and hash on this thread if building it failed.
+        static POOL: OnceLock<Option<rayon_core::ThreadPool>> = OnceLock::new();
+        let pool = (input.len() >= Self::MIN_PARALLEL_INPUT)
+            .then(|| POOL.get_or_init(|| rayon_core::ThreadPoolBuilder::new().build().ok()))
+            .and_then(Option::as_ref);
+        if let Some(pool) = pool {
+            pool.install(|| self.digest.update_rayon(input));
+        } else {
+            self.digest.update(input);
+        }
+    }
+
+    fn read_buffer_size(&self) -> usize {
+        Self::READ_BUFFER_SIZE
     }
 
     fn hash_finalize(&mut self, out: &mut [u8]) {

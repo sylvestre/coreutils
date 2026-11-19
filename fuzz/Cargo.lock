@@ -150,6 +150,7 @@ dependencies = [
  "cfg-if",
  "constant_time_eq",
  "cpufeatures",
+ "rayon-core",
 ]
 
 [[package]]
@@ -1850,6 +1851,7 @@ dependencies = [
  "num-traits",
  "os_display",
  "procfs",
+ "rayon-core",
  "rustc-hash",
  "rustix",
  "sha1",

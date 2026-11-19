@@ -223,6 +223,7 @@ dependencies = [
  "cfg-if",
  "constant_time_eq 0.4.2",
  "cpufeatures",
+ "rayon-core",
 ]
 
 [[package]]
@@ -4404,6 +4405,7 @@ dependencies = [
  "openssl",
  "os_display",
  "procfs",
+ "rayon-core",
  "rustc-hash",
  "rustix",
  "selinux",

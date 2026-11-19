@@ -55,7 +55,8 @@ sha2 = { workspace = true, optional = true }
 sha3 = { workspace = true, optional = true }
 shake = { workspace = true, optional = true }
 blake2b_simd = { workspace = true, optional = true }
-blake3 = { workspace = true, optional = true }
+blake3 = { workspace = true, optional = true, features = ["rayon"] }
+rayon-core = { workspace = true, optional = true }
 sm3 = { workspace = true, optional = true }
 crc-fast = { workspace = true, optional = true, features = ["std"] }
 bigdecimal = { workspace = true, optional = true }
@@ -224,6 +225,7 @@ sum = [
   "shake",
   "blake2b_simd",
   "blake3",
+  "rayon-core",
   "sm3",
   "crc-fast",
   "data-encoding",

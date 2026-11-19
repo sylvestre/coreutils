@@ -4058,3 +4058,61 @@ fn test_terminal_output_quotes_names() {
             .stdout_only(expected);
     }
 }
+
+/// 9 MiB and a bit: large enough for the reading thread to kick in, with a
+/// final chunk that is only partly filled.
+fn large_pattern() -> Vec<u8> {
+    (0..9 * 1024 * 1024 + 12345)
+        .map(|i: usize| (i % 251) as u8)
+        .collect()
+}
+
+// Expected values come from GNU cksum and b3sum.
+#[rstest]
+#[case::sha256(
+    &["-a", "sha256"],
+    "579b4cb569fdee17b28df877ec2973a3ecb2bd1122df41f291bb33631bff7b31"
+)]
+#[case::blake2b(
+    &["-a", "blake2b", "-l", "256"],
+    "f3575584c08d7854932b894db8fb0b348daa6bf053f7aaf9e6d88b5af1fc7865"
+)]
+#[case::blake3(
+    &["-a", "blake3"],
+    "2c09a585ec731eaee893eafe061f6f60228526260c78a0837c5f19ef400575a4"
+)]
+fn test_large_input(#[case] algo_args: &[&str], #[case] expected: &str) {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.write_bytes("large", &large_pattern());
+
+    scene
+        .ucmd()
+        .args(algo_args)
+        .args(&["--untagged", "large"])
+        .succeeds()
+        .stdout_only(format!("{expected}  large\n"));
+
+    scene
+        .ucmd()
+        .args(algo_args)
+        .arg("--untagged")
+        .pipe_in(large_pattern())
+        .succeeds()
+        .stdout_only(format!("{expected}  -\n"));
+
+    scene
+        .ucmd()
+        .args(algo_args)
+        .arg("--check")
+        .pipe_in(format!("{expected}  large\n"))
+        .succeeds()
+        .stdout_only("large: OK\n");
+}
+
+#[test]
+fn test_large_input_crc() {
+    new_ucmd!()
+        .pipe_in(large_pattern())
+        .succeeds()
+        .stdout_only("3490024340 9449529\n");
+}

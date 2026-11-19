@@ -19,10 +19,6 @@ use crate::quoting_style::locale_aware_shell_escape;
 use crate::sum::DigestOutput;
 use crate::{show, translate_text};
 
-/// Use the same buffer size as GNU when reading a file to create a checksum
-/// from it: 32 KiB.
-const READ_BUFFER_SIZE: usize = 32 * 1024;
-
 /// Necessary options when computing a checksum. Historically, these options
 /// included a `binary` field to differentiate `--binary` and `--text` modes on
 /// windows. Since the support for this feature is approximate in GNU, and it's
@@ -244,45 +240,35 @@ where
             return Err(Box::new(ChecksumError::RawMultipleFiles));
         }
 
-        let stdin_buf;
-        let file_buf;
-
-        // Handle the file input
-        let mut file = io::BufReader::with_capacity(
-            READ_BUFFER_SIZE,
-            if filename == "-" {
-                stdin_buf = io::stdin();
-                Box::new(stdin_buf) as Box<dyn io::Read>
-            } else {
-                let filepath = Path::new(filename);
-                if filepath.is_dir() {
-                    show!(USimpleError::new(
-                        1,
-                        translate_text!(
-                            "error-is-a-directory",
-                            "file" => locale_aware_shell_escape(filepath)
-                        )
-                    ));
+        // Handle the file input. No `BufReader`: `digest_reader` reads in
+        // large chunks itself.
+        let mut file: Box<dyn io::Read + Send> = if filename == "-" {
+            Box::new(io::stdin())
+        } else {
+            let filepath = Path::new(filename);
+            if filepath.is_dir() {
+                show!(USimpleError::new(
+                    1,
+                    translate_text!(
+                        "error-is-a-directory",
+                        "file" => locale_aware_shell_escape(filepath)
+                    )
+                ));
+                continue;
+            }
+            let file = match File::open(filepath) {
+                Ok(file) => {
+                    #[cfg(any(target_os = "linux", target_os = "android", target_os = "freebsd"))]
+                    let _ = rustix::fs::fadvise(&file, 0, None, rustix::fs::Advice::Sequential);
+                    file
+                }
+                Err(err) => {
+                    show!(err.map_err_context(|| locale_aware_shell_escape(filepath)));
                     continue;
                 }
-                file_buf = match File::open(filepath) {
-                    Ok(file) => {
-                        #[cfg(any(
-                            target_os = "linux",
-                            target_os = "android",
-                            target_os = "freebsd"
-                        ))]
-                        let _ = rustix::fs::fadvise(&file, 0, None, rustix::fs::Advice::Sequential);
-                        file
-                    }
-                    Err(err) => {
-                        show!(err.map_err_context(|| locale_aware_shell_escape(filepath)));
-                        continue;
-                    }
-                };
-                Box::new(file_buf) as Box<dyn io::Read>
-            },
-        );
+            };
+            Box::new(file)
+        };
 
         let mut digest = options.algo_kind.create_digest();
 

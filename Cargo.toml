@@ -113,6 +113,7 @@ procfs = { version = "0.18", default-features = false }
 rand = { version = "0.10.1", features = ["std_rng"] }
 rand_chacha = { version = "0.10.0" }
 rayon = "1.10"
+rayon-core = "1.13"
 regex = "1.10.4"
 rlimit = "0.11.0"
 rstest = "0.28.0"
