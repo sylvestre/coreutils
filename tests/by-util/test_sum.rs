@@ -164,3 +164,35 @@ fn test_last_of_r_s_wins() {
         .succeeds()
         .stdout_only("1126 1\n");
 }
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::bsd("-r")]
+#[case::sysv("-s")]
+fn test_json(#[case] algorithm: &str) {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("tally", &"0123456789".repeat(250));
+    let text = new_ucmd!()
+        .current_dir(at.as_string())
+        .args(&[algorithm, "tally"])
+        .succeeds()
+        .stdout_move_str();
+    let columns: Vec<&str> = text.split_whitespace().collect();
+
+    let result = ucmd
+        .args(&[algorithm, "--output-format=json", "tally", "-"])
+        .pipe_in("")
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    // Keyed like jc's `cksum` parser, which also handles `sum`.
+    assert_eq!(
+        value[0],
+        serde_json::json!({
+            "filename": "tally",
+            "checksum": columns[0].parse::<u64>().unwrap(),
+            "blocks": columns[1].parse::<u64>().unwrap(),
+        })
+    );
+    assert_eq!(value[1]["filename"], "-");
+    assert_eq!(value[1]["blocks"], 0);
+}

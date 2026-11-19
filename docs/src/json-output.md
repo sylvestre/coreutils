@@ -83,7 +83,7 @@ $ id -g --output-format=json
 {"gid":{"id":1000,"name":"alice"}}
 ```
 
-## `md5sum`, `sha*sum`, `b2sum` and `cksum`
+## `md5sum`, `sha*sum`, `b2sum`, `cksum` and `sum`
 
 An array with one object per file: `filename` and `hash`, or for the CRC,
 BSD and SysV sums, `filename`, `checksum` and `blocks`.
