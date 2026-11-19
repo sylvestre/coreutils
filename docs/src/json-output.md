@@ -104,3 +104,12 @@ modify, change and birth times, as printed and as `*_epoch`.
 $ stat /etc/hostname --output-format=json
 [{"file":"/etc/hostname","size":6,"blocks":8,"io_blocks":4096,"type":"regular file","device":"8,2","inode":262259,"links":1,"access":"0644","flags":"-rw-r--r--","uid":0,"user":"root","gid":0,"group":"root","access_time":"2026-11-17 14:49:54.232433928 +0100","access_time_epoch":1794923394,...}]
 ```
+
+## `date`
+
+An object with the date split in fields, or an array of them with `-f`.
+
+```
+$ TZ=Europe/Paris date -d '2024-07-14 08:15' --output-format=json
+{"year":2024,"month":"Jul","month_num":7,"day":14,"weekday":"Sun","weekday_num":7,"hour":8,"hour_24":8,"minute":15,"second":0,"period":"AM","timezone":"CEST","utc_offset":"+0200","day_of_year":196,"week_of_year":28,"iso":"2024-07-14T08:15:00+02:00","epoch":1720937700,"epoch_utc":1720937700,"timezone_aware":true}
+```
