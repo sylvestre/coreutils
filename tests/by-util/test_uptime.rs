@@ -419,3 +419,27 @@ fn test_uptime_macos_output_format() {
         "Output should contain load average: {stdout}"
     );
 }
+
+#[cfg(feature = "json")]
+#[test]
+#[cfg(not(any(target_os = "android", windows)))]
+#[cfg_attr(target_os = "freebsd", ignore = "failed on freebsd-vm@v1.6.0")]
+fn test_uptime_json() {
+    let result = new_ucmd!().arg("--output-format=json").succeeds();
+    let record: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    // The split fields agree with the strings.
+    let field = |key: &str| record[key].as_u64().unwrap();
+    let time = format!(
+        "{:02}:{:02}:{:02}",
+        field("time_hour"),
+        field("time_minute"),
+        field("time_second")
+    );
+    assert_eq!(record["time"], time.as_str());
+    let total = field("uptime_total_seconds");
+    assert_eq!(field("uptime_days"), total / 86400);
+    assert_eq!(field("uptime_hours"), total % 86400 / 3600);
+    assert_eq!(field("uptime_minutes"), total % 3600 / 60);
+    assert!(record["users"].is_u64());
+    assert!(record["load_1m"].is_f64());
+}

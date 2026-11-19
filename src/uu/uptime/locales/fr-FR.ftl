@@ -10,6 +10,7 @@ uptime-about-musl-warning = Avertissement : Lorsque compilé avec musl libc, l'u
 uptime-help-since = système actif depuis
 uptime-help-path = fichier pour rechercher l'heure de démarrage
 uptime-help-pretty = afficher le temps de disponibilité dans un format agréable
+uptime-help-output-format = afficher les informations au FORMAT donné
 
 # Messages d'erreur
 uptime-error-io = impossible d'obtenir l'heure de démarrage : { $error }

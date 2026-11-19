@@ -10,6 +10,7 @@ uptime-about-musl-warning = Warning: When built with musl libc, the `uptime` uti
 uptime-help-since = system up since
 uptime-help-path = file to search boot time from
 uptime-help-pretty = show uptime in pretty format
+uptime-help-output-format = print the information in FORMAT
 
 # Error messages
 uptime-error-io = couldn't get boot time: { $error }

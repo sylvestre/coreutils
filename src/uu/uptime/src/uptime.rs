@@ -5,6 +5,8 @@
 
 // spell-checker:ignore behaviour loadavg nusers
 
+#[cfg(feature = "json")]
+mod json;
 mod platform;
 
 use clap::{Arg, ArgAction, Command};
@@ -47,6 +49,12 @@ impl UError for UptimeError {
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let matches = uucore::clap_localization::handle_clap_result(uu_app(), args)?;
 
+    // The JSON has the fields of the default output, whatever -s or -p say.
+    #[cfg(feature = "json")]
+    if uucore::json::is_json(&matches) {
+        uucore::json::print_json(&(&Report::new(&matches)?).into())?;
+        return Ok(());
+    }
     if matches.get_flag(options::SINCE) {
         return uptime_since();
     }
@@ -125,6 +133,10 @@ pub fn uu_app() -> Command {
                 .help(translate!("uptime-help-pretty"))
                 .action(ArgAction::SetTrue),
         );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "uptime-help-output-format"
+    )));
     platform::add_platform_args(cmd)
 }
 

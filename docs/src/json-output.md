@@ -123,3 +123,13 @@ An array with one object per line, with its columns: `user`,
 $ who --output-format=json
 [{"user":"alice","tty":"tty2","time":"2026-11-12 17:24","comment":"(:0)"}]
 ```
+
+## `uptime`
+
+An object with `time`, `uptime`, `users`, `load_1m`, `load_5m`, `load_15m`,
+and the time and uptime split in `time_hour`, ..., `uptime_total_seconds`.
+
+```
+$ uptime --output-format=json
+{"time":"00:29:46","uptime":"8 days, 7:05","users":2,"load_1m":3.26,"load_5m":4.02,"load_15m":3.06,"time_hour":0,"time_minute":29,"time_second":46,"uptime_days":8,"uptime_hours":7,"uptime_minutes":5,"uptime_total_seconds":716751}
+```
