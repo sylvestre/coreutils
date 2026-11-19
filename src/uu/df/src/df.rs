@@ -20,6 +20,7 @@ use uucore::{format_usage, show, show_warning};
 
 use clap::{Arg, ArgAction, ArgMatches, Command, parser::ValueSource};
 
+use serde_json::json;
 use std::ffi::OsString;
 use std::io::stdout;
 use std::path::Path;
@@ -46,6 +47,7 @@ static OPT_PATHS: &str = "paths";
 static OPT_PORTABILITY: &str = "portability";
 static OPT_SYNC: &str = "sync";
 static OPT_TYPE: &str = "type";
+static OPT_JSON: &str = "json";
 static OPT_PRINT_TYPE: &str = "print-type";
 static OPT_EXCLUDE_TYPE: &str = "exclude-type";
 static OUTPUT_FIELD_LIST: [&str; 12] = [
@@ -484,7 +486,28 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         }
     };
 
-    Table::new(&opt, filesystems).write_to(&mut stdout())?;
+    if matches.get_flag(OPT_JSON) {
+        let entries: Vec<_> = filesystems
+            .iter()
+            .map(|fs| {
+                let mi = &fs.mount_info;
+                let u = &fs.usage;
+                json!({
+                    "filesystem": mi.dev_name,
+                    "type": mi.fs_type,
+                    "mount_point": mi.mount_dir.to_string_lossy(),
+                    "size_bytes": u.blocks * u.blocksize,
+                    "used_bytes": (u.blocks - u.bfree) * u.blocksize,
+                    "avail_bytes": u.bavail * u.blocksize,
+                    "inodes": u.files,
+                    "ifree": u.ffree,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::Value::Array(entries));
+    } else {
+        Table::new(&opt, filesystems).write_to(&mut stdout())?;
+    }
 
     Ok(())
 }
@@ -498,6 +521,12 @@ pub fn uu_app() -> Command {
         .after_help(translate!("df-after-help"))
         .infer_long_args(true)
         .disable_help_flag(true)
+        .arg(
+            Arg::new(OPT_JSON)
+                .long(OPT_JSON)
+                .help("Output in JSON format")
+                .action(ArgAction::SetTrue),
+        )
         .arg(
             Arg::new(OPT_HELP)
                 .long(OPT_HELP)

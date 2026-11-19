@@ -24,6 +24,7 @@ platform-info = { workspace = true }
 clap = { workspace = true }
 uucore = { workspace = true }
 fluent = { workspace = true }
+serde_json = { workspace = true }
 
 [[bin]]
 name = "uname"

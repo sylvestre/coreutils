@@ -8,6 +8,7 @@
 use clap::{Arg, ArgAction, ArgMatches, Command, builder::PossibleValue};
 use glob::{Pattern, PatternError};
 use rustc_hash::FxHashSet as HashSet;
+use serde_json::json;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, DirEntry, File, Metadata};
@@ -72,6 +73,7 @@ mod options {
     pub const FILES0_FROM: &str = "files0-from";
     pub const VERBOSE: &str = "verbose";
     pub const FILE: &str = "FILE";
+    pub const JSON: &str = "json";
 }
 
 struct TraversalOptions {
@@ -86,6 +88,7 @@ struct TraversalOptions {
 
 struct StatPrinter {
     total: bool,
+    json: bool,
     inodes: bool,
     max_depth: Option<usize>,
     threshold: Option<Threshold>,
@@ -814,6 +817,7 @@ impl StatPrinter {
 
     fn print_stats(&self, rx: &mpsc::Receiver<UResult<StatPrintInfo>>) -> UResult<()> {
         let mut grand_total = 0;
+        let mut json_entries: Vec<serde_json::Value> = Vec::new();
         loop {
             let received = rx.recv();
 
@@ -834,7 +838,18 @@ impl StatPrinter {
                                 .is_none_or(|max_depth| stat_info.depth <= max_depth)
                             && (!self.summarize || stat_info.depth == 0)
                         {
-                            self.print_stat(&stat_info.stat, size)?;
+                            if self.json {
+                                let st = &stat_info.stat;
+                                json_entries.push(json!({
+                                    "path": st.path.to_string_lossy(),
+                                    "size": size,
+                                    "blocks": st.blocks,
+                                    "inodes": st.inodes,
+                                    "depth": stat_info.depth,
+                                }));
+                            } else {
+                                self.print_stat(&stat_info.stat, size)?;
+                            }
                         }
                     }
                     Err(e) => show!(e),
@@ -843,7 +858,9 @@ impl StatPrinter {
             }
         }
 
-        if self.total {
+        if self.json {
+            println!("{}", serde_json::Value::Array(json_entries));
+        } else if self.total {
             print!("{}\t{}", self.convert_size(grand_total), self.total_text);
             print!("{}", self.line_ending);
         }
@@ -1100,6 +1117,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         time_format,
         line_ending: LineEnding::from_zero_flag(matches.get_flag(options::NULL)),
         total_text: translate!("du-total"),
+        json: matches.get_flag(options::JSON),
     };
 
     if stat_printer.inodes
@@ -1278,6 +1296,12 @@ pub fn uu_app() -> Command {
         .override_usage(format_usage(&translate!("du-usage")))
         .infer_long_args(true)
         .disable_help_flag(true)
+        .arg(
+            Arg::new(options::JSON)
+                .long(options::JSON)
+                .help("Output in JSON format")
+                .action(ArgAction::SetTrue),
+        )
         .arg(
             Arg::new(options::HELP)
                 .long(options::HELP)

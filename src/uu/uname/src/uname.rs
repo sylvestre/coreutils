@@ -9,6 +9,7 @@ use std::ffi::{OsStr, OsString};
 
 use clap::{Arg, ArgAction, Command};
 use platform_info::{PlatformInfo, PlatformInfoAPI, UNameAPI};
+use serde_json::json;
 use uucore::display::println_verbatim;
 use uucore::translate;
 use uucore::{
@@ -18,6 +19,7 @@ use uucore::{
 
 pub mod options {
     pub static ALL: &str = "all";
+    pub static JSON: &str = "json";
     pub static KERNEL_NAME: &str = "kernel-name";
     pub static NODENAME: &str = "nodename";
     pub static KERNEL_VERSION: &str = "kernel-version";
@@ -56,6 +58,20 @@ impl UNameOutput {
         .map(OsString::as_os_str)
         .collect::<Vec<_>>()
         .join(OsStr::new(" "))
+    }
+
+    pub fn json_output(&self) -> String {
+        let obj = json!({
+            "kernel_name":       self.kernel_name.as_deref().and_then(|s| s.to_str()),
+            "nodename":          self.nodename.as_deref().and_then(|s| s.to_str()),
+            "kernel_release":    self.kernel_release.as_deref().and_then(|s| s.to_str()),
+            "kernel_version":    self.kernel_version.as_deref().and_then(|s| s.to_str()),
+            "machine":           self.machine.as_deref().and_then(|s| s.to_str()),
+            "os":                self.os.as_deref().and_then(|s| s.to_str()),
+            "processor":         self.processor.as_deref().and_then(|s| s.to_str()),
+            "hardware_platform": self.hardware_platform.as_deref().and_then(|s| s.to_str()),
+        });
+        obj.to_string()
     }
 
     pub fn new(opts: &Options) -> UResult<Self> {
@@ -109,6 +125,7 @@ impl UNameOutput {
 
 pub struct Options {
     pub all: bool,
+    pub json: bool,
     pub kernel_name: bool,
     pub nodename: bool,
     pub kernel_version: bool,
@@ -133,10 +150,15 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         processor: matches.get_flag(options::PROCESSOR),
         hardware_platform: matches.get_flag(options::HARDWARE_PLATFORM),
         os: matches.get_flag(options::OS),
+        json: matches.get_flag(options::JSON),
     };
     let output = UNameOutput::new(&options)?;
-    println_verbatim(output.display().as_os_str())
-        .map_err(|e| USimpleError::new(1, e.to_string()))?;
+    if options.json {
+        println!("{}", output.json_output());
+    } else {
+        println_verbatim(output.display().as_os_str())
+            .map_err(|e| USimpleError::new(1, e.to_string()))?;
+    }
     Ok(())
 }
 
@@ -205,6 +227,12 @@ pub fn uu_app() -> Command {
                 .help(translate!("uname-help-processor"))
                 .action(ArgAction::SetTrue)
                 .hide(true),
+        )
+        .arg(
+            Arg::new(options::JSON)
+                .long(options::JSON)
+                .help("Output in JSON format")
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new(options::HARDWARE_PLATFORM)
