@@ -488,3 +488,17 @@ or `dead` (`-d`). With `-q`, it has one `{"user": ...}` object per name.
 $ who -b --output-format=json
 [{"event":"reboot","time":"2026-11-12 17:24","epoch":1794507840}]
 ```
+
+### `uptime --output-format=json`
+
+An object with the fields of the default output: `time` (`HH:MM:SS`) and
+its `time_hour`, `time_minute` and `time_second`; `uptime` (as printed) and
+its `uptime_days`, `uptime_hours`, `uptime_minutes` and
+`uptime_total_seconds`; `users`; and `load_1m`, `load_5m` and `load_15m`
+(floats, left out where there is no load average). The `uptime` fields are
+left out when the boot time is unknown. `-s` and `-p` do not change the JSON.
+
+```
+$ uptime --output-format=json
+{"time":"00:29:46","uptime":"8 days, 7:05","users":2,"load_1m":3.26,"load_5m":4.02,"load_15m":3.06,"time_hour":0,"time_minute":29,"time_second":46,"uptime_days":8,"uptime_hours":7,"uptime_minutes":5,"uptime_total_seconds":716751}
+```

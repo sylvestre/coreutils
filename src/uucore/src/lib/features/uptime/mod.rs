@@ -68,14 +68,16 @@ pub enum OutputFormat {
     PrettyPrint,
 }
 
-struct FormattedUptime {
-    days: u64,
-    hours: u64,
-    mins: u64,
+/// An uptime split into days, hours and minutes.
+pub struct FormattedUptime {
+    pub days: u64,
+    pub hours: u64,
+    pub mins: u64,
 }
 
 impl FormattedUptime {
-    fn new(seconds: u64) -> Self {
+    /// Splits an uptime given in seconds.
+    pub fn new(seconds: u64) -> Self {
         let days = seconds / 86400;
         let hours = (seconds - (days * 86400)) / 3600;
         let mins = (seconds - (days * 86400) - (hours * 3600)) / 60;
@@ -83,7 +85,8 @@ impl FormattedUptime {
         Self { days, hours, mins }
     }
 
-    fn get_human_readable_uptime(&self) -> String {
+    /// The uptime as `uptime` prints it, e.g. `2 days, 3:04`.
+    pub fn get_human_readable_uptime(&self) -> String {
         // Hours are not zero-padded (issue #13027); minutes always are.
         translate!(
         "uptime-format",

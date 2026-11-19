@@ -419,3 +419,88 @@ fn test_uptime_macos_output_format() {
         "Output should contain load average: {stdout}"
     );
 }
+
+#[cfg(feature = "json")]
+fn uptime_json(args: &[&str]) -> serde_json::Map<String, serde_json::Value> {
+    let result = new_ucmd!()
+        .arg("--output-format=json")
+        .args(args)
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    value.as_object().unwrap().clone()
+}
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::default(&[])]
+#[case::since(&["-s"])]
+#[case::pretty(&["--pretty"])]
+#[cfg(not(target_os = "android"))]
+#[cfg_attr(target_os = "freebsd", ignore = "failed on freebsd-vm@v1.6.0")]
+fn test_uptime_json(#[case] args: &[&str]) {
+    let record = uptime_json(args);
+    let keys: Vec<&str> = record.keys().map(String::as_str).collect();
+    #[cfg(not(windows))]
+    let expected = [
+        "time",
+        "uptime",
+        "users",
+        "load_1m",
+        "load_5m",
+        "load_15m",
+        "time_hour",
+        "time_minute",
+        "time_second",
+        "uptime_days",
+        "uptime_hours",
+        "uptime_minutes",
+        "uptime_total_seconds",
+    ];
+    // Windows has no load average.
+    #[cfg(windows)]
+    let expected = [
+        "time",
+        "uptime",
+        "users",
+        "time_hour",
+        "time_minute",
+        "time_second",
+        "uptime_days",
+        "uptime_hours",
+        "uptime_minutes",
+        "uptime_total_seconds",
+    ];
+    assert_eq!(keys, expected);
+
+    // The split fields agree with the strings.
+    let field = |key: &str| record[key].as_u64().unwrap();
+    let time = format!(
+        "{:02}:{:02}:{:02}",
+        field("time_hour"),
+        field("time_minute"),
+        field("time_second")
+    );
+    assert_eq!(record["time"], time.as_str());
+    let total = field("uptime_total_seconds");
+    assert_eq!(record["uptime_days"], total / 86400);
+    assert_eq!(record["uptime_hours"], total % 86400 / 3600);
+    assert_eq!(record["uptime_minutes"], total % 3600 / 60);
+    let clock = format!("{}:{:02}", total % 86400 / 3600, total % 3600 / 60);
+    assert!(record["uptime"].as_str().unwrap().ends_with(&clock));
+}
+
+#[cfg(feature = "json")]
+#[test]
+#[cfg(unix)]
+#[cfg(not(target_os = "freebsd"))]
+fn test_uptime_json_without_boot_time() {
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "missing-utmp"])
+        .fails_with_code(1);
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    // The uptime is unknown, so only the time, the users and the loads remain.
+    assert_eq!(value["users"], 0);
+    assert!(value.get("uptime").is_none());
+    assert!(value.get("uptime_total_seconds").is_none());
+    assert!(value["time"].is_string());
+}

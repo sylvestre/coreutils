@@ -439,6 +439,7 @@ json = [
   "stat?/json",
   "sum?/json",
   "uname?/json",
+  "uptime?/json",
   "vdir?/json",
   "wc?/json",
   "who?/json",

@@ -5,17 +5,20 @@
 
 // spell-checker:ignore behaviour loadavg nusers
 
+#[cfg(feature = "json")]
+mod json;
 mod platform;
 
 use clap::{Arg, ArgAction, Command};
 use jiff::Timestamp;
 use jiff::tz::TimeZone;
 use std::io::{self, Write, stdout};
+use std::time::Duration;
 use uucore::error::{UError, UResult};
 use uucore::format_usage;
 use uucore::translate;
 use uucore::uptime::{
-    OutputFormat, format_nusers, get_formatted_loadavg, get_formatted_nusers, get_formatted_time,
+    FormattedUptime, OutputFormat, format_nusers, get_formatted_loadavg, get_formatted_time,
     get_formatted_uptime,
 };
 
@@ -46,16 +49,26 @@ impl UError for UptimeError {
 pub fn uumain(args: impl uucore::Args) -> UResult<()> {
     let matches = uucore::clap_localization::handle_clap_result(uu_app(), args)?;
 
+    // The JSON has the fields of the default output, whatever -s or -p say.
+    #[cfg(feature = "json")]
+    if uucore::json::is_json(&matches) {
+        return json::print_uptime(&matches);
+    }
     if matches.get_flag(options::SINCE) {
         return uptime_since();
     }
     if matches.get_flag(options::PRETTY) {
         return pretty_print_uptime();
     }
-    if let Some(result) = platform::maybe_uptime_from_file(&matches) {
-        return result;
+
+    let (uptime, users) = platform::uptime_and_users(&matches)?;
+    print_time()?;
+    match uptime {
+        Some(uptime) => print_uptime(uptime)?,
+        None => write!(stdout(), "{}", translate!("uptime-output-unknown-uptime"))?,
     }
-    default_uptime()
+    write!(stdout(), "{}", format_nusers(users))?;
+    print_loadavg()
 }
 
 pub fn uu_app() -> Command {
@@ -84,6 +97,10 @@ pub fn uu_app() -> Command {
                 .help(translate!("uptime-help-pretty"))
                 .action(ArgAction::SetTrue),
         );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "uptime-help-output-format"
+    )));
     platform::add_platform_args(cmd)
 }
 
@@ -92,16 +109,6 @@ fn uptime_since() -> UResult<()> {
 
     let since_date = (Timestamp::now() - uptime).to_zoned(TimeZone::system());
     writeln!(stdout(), "{}", since_date.strftime("%Y-%m-%d %H:%M:%S"))?;
-
-    Ok(())
-}
-
-/// Default uptime behaviour i.e. when no file argument is given.
-fn default_uptime() -> UResult<()> {
-    print_time()?;
-    print_uptime(None)?;
-    print_nusers(None)?;
-    print_loadavg()?;
 
     Ok(())
 }
@@ -117,31 +124,14 @@ fn print_loadavg() -> UResult<()> {
     Ok(())
 }
 
-fn print_nusers(nusers: Option<usize>) -> UResult<()> {
-    write!(
-        stdout(),
-        "{}",
-        match nusers {
-            None => {
-                get_formatted_nusers()
-            }
-            Some(nusers) => {
-                format_nusers(nusers)
-            }
-        }
-    )?;
-
-    Ok(())
-}
-
 fn print_time() -> UResult<()> {
     write!(stdout(), " {} ", get_formatted_time())?;
     Ok(())
 }
 
-fn print_uptime(boot_time: Option<i64>) -> UResult<()> {
+fn print_uptime(uptime: Duration) -> UResult<()> {
     let localized_text = translate!("uptime-output-up-text");
-    let uptime_message = get_formatted_uptime(boot_time, OutputFormat::HumanReadable)?;
+    let uptime_message = FormattedUptime::new(uptime.as_secs()).get_human_readable_uptime();
 
     write!(stdout(), "{localized_text} {uptime_message},  ")?;
     Ok(())
