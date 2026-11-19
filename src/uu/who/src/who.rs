@@ -9,6 +9,8 @@ use clap::{Arg, ArgAction, Command};
 use uucore::format_usage;
 use uucore::translate;
 
+#[cfg(feature = "json")]
+mod json;
 mod platform;
 
 mod options {
@@ -50,7 +52,7 @@ pub fn uu_app() -> Command {
         .about(about)
         .override_usage(format_usage(&translate!("who-usage")))
         .infer_long_args(true);
-    uucore::clap_localization::configure_localized_command(cmd)
+    let cmd = uucore::clap_localization::configure_localized_command(cmd)
         .arg(
             Arg::new(options::ALL)
                 .long(options::ALL)
@@ -153,5 +155,10 @@ pub fn uu_app() -> Command {
             Arg::new(options::FILE)
                 .num_args(1..=2)
                 .value_hint(clap::ValueHint::FilePath),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "who-help-output-format"
+    )));
+    cmd
 }

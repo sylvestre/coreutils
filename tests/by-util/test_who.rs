@@ -516,4 +516,75 @@ alice    ? ttyNotThere  Nov 14 22:13   ?          3456 (example.org)
     fn test_run_level_without_previous_level() {
         run_who(&[run_level(0, b'5')], &["-r"]).stdout_is("         run-level 5  Nov 14 22:13\n");
     }
+
+    #[cfg(feature = "json")]
+    fn run_who_json(args: &[&str]) -> serde_json::Value {
+        let mut json_args = vec!["--output-format=json"];
+        json_args.extend_from_slice(args);
+        let result = run_who(&records(), &json_args);
+        serde_json::from_str(result.stdout_str()).unwrap()
+    }
+
+    #[cfg(feature = "json")]
+    #[rstest::rstest]
+    #[case::boot("-b", serde_json::json!({"event": "reboot", "time": "Nov 14 22:13", "epoch": TIMESTAMP}))]
+    #[case::run_level("-r", serde_json::json!({
+        "event": "run-level 5", "time": "Nov 14 22:13", "comment": "last=S", "epoch": TIMESTAMP
+    }))]
+    #[case::clock_change("-t", serde_json::json!({"event": "clock change", "time": "Nov 14 22:13", "epoch": TIMESTAMP}))]
+    #[case::init("-p", serde_json::json!({
+        "event": "init", "tty": "tty9", "time": "Nov 14 22:13", "pid": 1234, "comment": "id=si",
+        "epoch": TIMESTAMP
+    }))]
+    #[case::login("-l", serde_json::json!({
+        "event": "login", "tty": "tty1", "time": "Nov 14 22:13", "pid": 2345, "comment": "id=1",
+        "epoch": TIMESTAMP
+    }))]
+    #[case::dead("-d", serde_json::json!({
+        "event": "dead", "tty": "pts/98", "time": "Nov 14 22:13", "pid": 4567,
+        "comment": "id=ts/8 term=1 exit=2", "epoch": TIMESTAMP
+    }))]
+    #[case::users("-u", serde_json::json!({
+        "user": "alice", "tty": "ttyNotThere", "time": "Nov 14 22:13", "idle": "?", "pid": 3456,
+        "from": "example.org", "epoch": TIMESTAMP
+    }))]
+    #[case::mesg("-T", serde_json::json!({
+        "user": "alice", "writeable_tty": "?", "tty": "ttyNotThere", "time": "Nov 14 22:13",
+        "from": "example.org", "epoch": TIMESTAMP
+    }))]
+    fn test_json_selector(#[case] arg: &str, #[case] expected: serde_json::Value) {
+        assert_eq!(run_who_json(&[arg]), serde_json::json!([expected]));
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn test_json_all_has_one_record_per_line_and_no_heading() {
+        let text = run_who(&records(), &["-a"]).stdout_move_str();
+        let value = run_who_json(&["-aH"]);
+        let records = value.as_array().unwrap();
+        assert_eq!(records.len(), text.lines().count());
+        let events: Vec<_> = records.iter().map(|r| r["event"].as_str()).collect();
+        assert_eq!(
+            events,
+            [
+                Some("reboot"),
+                Some("run-level 5"),
+                Some("clock change"),
+                Some("init"),
+                Some("login"),
+                None,
+                Some("dead"),
+            ]
+        );
+        assert_eq!(records[5]["user"], "alice");
+    }
+
+    #[cfg(feature = "json")]
+    #[test]
+    fn test_json_count_lists_user_names() {
+        assert_eq!(
+            run_who_json(&["-q"]),
+            serde_json::json!([{"user": "alice"}])
+        );
+    }
 }

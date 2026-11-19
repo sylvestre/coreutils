@@ -472,3 +472,19 @@ time zone is known, `epoch` and `epoch_utc` are both the Unix time and
 $ TZ=Europe/Paris date -d '2024-07-14 08:15' --output-format=json
 {"year":2024,"month":"Jul","month_num":7,"day":14,"weekday":"Sun","weekday_num":7,"hour":8,"hour_24":8,"minute":15,"second":0,"period":"AM","timezone":"CEST","utc_offset":"+0200","day_of_year":196,"week_of_year":28,"iso":"2024-07-14T08:15:00+02:00","epoch":1720937700,"epoch_utc":1720937700,"timezone_aware":true}
 ```
+
+### `who --output-format=json`
+
+An array with one object per line the text output prints (the `-H` heading
+excluded), with the columns that line shows: `user`, `writeable_tty` (`-T`),
+`tty`, `time` (as printed), `idle` and `pid` (integer) where the text has
+them, `from` (the remote host, without parentheses) and `comment`, plus
+`epoch`, the same time in seconds since the Unix epoch. Lines that are not
+user sessions have an `event` instead of a `user`: `reboot` (`-b`),
+`clock change` (`-t`), `run-level N` (`-r`), `login` (`-l`), `init` (`-p`)
+or `dead` (`-d`). With `-q`, it has one `{"user": ...}` object per name.
+
+```
+$ who -b --output-format=json
+[{"event":"reboot","time":"2026-11-12 17:24","epoch":1794507840}]
+```

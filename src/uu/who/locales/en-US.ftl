@@ -24,6 +24,7 @@ who-help-short = print only name, line, and time (default)
 who-help-time = print last system clock change
 who-help-users = list users logged in
 who-help-mesg = add user's message status as +, - or ?
+who-help-output-format = print the information in FORMAT
 
 # Output messages
 who-user-count = # { $count ->

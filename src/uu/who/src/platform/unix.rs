@@ -96,6 +96,18 @@ struct Row<'a> {
     pid: &'a str,
     note: &'a str,
     exit: &'a str,
+    /// `--output-format=json` only: what a line that is not a user session
+    /// stands for. Boot, clock change and runlevel lines name it instead of
+    /// a terminal.
+    #[cfg(feature = "json")]
+    event: &'a str,
+    #[cfg(feature = "json")]
+    line_is_event: bool,
+    /// The remote host, which the text shows as the `(host)` comment.
+    #[cfg(feature = "json")]
+    host: &'a str,
+    #[cfg(feature = "json")]
+    epoch: Option<i64>,
 }
 
 impl Default for Row<'_> {
@@ -109,6 +121,14 @@ impl Default for Row<'_> {
             pid: "",
             note: "",
             exit: "",
+            #[cfg(feature = "json")]
+            event: "",
+            #[cfg(feature = "json")]
+            line_is_event: false,
+            #[cfg(feature = "json")]
+            host: "",
+            #[cfg(feature = "json")]
+            epoch: None,
         }
     }
 }
@@ -160,6 +180,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         select,
         layout,
         args: files,
+        #[cfg(feature = "json")]
+        json: uucore::json::is_json(&matches).then(Vec::new),
     };
 
     who.exec()?;
@@ -173,6 +195,9 @@ struct Who {
     select: Selection,
     layout: Layout,
     args: Vec<String>,
+    /// With `--output-format=json`, the records of the lines printed so far.
+    #[cfg(feature = "json")]
+    json: Option<Vec<uucore::json::Value>>,
 }
 
 /// Render how long a terminal has been quiet: `hours:minutes`, `.` when under a
@@ -239,7 +264,11 @@ impl Who {
 
         let records = utmpx::Utmpx::iter_all_records_from(f);
 
-        if self.layout.header {
+        #[cfg(feature = "json")]
+        let header = self.layout.header && self.json.is_none();
+        #[cfg(not(feature = "json"))]
+        let header = self.layout.header;
+        if header {
             self.emit_header()?;
         }
         let cur_tty = if self.own_terminal_only {
@@ -258,6 +287,10 @@ impl Who {
                 self.emit_event(&ut, event)?;
             }
         }
+        #[cfg(feature = "json")]
+        if let Some(records) = self.json.take() {
+            uucore::json::print_json(&uucore::json::Value::Array(records))?;
+        }
         Ok(())
     }
 
@@ -267,6 +300,16 @@ impl Who {
             .filter(UtmpxRecord::is_user_process)
             .map(|ut| ut.user())
             .collect::<Vec<_>>();
+        // The JSON has one record per name; the total is its length.
+        #[cfg(feature = "json")]
+        if self.json.is_some() {
+            let records = users
+                .iter()
+                .map(|user| uucore::json::json!({ "user": user }))
+                .collect();
+            uucore::json::print_json(&uucore::json::Value::Array(records))?;
+            return Ok(());
+        }
         // `println!` panics on a write error; the rest of this file surfaces
         // it through `?` instead so the caller can report it and exit
         // non-zero, matching GNU (#13388).
@@ -299,27 +342,43 @@ impl Who {
         }
     }
 
-    fn emit_event(&self, ut: &UtmpxRecord, event: Event) -> UResult<()> {
+    fn emit_event(&mut self, ut: &UtmpxRecord, event: Event) -> UResult<()> {
         let time = format_timestamp(ut);
         let pid = format!("{}", ut.pid());
         let note = translate!("who-login-id", "id" => ut.terminal_suffix());
+        #[cfg(feature = "json")]
+        let epoch = Some(ut.login_time().unix_timestamp());
 
         // Held outside the match so the borrows below outlive it.
         #[cfg(target_os = "linux")]
         let runlevel_line;
         #[cfg(target_os = "linux")]
         let runlevel_note;
+        #[cfg(all(target_os = "linux", feature = "json"))]
+        let runlevel_event;
         let exit;
 
         let row = match event {
             Event::Boot => Row {
                 line: &translate!("who-system-boot"),
                 time: &time,
+                #[cfg(feature = "json")]
+                event: "reboot",
+                #[cfg(feature = "json")]
+                line_is_event: true,
+                #[cfg(feature = "json")]
+                epoch,
                 ..Row::default()
             },
             Event::ClockChange => Row {
                 line: &translate!("who-clock-change"),
                 time: &time,
+                #[cfg(feature = "json")]
+                event: "clock change",
+                #[cfg(feature = "json")]
+                line_is_event: true,
+                #[cfg(feature = "json")]
+                epoch,
                 ..Row::default()
             },
             #[cfg(target_os = "linux")]
@@ -327,6 +386,10 @@ impl Who {
                 let last = (ut.pid() / 256) as u8 as char;
                 let level = (ut.pid() % 256) as u8 as char;
                 runlevel_line = translate!("who-runlevel", "level" => level);
+                #[cfg(feature = "json")]
+                {
+                    runlevel_event = format!("run-level {level}");
+                }
                 // Like GNU, a previous level of 'N' is reported as 'S'; any
                 // other previous level is reported as-is.
                 runlevel_note = translate!("who-runlevel-last", "last" => (if last == 'N' { 'S' } else { last }));
@@ -338,6 +401,12 @@ impl Who {
                     } else {
                         &runlevel_note
                     },
+                    #[cfg(feature = "json")]
+                    event: &runlevel_event,
+                    #[cfg(feature = "json")]
+                    line_is_event: true,
+                    #[cfg(feature = "json")]
+                    epoch,
                     ..Row::default()
                 }
             }
@@ -347,6 +416,10 @@ impl Who {
                 time: &time,
                 pid: &pid,
                 note: &note,
+                #[cfg(feature = "json")]
+                event: "login",
+                #[cfg(feature = "json")]
+                epoch,
                 ..Row::default()
             },
             Event::InitChild => Row {
@@ -354,6 +427,10 @@ impl Who {
                 time: &time,
                 pid: &pid,
                 note: &note,
+                #[cfg(feature = "json")]
+                event: "init",
+                #[cfg(feature = "json")]
+                epoch,
                 ..Row::default()
             },
             Event::Exited => {
@@ -365,6 +442,10 @@ impl Who {
                     pid: &pid,
                     note: &note,
                     exit: &exit,
+                    #[cfg(feature = "json")]
+                    event: "dead",
+                    #[cfg(feature = "json")]
+                    epoch,
                     ..Row::default()
                 }
             }
@@ -373,7 +454,7 @@ impl Who {
         self.emit_row(&row)
     }
 
-    fn emit_session(&self, ut: &UtmpxRecord) -> UResult<()> {
+    fn emit_session(&mut self, ut: &UtmpxRecord) -> UResult<()> {
         let mut p = PathBuf::from("/dev");
         p.push(ut.tty_device().as_str());
         // A terminal that cannot be stat'ed reports an unknown write state and
@@ -409,7 +490,7 @@ impl Who {
             ut.host()
         };
         let note = if host.is_empty() {
-            host
+            String::new()
         } else {
             format!("({host})")
         };
@@ -423,14 +504,28 @@ impl Who {
             pid: &format!("{}", ut.pid()),
             note: &note,
             exit: "",
+            #[cfg(feature = "json")]
+            event: "",
+            #[cfg(feature = "json")]
+            line_is_event: false,
+            #[cfg(feature = "json")]
+            host: &host,
+            #[cfg(feature = "json")]
+            epoch: Some(ut.login_time().unix_timestamp()),
         })?;
 
         Ok(())
     }
 
-    fn emit_row(&self, row: &Row) -> UResult<()> {
+    fn emit_row(&mut self, row: &Row) -> UResult<()> {
         // Width of "%b %e %H:%M" under LC_ALL=C.
         const TIME_WIDTH: usize = 3 + 2 + 2 + 1 + 2;
+
+        #[cfg(feature = "json")]
+        if let Some(records) = &mut self.json {
+            records.push(self.layout.json_record(row));
+            return Ok(());
+        }
 
         let mut buf = String::with_capacity(64);
         write!(buf, "{:<8}", row.user).unwrap();
@@ -456,17 +551,44 @@ impl Who {
     }
 
     #[inline]
-    fn emit_header(&self) -> UResult<()> {
+    fn emit_header(&mut self) -> UResult<()> {
         self.emit_row(&Row {
             user: &translate!("who-heading-name"),
-            write_state: ' ',
             line: &translate!("who-heading-line"),
             time: &translate!("who-heading-time"),
             idle: &translate!("who-heading-idle"),
             pid: &translate!("who-heading-pid"),
             note: &translate!("who-heading-comment"),
             exit: &translate!("who-heading-exit"),
+            ..Row::default()
         })?;
         Ok(())
+    }
+}
+
+#[cfg(feature = "json")]
+impl Layout {
+    /// The JSON record of `row`, with the columns the text line would have.
+    fn json_record(&self, row: &Row) -> uucore::json::Value {
+        let comment = if row.host.is_empty() {
+            format!("{} {}", row.note, row.exit)
+        } else {
+            row.exit.to_string()
+        };
+        let shows_pid = !self.terse;
+        crate::json::Record {
+            // The `LOGIN` user of a login slot is the event, not a user.
+            user: if row.event.is_empty() { row.user } else { "" },
+            event: row.event,
+            writeable_tty: self.write_state.then_some(row.write_state),
+            tty: if row.line_is_event { "" } else { row.line },
+            time: row.time,
+            epoch: row.epoch,
+            idle: (shows_pid && self.idle).then_some(row.idle),
+            pid: shows_pid.then_some(row.pid),
+            from: row.host,
+            comment: comment.trim(),
+        }
+        .to_json()
     }
 }
