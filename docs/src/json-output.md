@@ -62,3 +62,12 @@ An array with one object per line, the total included: `filename`, `lines`,
 $ wc --output-format=json notes.txt
 [{"filename":"notes.txt","lines":3,"words":12,"bytes":61}]
 ```
+
+## `env`
+
+An array with one `{"name", "value"}` object per variable.
+
+```
+$ env --output-format=json -i LANG=C
+[{"name":"LANG","value":"C"}]
+```

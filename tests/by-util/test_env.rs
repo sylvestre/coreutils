@@ -2680,3 +2680,16 @@ fn test_env0_from_hyphen_value_not_split() {
         .succeeds()
         .stdout_is("A=1\n");
 }
+
+#[cfg(feature = "json")]
+#[rstest]
+#[case::json(
+    &["--output-format=json", "-i", "PAIR=k=v", "BLANK="],
+    "[{\"name\":\"PAIR\",\"value\":\"k=v\"},{\"name\":\"BLANK\",\"value\":\"\"}]\n"
+)]
+#[case::text_last(&["--output-format=json", "--output-format=text", "-i", "LONE=1"], "LONE=1\n")]
+// After a NAME=VALUE, an argument with `=` is one more assignment, not an option.
+#[case::after_assignment(&["-i", "LONE=1", "--output-format=json"], "LONE=1\n--output-format=json\n")]
+fn test_env_json(#[case] args: &[&str], #[case] expected: &str) {
+    new_ucmd!().args(args).succeeds().stdout_only(expected);
+}

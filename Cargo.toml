@@ -423,6 +423,7 @@ json = [
   "df?/json",
   "dir?/json",
   "du?/json",
+  "env?/json",
   "ls?/json",
   "uname?/json",
   "vdir?/json",

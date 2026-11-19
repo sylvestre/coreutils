@@ -29,6 +29,7 @@ uucore = { workspace = true, features = [
 nix = { workspace = true, features = ["process", "signal"] }
 
 [features]
+json = ["uucore/json"]
 diagnostics = ["uucore/diagnostics"]
 
 [dev-dependencies]
