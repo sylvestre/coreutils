@@ -52,3 +52,13 @@ inodes with `--inodes`).
 $ du -s src --output-format=json
 [{"size":118784,"name":"src"}]
 ```
+
+## `wc`
+
+An array with one object per line, the total included: `filename`, `lines`,
+`words`, `characters` (`-m`), `bytes` and `max_line_length`.
+
+```
+$ wc --output-format=json notes.txt
+[{"filename":"notes.txt","lines":3,"words":12,"bytes":61}]
+```

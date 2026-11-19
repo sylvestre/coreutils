@@ -415,10 +415,19 @@ unix = ["feat_os_unix"]
 windows = ["feat_os_windows"]
 ## project-specific feature shortcodes
 expensive_tests = []
-# Opt-in: `--output-format=json` for ls, dir, vdir, df, du and uname.
+# Opt-in: `--output-format=json` for the utilities jc can parse (ls, df, du,
+# uname, wc, stat, id, date, ...).
 #
 # Enable with: `cargo build --release --features json`
-json = ["df?/json", "dir?/json", "du?/json", "ls?/json", "uname?/json", "vdir?/json"]
+json = [
+  "df?/json",
+  "dir?/json",
+  "du?/json",
+  "ls?/json",
+  "uname?/json",
+  "vdir?/json",
+  "wc?/json",
+]
 # Opt-in: use OpenSSL (libcrypto) for md5/sha1/sha2-family digests in the
 # checksum utilities instead of the pure-Rust crates. Provides large speedups
 # on CPUs without SHA-NI.

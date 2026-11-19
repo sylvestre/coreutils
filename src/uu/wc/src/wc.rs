@@ -56,6 +56,9 @@ struct Settings<'a> {
     debug: bool,
     files0_from: Option<Input<'a>>,
     total_when: TotalWhen,
+    /// Whether to print the counts as a JSON array instead of text.
+    #[cfg(feature = "json")]
+    json: bool,
 }
 
 impl Default for Settings<'_> {
@@ -71,6 +74,8 @@ impl Default for Settings<'_> {
             debug: false,
             files0_from: None,
             total_when: TotalWhen::default(),
+            #[cfg(feature = "json")]
+            json: false,
         }
     }
 }
@@ -97,6 +102,8 @@ impl<'a> Settings<'a> {
             debug: matches.get_flag(options::DEBUG),
             files0_from,
             total_when,
+            #[cfg(feature = "json")]
+            json: uucore::json::is_json(matches),
         };
 
         if settings.number_enabled() > 0 {
@@ -106,6 +113,8 @@ impl<'a> Settings<'a> {
                 files0_from: settings.files0_from,
                 total_when,
                 debug: settings.debug,
+                #[cfg(feature = "json")]
+                json: settings.json,
                 ..Default::default()
             }
         }
@@ -124,6 +133,9 @@ impl<'a> Settings<'a> {
         .sum()
     }
 }
+
+#[cfg(feature = "json")]
+mod json;
 
 mod options {
     pub static BYTES: &str = "bytes";
@@ -395,7 +407,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 }
 
 pub fn uu_app() -> Command {
-    Command::new("wc")
+    let cmd = Command::new("wc")
         .version(uucore::crate_version!())
         .help_template(uucore::localized_help_template(uucore::util_name()))
         .about(translate!("wc-about"))
@@ -466,7 +478,12 @@ pub fn uu_app() -> Command {
                 .action(ArgAction::Append)
                 .value_parser(ValueParser::os_string())
                 .value_hint(clap::ValueHint::FilePath),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "wc-help-output-format"
+    )));
+    cmd
 }
 
 fn word_count_from_reader<T: WordCountable>(
@@ -967,6 +984,8 @@ pub(crate) fn wc_simd_allowed(policy: &SimdPolicy) -> bool {
 
 fn wc(inputs: &Inputs, settings: &Settings) -> UResult<()> {
     let mut total_word_count = WordCount::default();
+    #[cfg(feature = "json")]
+    let mut json_records = Vec::new();
     let mut num_inputs: usize = 0;
 
     let (number_width, are_stats_visible) = match settings.total_when {
@@ -1046,6 +1065,17 @@ fn wc(inputs: &Inputs, settings: &Settings) -> UResult<()> {
             }
         };
         total_word_count += word_count;
+        #[cfg(feature = "json")]
+        if settings.json {
+            if are_stats_visible {
+                let title = input.to_title();
+                json_records.push(json::record(settings, &word_count, title.as_deref()));
+            }
+            if let Some(err) = deferred_error {
+                show!(err);
+            }
+            continue;
+        }
         if are_stats_visible {
             let maybe_title = input.to_title();
             let maybe_title_str = maybe_title.as_deref();
@@ -1060,6 +1090,17 @@ fn wc(inputs: &Inputs, settings: &Settings) -> UResult<()> {
             let _ = io::stdout().flush();
             show!(err);
         }
+    }
+
+    #[cfg(feature = "json")]
+    if settings.json {
+        if settings.total_when.is_total_row_visible(num_inputs) {
+            let wc_total_msg = translate!("wc-total");
+            let name = are_stats_visible.then_some(OsStr::new(&wc_total_msg));
+            json_records.push(json::record(settings, &total_word_count, name));
+        }
+        uucore::json::print_json(&uucore::json::Value::Array(json_records))?;
+        return Ok(());
     }
 
     if settings.total_when.is_total_row_visible(num_inputs) {

@@ -12,6 +12,7 @@ wc-help-max-line-length = afficher la longueur de la ligne la plus longue
 wc-help-total = quand afficher une ligne avec les totaux ;
   WHEN peut être : auto, always, only, never
 wc-help-words = afficher le nombre de mots
+wc-help-output-format = afficher les nombres au FORMAT donné
 
 # Messages d'erreur
 wc-error-files-disabled = opérande supplémentaire { $extra }
