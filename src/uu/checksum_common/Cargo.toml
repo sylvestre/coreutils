@@ -24,6 +24,9 @@ uucore = { workspace = true, features = [
   "hardware",
 ] }
 
+[features]
+json = ["uucore/json"]
+
 [lints]
 workspace = true
 

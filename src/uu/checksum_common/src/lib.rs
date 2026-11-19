@@ -13,6 +13,8 @@ use clap::builder::ValueParser;
 use clap::parser::ValueSource;
 use clap::{Arg, ArgAction, ArgMatches, Command, ValueHint};
 
+#[cfg(feature = "json")]
+use uucore::checksum::compute::DigestFormat;
 use uucore::checksum::compute::{
     ChecksumComputeOptions, OutputFormat, perform_checksum_computation,
 };
@@ -23,6 +25,8 @@ use uucore::line_ending::LineEnding;
 use uucore::{crate_version, format_usage, localized_help_template, util_name};
 
 mod cli;
+#[cfg(feature = "json")]
+mod json;
 pub use cli::ChecksumCommand;
 pub use cli::options;
 
@@ -128,6 +132,7 @@ pub fn standalone_checksum_app_with_length(about: String, usage: String) -> Comm
         .with_tag(false)
         .with_text()
         .with_zero()
+        .with_output_format()
 }
 
 /// Command processing for standalone checksums *NOT* accepting the `--length`
@@ -139,6 +144,7 @@ pub fn standalone_checksum_app(about: String, usage: String) -> Command {
         .with_tag(false)
         .with_text()
         .with_zero()
+        .with_output_format()
 }
 
 /// This is the common entrypoint to all checksum utils. Performs some
@@ -211,6 +217,15 @@ pub fn checksum_main(
     let algo_kind = algo.unwrap_or(AlgoKind::Crc);
 
     let algo = SizedAlgoKind::from_unsized(algo_kind, length)?;
+
+    #[cfg(feature = "json")]
+    if uucore::json::is_json(&matches) {
+        let digest_format = match output_format {
+            OutputFormat::Tagged(format) | OutputFormat::Untagged(format, _) => format,
+            OutputFormat::Raw | OutputFormat::Legacy => DigestFormat::Hexadecimal,
+        };
+        return json::print_checksums(algo, digest_format, files);
+    }
     let line_ending = LineEnding::from_zero_flag(matches.get_flag(options::ZERO));
 
     let has_file_operands = matches.value_source(options::FILE) == Some(ValueSource::CommandLine);

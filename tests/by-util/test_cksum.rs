@@ -4058,3 +4058,26 @@ fn test_terminal_output_quotes_names() {
             .stdout_only(expected);
     }
 }
+
+#[cfg(feature = "json")]
+#[rstest]
+#[case::crc("crc")]
+#[case::sysv("sysv")]
+fn test_json_legacy_sum(#[case] algorithm: &str) {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.write("pebble", &"granite ".repeat(300));
+    let text = scene
+        .ucmd()
+        .args(&["-a", algorithm, "pebble"])
+        .succeeds()
+        .stdout_move_str();
+    let (checksum, blocks) = text.split_once(' ').unwrap();
+    let blocks = blocks.split_whitespace().next().unwrap();
+    scene
+        .ucmd()
+        .args(&["-a", algorithm, "--output-format=json", "pebble"])
+        .succeeds()
+        .stdout_only(format!(
+            "[{{\"filename\":\"pebble\",\"checksum\":{checksum},\"blocks\":{blocks}}}]\n"
+        ));
+}

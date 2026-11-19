@@ -85,3 +85,21 @@ fn test_check_binary_files_with_crlf_bytes() {
             .stdout_only("a.fake-ttf: OK\nb.fake-heic: OK\n");
     }
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_hash_per_file() {
+    let scene = TestScenario::new(util_name!());
+    scene.fixtures.write("left", "left side\n");
+    let text = scene.ucmd().arg("left").succeeds().stdout_move_str();
+    let hash = text.split_whitespace().next().unwrap();
+    // Keyed like jc's `hashsum` parser; stdin is named "-".
+    scene
+        .ucmd()
+        .args(&["--output-format=json", "left", "-"])
+        .pipe_in("left side\n")
+        .succeeds()
+        .stdout_only(format!(
+            "[{{\"filename\":\"left\",\"hash\":\"{hash}\"}},{{\"filename\":\"-\",\"hash\":\"{hash}\"}}]\n"
+        ));
+}

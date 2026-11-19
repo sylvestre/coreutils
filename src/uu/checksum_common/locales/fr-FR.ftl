@@ -16,3 +16,4 @@ ck-common-help-quiet = ne pas afficher OK pour chaque fichier vérifié avec suc
 ck-common-help-ignore-missing = ne pas échouer ou signaler le statut pour les fichiers manquants
 ck-common-help-zero = terminer chaque ligne de sortie avec NUL, pas un saut de ligne, et désactiver l'échappement des noms de fichiers
 ck-common-help-debug = afficher les informations de débogage sur la détection de la prise en charge matérielle du processeur
+ck-common-help-output-format = afficher les sommes de contrôle au FORMAT donné

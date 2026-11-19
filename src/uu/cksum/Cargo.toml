@@ -32,6 +32,7 @@ divan = { workspace = true }
 uucore = { workspace = true, features = ["benchmark"] }
 
 [features]
+json = ["uu_checksum_common/json"]
 openssl = ["uucore/openssl"]
 
 [lints]

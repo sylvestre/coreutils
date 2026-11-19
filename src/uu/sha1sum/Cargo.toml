@@ -31,6 +31,7 @@ uucore = { workspace = true, features = [
 uucore = { workspace = true, features = ["benchmark"] }
 
 [features]
+json = ["uu_checksum_common/json"]
 openssl = ["uucore/openssl"]
 
 [lints]

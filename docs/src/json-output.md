@@ -82,3 +82,13 @@ array of objects.
 $ id -g --output-format=json
 {"gid":{"id":1000,"name":"alice"}}
 ```
+
+## `md5sum`, `sha*sum`, `b2sum` and `cksum`
+
+An array with one object per file: `filename` and `hash`, or for the CRC,
+BSD and SysV sums, `filename`, `checksum` and `blocks`.
+
+```
+$ sha256sum notes.txt --output-format=json
+[{"filename":"notes.txt","hash":"8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4"}]
+```
