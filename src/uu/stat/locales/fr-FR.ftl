@@ -59,6 +59,7 @@ stat-after-help = Séquences de format valides pour les fichiers (sans `--file-s
 stat-help-dereference = suivre les liens
 stat-help-file-system = afficher le statut du système de fichiers au lieu du statut du fichier
 stat-help-terse = afficher les informations en forme concise
+stat-help-output-format = afficher les informations au FORMAT donné
 stat-help-format = utiliser le FORMAT spécifié au lieu du défaut ;
  afficher une nouvelle ligne après chaque utilisation de FORMAT
 stat-help-printf = comme --format, mais interpréter les séquences d'échappement avec barre oblique inverse,

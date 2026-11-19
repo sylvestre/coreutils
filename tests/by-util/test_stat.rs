@@ -1198,3 +1198,61 @@ fn test_alternate_octal_adds_a_single_zero(#[case] format: &str, #[case] expecte
         .succeeds()
         .stdout_is(expected);
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_json_matches_text_fields() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("payload", "eleven char");
+    at.set_mode("payload", 0o2640);
+    at.relative_symlink_file("payload", "pointer");
+    let format = "%s|%b|%o|%F|%Hd,%Ld|%i|%h|%a|%A|%u|%U|%g|%G|%x|%X|%y|%Y|%z|%Z|%w|%W";
+    let text = new_ucmd!()
+        .current_dir(at.as_string())
+        .args(&["-c", format, "payload"])
+        .succeeds()
+        .stdout_move_str();
+    let fields: Vec<&str> = text.trim_end().split('|').collect();
+    let number = |field: &str| field.parse::<u64>().unwrap();
+    let time = |text: &str, epoch: &str| match text {
+        "-" => (serde_json::Value::Null, serde_json::Value::Null),
+        _ => (text.into(), number(epoch).into()),
+    };
+    let (access, access_epoch) = time(fields[13], fields[14]);
+    let (modify, modify_epoch) = time(fields[15], fields[16]);
+    let (change, change_epoch) = time(fields[17], fields[18]);
+    let (birth, birth_epoch) = time(fields[19], fields[20]);
+
+    let result = ucmd
+        .args(&["--output-format=json", "payload", "pointer"])
+        .succeeds();
+    let records: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(
+        records[0],
+        serde_json::json!({
+            "file": "payload",
+            "size": number(fields[0]),
+            "blocks": number(fields[1]),
+            "io_blocks": number(fields[2]),
+            "type": fields[3],
+            "device": fields[4],
+            "inode": number(fields[5]),
+            "links": number(fields[6]),
+            "access": "2640",
+            "flags": "-rw-r-S---",
+            "uid": number(fields[9]),
+            "user": fields[10],
+            "gid": number(fields[11]),
+            "group": fields[12],
+            "access_time": access,
+            "access_time_epoch": access_epoch,
+            "modify_time": modify,
+            "modify_time_epoch": modify_epoch,
+            "change_time": change,
+            "change_time_epoch": change_epoch,
+            "birth_time": birth,
+            "birth_time_epoch": birth_epoch,
+        })
+    );
+    assert_eq!(records[1]["link_to"], "payload");
+}

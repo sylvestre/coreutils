@@ -92,3 +92,15 @@ BSD and SysV sums, `filename`, `checksum` and `blocks`.
 $ sha256sum notes.txt --output-format=json
 [{"filename":"notes.txt","hash":"8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4"}]
 ```
+
+## `stat`
+
+An array with one object per file, with the fields of the default output:
+`file`, `link_to`, `size`, `blocks`, `io_blocks`, `type`, `device`, `inode`,
+`links`, `access`, `flags`, `uid`, `user`, `gid`, `group`, and the access,
+modify, change and birth times, as printed and as `*_epoch`.
+
+```
+$ stat /etc/hostname --output-format=json
+[{"file":"/etc/hostname","size":6,"blocks":8,"io_blocks":4096,"type":"regular file","device":"8,2","inode":262259,"links":1,"access":"0644","flags":"-rw-r--r--","uid":0,"user":"root","gid":0,"group":"root","access_time":"2026-11-17 14:49:54.232433928 +0100","access_time_epoch":1794923394,...}]
+```

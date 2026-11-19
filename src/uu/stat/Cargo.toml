@@ -31,6 +31,7 @@ uucore = { workspace = true, features = [
 ] }
 
 [features]
+json = ["uucore/json"]
 selinux = ["uucore/selinux"]
 
 [lints]

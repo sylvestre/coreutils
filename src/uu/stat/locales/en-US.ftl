@@ -74,6 +74,7 @@ stat-warning-unrecognized-escape = unrecognized escape '\{$escape}'
 stat-help-dereference = follow links
 stat-help-file-system = display file system status instead of file status
 stat-help-terse = print the information in terse form
+stat-help-output-format = print the information in FORMAT
 stat-help-format = use the specified FORMAT instead of the default;
  output a newline after each use of FORMAT
 stat-help-printf = like --format, but interpret backslash escapes,

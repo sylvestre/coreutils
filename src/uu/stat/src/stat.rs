@@ -36,6 +36,9 @@ use std::{env, fs};
 
 use uucore::time::{FormatSystemTimeFallback, format_system_time};
 
+#[cfg(feature = "json")]
+mod json;
+
 #[derive(Debug, thiserror::Error)]
 enum StatError {
     #[error("{}", translate!("stat-error-invalid-directive", "directive" => directive))]
@@ -355,6 +358,9 @@ struct Stater {
     /// What the caret needs: the format as typed, and the command line.
     format_option: Option<OptionValue>,
     diag_args: Option<Vec<OsString>>,
+    /// With `--output-format=json`, the records of the files stat'ed so far.
+    #[cfg(feature = "json")]
+    json_records: Option<std::cell::RefCell<Vec<uucore::json::Value>>>,
 }
 
 /// Prints a formatted output based on the provided output type, flags, width, and precision.
@@ -1090,6 +1096,8 @@ impl Stater {
             format_option: format_error.is_some().then(given_option),
             format_error,
             diag_args: diag_args.map(<[OsString]>::to_vec),
+            #[cfg(feature = "json")]
+            json_records: uucore::json::is_json(matches).then(Default::default),
         })
     }
 
@@ -1134,6 +1142,10 @@ impl Stater {
         let mut ret = 0;
         for f in &self.files {
             ret |= self.do_stat(f, stdin_is_fifo)?;
+        }
+        #[cfg(feature = "json")]
+        if let Some(records) = &self.json_records {
+            uucore::json::print_json(&uucore::json::Value::Array(records.take()))?;
         }
         Ok(ret)
     }
@@ -1374,6 +1386,13 @@ impl Stater {
             };
             match result {
                 Ok(meta) => {
+                    #[cfg(feature = "json")]
+                    if let Some(records) = &self.json_records {
+                        records
+                            .borrow_mut()
+                            .push(json::file_record(&display_name, &file, &meta));
+                        return Ok(0);
+                    }
                     let file_type = meta.file_type();
                     let tokens = if self.from_user
                         || !(file_type.is_char_device() || file_type.is_block_device())
@@ -1499,7 +1518,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
 }
 
 pub fn uu_app() -> Command {
-    Command::new("stat")
+    let cmd = Command::new("stat")
         .version(uucore::crate_version!())
         .help_template(uucore::localized_help_template("stat"))
         .about(translate!("stat-about"))
@@ -1550,7 +1569,15 @@ pub fn uu_app() -> Command {
                 .value_parser(ValueParser::os_string())
                 .required(true)
                 .value_hint(clap::ValueHint::FilePath),
-        )
+        );
+    #[cfg(feature = "json")]
+    // The JSON has the fields of the default output, which a custom format
+    // or the file system information do not have.
+    let cmd = cmd.arg(
+        uucore::json::output_format_arg(translate!("stat-help-output-format"))
+            .conflicts_with_all([options::FORMAT, options::PRINTF, options::FILE_SYSTEM]),
+    );
+    cmd
 }
 
 const PRETTY_DATETIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S.%N %z";

@@ -435,6 +435,7 @@ json = [
   "sha256sum?/json",
   "sha384sum?/json",
   "sha512sum?/json",
+  "stat?/json",
   "sum?/json",
   "uname?/json",
   "vdir?/json",
