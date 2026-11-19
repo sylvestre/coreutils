@@ -860,3 +860,91 @@ fn test_count_bytes_from_repeated_redirected_stdin() {
         .stdout_only("      6 -\n      0 -\n      6 total\n");
     assert_eq!(input.stream_position().unwrap(), 6);
 }
+
+#[cfg(feature = "json")]
+#[test]
+fn test_wc_json_default_counts_and_total() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("pair", "uno dos\ntres\n");
+    at.write("odd\nname", "x");
+
+    let result = ucmd
+        .args(&["--output-format=json", "pair", "odd\nname"])
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    // The name comes first like jc's records, unescaped unlike the text, and
+    // the total line is a record of its own.
+    assert_eq!(
+        value,
+        serde_json::json!([
+            {"filename": "pair", "lines": 2, "words": 3, "bytes": 13},
+            {"filename": "odd\nname", "lines": 0, "words": 1, "bytes": 1},
+            {"filename": "total", "lines": 2, "words": 4, "bytes": 14},
+        ])
+    );
+}
+
+#[cfg(feature = "json")]
+#[rstest]
+#[case::chars(&["-m"], serde_json::json!([{"filename": "-", "characters": 10}]))]
+#[case::bytes_and_longest(&["-cL"], serde_json::json!([{"filename": "-", "bytes": 10, "max_line_length": 5}]))]
+#[case::words(&["-w"], serde_json::json!([{"filename": "-", "words": 2}]))]
+fn test_wc_json_selected_counts(#[case] args: &[&str], #[case] expected: serde_json::Value) {
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "-"])
+        .args(args)
+        .pipe_in("ab\ncdefg\n\n")
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(value, expected);
+}
+
+#[cfg(feature = "json")]
+#[rstest]
+#[case::implicit_stdin(&[], serde_json::json!([{"lines": 1, "words": 2, "bytes": 8}]))]
+#[case::total_only(
+    &["--total=only", "-", "-"],
+    serde_json::json!([{"lines": 1, "words": 2, "bytes": 8}])
+)]
+#[case::total_never(
+    &["-l", "--total=never", "-", "-"],
+    serde_json::json!([{"filename": "-", "lines": 1}, {"filename": "-", "lines": 0}])
+)]
+fn test_wc_json_names_follow_text(#[case] args: &[&str], #[case] expected: serde_json::Value) {
+    let result = new_ucmd!()
+        .arg("--output-format=json")
+        .args(args)
+        .pipe_in("ab cdef\n")
+        .succeeds();
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(value, expected);
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_wc_json_missing_file_has_no_record() {
+    let (at, mut ucmd) = at_and_ucmd!();
+    at.write("here", "z\n");
+    let result = ucmd
+        .args(&["--output-format=json", "-l", "here", "gone"])
+        .fails_with_code(1);
+    result.stderr_is("wc: gone: No such file or directory\n");
+    let value: serde_json::Value = serde_json::from_str(result.stdout_str()).unwrap();
+    assert_eq!(
+        value,
+        serde_json::json!([
+            {"filename": "here", "lines": 1},
+            {"filename": "total", "lines": 1},
+        ])
+    );
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_wc_output_format_text_overrides_json() {
+    new_ucmd!()
+        .args(&["--output-format=json", "--output-format=text", "-w"])
+        .pipe_in("one two three")
+        .succeeds()
+        .stdout_only("3\n");
+}

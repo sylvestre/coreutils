@@ -318,3 +318,26 @@ not add an entry.
 $ du -s src --output-format=json
 [{"size":118784,"name":"src"}]
 ```
+
+### `wc --output-format=json`
+
+An array with one object per line the text output prints, the total line
+included (its `filename` is `total`), in the same order. Each object has the
+counts the text shows, plus `filename` when the text names the input (not for
+standard input read without `-`, nor with `--total=only`). Unlike jc, which
+calls the third default column `characters`, byte counts (`-c` and the
+default) are `bytes`; `characters` is used for `-m`.
+
+| Key               | Type    | Description                              |
+| ----------------- | ------- | ---------------------------------------- |
+| `filename`        | string  | The input as given, `-` for stdin        |
+| `lines`           | integer | `-l`, default: number of newlines        |
+| `words`           | integer | `-w`, default: number of words           |
+| `characters`      | integer | `-m`: number of characters               |
+| `bytes`           | integer | `-c`, default: number of bytes           |
+| `max_line_length` | integer | `-L`: display width of the longest line  |
+
+```
+$ wc --output-format=json notes.txt todo.txt
+[{"filename":"notes.txt","lines":3,"words":12,"bytes":61},{"filename":"todo.txt","lines":1,"words":2,"bytes":9},{"filename":"total","lines":4,"words":14,"bytes":70}]
+```
