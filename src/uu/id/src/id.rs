@@ -31,6 +31,9 @@ use uucore::translate;
 use rustix::process::{Uid, getegid, geteuid, getgid, getuid};
 use uucore::{format_usage, show_error};
 
+#[cfg(feature = "json")]
+mod json;
+
 macro_rules! cstr2cow {
     ($v:expr) => {
         unsafe {
@@ -89,6 +92,8 @@ struct State {
     rflag: bool,  // --real
     zflag: bool,  // --zero
     cflag: bool,  // --context
+    #[cfg(feature = "json")]
+    json: bool, // --output-format=json
     #[cfg(all(feature = "selinux", any(target_os = "linux", target_os = "android")))]
     selinux_supported: bool,
     #[cfg(all(feature = "smack", target_os = "linux"))]
@@ -130,6 +135,8 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         rflag: matches.get_flag(options::OPT_REAL_ID),
         zflag: matches.get_flag(options::OPT_ZERO),
         cflag: matches.get_flag(options::OPT_CONTEXT),
+        #[cfg(feature = "json")]
+        json: uucore::json::is_json(&matches),
         #[cfg(all(feature = "selinux", any(target_os = "linux", target_os = "android")))]
         selinux_supported: uucore::selinux::is_selinux_enabled(),
         #[cfg(all(feature = "smack", target_os = "linux"))]
@@ -162,6 +169,44 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             translate!("id-error-cannot-print-context-with-user"),
         ));
     }
+
+    #[cfg(feature = "json")]
+    if state.json
+        && [
+            options::OPT_PASSWORD,
+            options::OPT_HUMAN_READABLE,
+            options::OPT_AUDIT,
+        ]
+        .iter()
+        .any(|&flag| matches.get_flag(flag))
+    {
+        return Err(USimpleError::new(
+            1,
+            translate!("id-error-output-format-json-unsupported"),
+        ));
+    }
+
+    #[cfg(feature = "json")]
+    if state.json && state.cflag {
+        return match json::security_context(&state) {
+            Some(Ok(context)) => {
+                let context = json::context_record(&context);
+                Ok(uucore::json::print_json(
+                    &uucore::json::json!({ "context": context }),
+                )?)
+            }
+            Some(Err(())) => Err(USimpleError::new(
+                1,
+                translate!("id-error-cannot-get-context"),
+            )),
+            None => Err(USimpleError::new(
+                1,
+                translate!("id-error-context-security-only"),
+            )),
+        };
+    }
+    #[cfg(feature = "json")]
+    let mut json_records = Vec::new();
 
     let delimiter = if state.zflag { "\0" } else { " " };
     let line_ending = LineEnding::from_zero_flag(state.zflag);
@@ -260,6 +305,16 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             egid: getegid().as_raw(),
         });
 
+        #[cfg(feature = "json")]
+        if state.json {
+            let groups = user_groups(&state, possible_pw.as_ref())?;
+            json_records.push(json::record(&state, &groups, default_format));
+            if i + 1 >= users.len() {
+                break;
+            }
+            continue;
+        }
+
         if state.gflag {
             write!(
                 lock,
@@ -298,15 +353,7 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
             )?;
         }
 
-        // GNU heads the two forms with opposite gids: `groups=` with the
-        // effective gid, `-G` with the real gid. Don't share one list.
-        let groups = if state.user_specified {
-            possible_pw.as_ref().map(Passwd::belongs_to).unwrap()
-        } else if state.gsflag {
-            entries::get_groups_real_gid_first()?
-        } else {
-            entries::get_groups_gnu(Some(getegid().as_raw()))?
-        };
+        let groups = user_groups(&state, possible_pw.as_ref())?;
 
         if state.gsflag {
             write!(
@@ -349,11 +396,35 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
         }
     }
 
+    #[cfg(feature = "json")]
+    if state.json {
+        // One object for the current or the single given user, an array
+        // with one object per user otherwise.
+        if users.len() > 1 {
+            uucore::json::print_json(&uucore::json::Value::Array(json_records))?;
+        } else if let Some(record) = json_records.pop() {
+            uucore::json::print_json(&record)?;
+        }
+    }
+
     Ok(())
 }
 
+/// The groups listed for the user: GNU heads the two forms with opposite
+/// gids, `groups=` with the effective gid and `-G` with the real gid, so
+/// they don't share one list.
+fn user_groups(state: &State, possible_pw: Option<&Passwd>) -> io::Result<Vec<u32>> {
+    if let Some(pw) = possible_pw {
+        Ok(pw.belongs_to())
+    } else if state.gsflag {
+        entries::get_groups_real_gid_first()
+    } else {
+        entries::get_groups_gnu(Some(getegid().as_raw()))
+    }
+}
+
 pub fn uu_app() -> Command {
-    Command::new("id")
+    let cmd = Command::new("id")
         .version(uucore::crate_version!())
         .help_template(uucore::localized_help_template("id"))
         .about(translate!("id-about"))
@@ -460,7 +531,12 @@ pub fn uu_app() -> Command {
                 .action(ArgAction::Append)
                 .value_name(options::ARG_USERS)
                 .value_hint(clap::ValueHint::Username),
-        )
+        );
+    #[cfg(feature = "json")]
+    let cmd = cmd.arg(uucore::json::output_format_arg(translate!(
+        "id-help-output-format"
+    )));
+    cmd
 }
 
 fn pretty(possible_pw: Option<Passwd>) -> io::Result<()> {

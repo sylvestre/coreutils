@@ -30,6 +30,7 @@ name = "id"
 path = "src/main.rs"
 
 [features]
+json = ["uucore/json"]
 selinux = ["dep:selinux"]
 smack = ["uucore/smack"]
 

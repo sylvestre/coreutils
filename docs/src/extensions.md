@@ -359,3 +359,19 @@ $ env --output-format=json -i LANG=C TERM=xterm
 $ printenv --output-format=json HOME
 [{"name":"HOME","value":"/home/alice"}]
 ```
+
+### `id --output-format=json`
+
+An object with `uid`, `gid` and `groups`, each id given as `{"id", "name"}`
+(`name` is null when the id has no name). As in the text, `euid` and `egid`
+are added when they differ from `uid` and `gid`, and `context` (split into
+`user`, `role`, `type` and `level`) when the security context is shown.
+`-u`, `-g`, `-G` and `-Z` keep only `uid`, `gid`, `groups` or `context`;
+`-r` selects the real ids; `-n` and `-z` do not change the JSON. With
+several users, the output is an array with one object per user.
+`-A`, `-p` and `-P` cannot be combined with `--output-format=json`.
+
+```
+$ id -g --output-format=json
+{"gid":{"id":1000,"name":"alice"}}
+```

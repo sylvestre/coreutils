@@ -23,6 +23,7 @@ id-error-no-such-user = { $user }: no such user
 id-error-cannot-find-group-name = cannot find name for group ID { $gid }
 id-error-cannot-find-user-name = cannot find name for user ID { $uid }
 id-error-audit-retrieve = couldn't retrieve information
+id-error-output-format-json-unsupported = --output-format=json cannot be combined with -A, -p or -P
 
 # Help text for command-line arguments
 id-help-ignore = ignore, for compatibility with other versions
@@ -42,6 +43,7 @@ id-help-real = Display the real ID for the -G, -g and -u options instead of
   the effective ID.
 id-help-zero = delimit entries with NUL characters, not whitespace;
   not permitted in default format
+id-help-output-format = print the information in FORMAT
 
 # Output labels
 id-output-uid = uid

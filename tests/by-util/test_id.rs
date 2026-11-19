@@ -581,3 +581,81 @@ fn test_id_digital_username() {
 
     new_ucmd!().arg("200").succeeds();
 }
+
+#[cfg(feature = "json")]
+fn parse_json(stdout: &str) -> serde_json::Value {
+    serde_json::from_str(stdout).unwrap()
+}
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::user("-u", "uid")]
+#[case::group("-g", "gid")]
+#[case::real_user("-ru", "uid")]
+fn test_id_json_single_id_matches_text(#[case] flag: &str, #[case] key: &str) {
+    let text = new_ucmd!().arg(flag).succeeds().stdout_move_str();
+    let result = new_ucmd!().args(&["--output-format=json", flag]).succeeds();
+    let value = parse_json(result.stdout_str());
+    let object = value.as_object().unwrap();
+    // Only the selected id, with both its number and its name.
+    assert_eq!(object.keys().collect::<Vec<_>>(), [key]);
+    assert_eq!(object[key]["id"].to_string(), text.trim_end());
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_id_json_groups_match_text() {
+    let text = new_ucmd!().arg("-G").succeeds().stdout_move_str();
+    let result = new_ucmd!().args(&["-G", "--output-format=json"]).succeeds();
+    let ids: Vec<String> = parse_json(result.stdout_str())["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|group| group["id"].to_string())
+        .collect();
+    assert_eq!(ids, text.split_whitespace().collect::<Vec<_>>());
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_id_json_given_users() {
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "root"])
+        .succeeds();
+    let value = parse_json(result.stdout_str());
+    assert_eq!(value["uid"], serde_json::json!({"id": 0, "name": "root"}));
+    assert_eq!(value["gid"]["id"], 0);
+    assert!(value["groups"].is_array());
+    // No context for a given user, as in the text output.
+    assert!(value.get("context").is_none());
+
+    // Several users give an array, the unknown one only an error.
+    let result = new_ucmd!()
+        .args(&["--output-format=json", "root", "no_such_user_x9", "root"])
+        .fails_with_code(1);
+    let value = parse_json(result.stdout_str());
+    assert_eq!(value.as_array().unwrap().len(), 2);
+    assert_eq!(value[1]["uid"]["name"], "root");
+}
+
+#[cfg(feature = "json")]
+#[rstest::rstest]
+#[case::password("-P")]
+#[case::human_readable("-p")]
+fn test_id_json_rejects_bsd_formats(#[case] flag: &str) {
+    new_ucmd!()
+        .args(&["--output-format=json", flag])
+        .fails_with_code(1)
+        .no_stdout()
+        .stderr_contains("cannot be combined");
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn test_id_output_format_text_overrides_json() {
+    let plain = new_ucmd!().arg("-G").succeeds().stdout_move_str();
+    new_ucmd!()
+        .args(&["--output-format=json", "-G", "--output-format=text"])
+        .succeeds()
+        .stdout_only(plain);
+}

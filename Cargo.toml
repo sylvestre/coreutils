@@ -424,6 +424,7 @@ json = [
   "dir?/json",
   "du?/json",
   "env?/json",
+  "id?/json",
   "ls?/json",
   "printenv?/json",
   "uname?/json",
